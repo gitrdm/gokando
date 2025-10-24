@@ -60,6 +60,13 @@ func (v *Var) String() string {
 	return fmt.Sprintf("_%d", v.id)
 }
 
+// ID returns the unique identifier of the variable.
+func (v *Var) ID() int64 {
+	v.mu.RLock()
+	defer v.mu.RUnlock()
+	return v.id
+}
+
 // Equal checks if two variables are the same variable.
 func (v *Var) Equal(other Term) bool {
 	if otherVar, ok := other.(*Var); ok {

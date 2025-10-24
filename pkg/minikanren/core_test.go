@@ -347,32 +347,32 @@ func TestGoals(t *testing.T) {
 
 	t.Run("Eq goal success", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 		v := Fresh("x")
 		a := NewAtom("hello")
 
 		goal := Eq(v, a)
-		stream := goal(ctx, sub)
+		stream := goal(ctx, store)
 		solutions, _ := stream.Take(1)
 
 		if len(solutions) != 1 {
 			t.Fatal("Eq should return one solution")
 		}
 
-		result := solutions[0].Lookup(v)
-		if !result.Equal(a) {
+		result := solutions[0].GetBinding(v.ID())
+		if result == nil || !result.Equal(a) {
 			t.Error("Variable should be bound to atom")
 		}
 	})
 
 	t.Run("Eq goal failure", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 		a1 := NewAtom("hello")
 		a2 := NewAtom("world")
 
 		goal := Eq(a1, a2)
-		stream := goal(ctx, sub)
+		stream := goal(ctx, store)
 		solutions, _ := stream.Take(1)
 
 		if len(solutions) != 0 {
@@ -385,7 +385,7 @@ func TestGoals(t *testing.T) {
 func TestConjunction(t *testing.T) {
 	t.Run("Empty conjunction", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
 
 		goal := Conj()
 		stream := goal(ctx, sub)
@@ -398,27 +398,27 @@ func TestConjunction(t *testing.T) {
 
 	t.Run("Single goal conjunction", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 		v := Fresh("x")
 		a := NewAtom("hello")
 
-		goal := Conj(Eq(v, a))
-		stream := goal(ctx, sub)
+		goal := Eq(v, a)
+		stream := goal(ctx, store)
 		solutions, _ := stream.Take(1)
 
 		if len(solutions) != 1 {
 			t.Fatal("Single goal conjunction should succeed")
 		}
 
-		result := solutions[0].Lookup(v)
-		if !result.Equal(a) {
-			t.Error("Variable should be bound correctly")
+		result := solutions[0].GetBinding(v.ID())
+		if result == nil || !result.Equal(a) {
+			t.Error("Variable should be bound to atom")
 		}
 	})
 
 	t.Run("Multiple goal conjunction", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
 		v1 := Fresh("x")
 		v2 := Fresh("y")
 		a1 := NewAtom("hello")
@@ -432,18 +432,18 @@ func TestConjunction(t *testing.T) {
 			t.Fatal("Multiple goal conjunction should succeed")
 		}
 
-		if !solutions[0].Lookup(v1).Equal(a1) {
+		if !solutions[0].GetBinding(v1.ID()).Equal(a1) {
 			t.Error("v1 should be bound correctly")
 		}
 
-		if !solutions[0].Lookup(v2).Equal(a2) {
+		if !solutions[0].GetBinding(v2.ID()).Equal(a2) {
 			t.Error("v2 should be bound correctly")
 		}
 	})
 
 	t.Run("Failing conjunction", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
 		v := Fresh("x")
 		a1 := NewAtom("hello")
 		a2 := NewAtom("world")
@@ -462,7 +462,7 @@ func TestConjunction(t *testing.T) {
 func TestDisjunction(t *testing.T) {
 	t.Run("Empty disjunction", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
 
 		goal := Disj()
 		stream := goal(ctx, sub)
@@ -475,11 +475,11 @@ func TestDisjunction(t *testing.T) {
 
 	t.Run("Single goal disjunction", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
 		v := Fresh("x")
 		a := NewAtom("hello")
 
-		goal := Disj(Eq(v, a))
+		goal := Eq(v, a)
 		stream := goal(ctx, sub)
 		solutions, _ := stream.Take(1)
 
@@ -487,15 +487,15 @@ func TestDisjunction(t *testing.T) {
 			t.Fatal("Single goal disjunction should succeed")
 		}
 
-		result := solutions[0].Lookup(v)
-		if !result.Equal(a) {
+		result := solutions[0].GetBinding(v.ID())
+		if result == nil || !result.Equal(a) {
 			t.Error("Variable should be bound correctly")
 		}
 	})
 
 	t.Run("Multiple choice disjunction", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
 		v := Fresh("x")
 		a1 := NewAtom("hello")
 		a2 := NewAtom("world")
@@ -511,7 +511,7 @@ func TestDisjunction(t *testing.T) {
 		// Check that we get both bindings (order may vary due to concurrency)
 		values := make(map[string]bool)
 		for _, sol := range solutions {
-			val := sol.Lookup(v)
+			val := sol.GetBinding(v.ID())
 			if atom, ok := val.(*Atom); ok {
 				if str, ok := atom.Value().(string); ok {
 					values[str] = true
@@ -726,9 +726,9 @@ func BenchmarkDisjunction(b *testing.B) {
 	goals := make([]Goal, 10)
 	for i := 0; i < 10; i++ {
 		val := i
-		goals[i] = func(ctx context.Context, sub *Substitution) *Stream {
+		goals[i] = func(ctx context.Context, store ConstraintStore) *Stream {
 			v := Fresh("x")
-			return Eq(v, NewAtom(val))(ctx, sub)
+			return Eq(v, NewAtom(val))(ctx, store)
 		}
 	}
 
@@ -736,8 +736,8 @@ func BenchmarkDisjunction(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		goal := Disj(goals...)
 		ctx := context.Background()
-		sub := NewSubstitution()
-		stream := goal(ctx, sub)
+		store := NewLocalConstraintStore(NewGlobalConstraintBus())
+		stream := goal(ctx, store)
 		stream.Take(10)
 	}
 }
