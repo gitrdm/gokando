@@ -106,7 +106,7 @@ func (pe *ParallelExecutor) ParallelDisj(goals ...Goal) Goal {
 		return goals[0]
 	}
 
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		stream := NewStream()
 
 		go func() {
@@ -121,7 +121,7 @@ func (pe *ParallelExecutor) ParallelDisj(goals ...Goal) Goal {
 			pe.mu.RUnlock()
 
 			var wg sync.WaitGroup
-			resultChan := make(chan *Substitution, len(goals)*2)
+			resultChan := make(chan ConstraintStore, len(goals)*2)
 
 			// Execute each goal in parallel
 			for _, goal := range goals {
@@ -148,7 +148,7 @@ func (pe *ParallelExecutor) ParallelDisj(goals ...Goal) Goal {
 					}
 
 					// Execute the goal
-					goalStream := goalToExecute(ctx, sub)
+					goalStream := goalToExecute(ctx, store)
 
 					// Forward all results from this goal
 					for {
@@ -222,14 +222,14 @@ func ParallelRunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal
 	q := Fresh("q")
 	goal := goalFunc(q)
 
-	initialSub := NewSubstitution()
-	stream := goal(ctx, initialSub)
+	initialStore := NewLocalConstraintStore(NewGlobalConstraintBus())
+	stream := goal(ctx, initialStore)
 
 	solutions, _ := stream.Take(n)
 
 	var results []Term
-	for _, sub := range solutions {
-		value := sub.Walk(q)
+	for _, store := range solutions {
+		value := store.GetSubstitution().Walk(q)
 		results = append(results, value)
 	}
 
@@ -253,30 +253,30 @@ func NewParallelStream(ctx context.Context, executor *ParallelExecutor) *Paralle
 	}
 }
 
-// ParallelMap applies a function to each substitution in the stream in parallel.
-func (ps *ParallelStream) ParallelMap(fn func(*Substitution) *Substitution) *ParallelStream {
+// ParallelMap applies a function to each constraint store in the stream in parallel.
+func (ps *ParallelStream) ParallelMap(fn func(ConstraintStore) ConstraintStore) *ParallelStream {
 	resultStream := NewParallelStream(ps.ctx, ps.executor)
 
 	go func() {
 		defer resultStream.Close()
 
 		var wg sync.WaitGroup
-		resultChan := make(chan *Substitution, ps.executor.config.MaxWorkers*2)
+		resultChan := make(chan ConstraintStore, ps.executor.config.MaxWorkers*2)
 
-		// Process substitutions in parallel
+		// Process constraint stores in parallel
 		for {
-			subs, hasMore := ps.Take(ps.executor.config.MaxWorkers)
-			if len(subs) == 0 {
+			stores, hasMore := ps.Take(ps.executor.config.MaxWorkers)
+			if len(stores) == 0 {
 				if !hasMore {
 					break
 				}
 				continue
 			}
 
-			for _, sub := range subs {
+			for _, store := range stores {
 				wg.Add(1)
 
-				subToProcess := sub
+				storeToProcess := store
 				task := func() {
 					defer wg.Done()
 
@@ -296,7 +296,7 @@ func (ps *ParallelStream) ParallelMap(fn func(*Substitution) *Substitution) *Par
 						}
 					}
 
-					result := fn(subToProcess)
+					result := fn(storeToProcess)
 					if result != nil {
 						select {
 						case resultChan <- result:
@@ -327,23 +327,23 @@ func (ps *ParallelStream) ParallelMap(fn func(*Substitution) *Substitution) *Par
 	return resultStream
 }
 
-// ParallelFilter filters substitutions in the stream in parallel.
-func (ps *ParallelStream) ParallelFilter(predicate func(*Substitution) bool) *ParallelStream {
-	return ps.ParallelMap(func(sub *Substitution) *Substitution {
-		if predicate(sub) {
-			return sub
+// ParallelFilter filters constraint stores in the stream in parallel.
+func (ps *ParallelStream) ParallelFilter(predicate func(ConstraintStore) bool) *ParallelStream {
+	return ps.ParallelMap(func(store ConstraintStore) ConstraintStore {
+		if predicate(store) {
+			return store
 		}
 		return nil
 	})
 }
 
-// Collect gathers all substitutions from the parallel stream.
-func (ps *ParallelStream) Collect() []*Substitution {
-	var results []*Substitution
+// Collect gathers all constraint stores from the parallel stream.
+func (ps *ParallelStream) Collect() []ConstraintStore {
+	var results []ConstraintStore
 
 	for {
-		subs, hasMore := ps.Take(100) // Take in batches
-		results = append(results, subs...)
+		stores, hasMore := ps.Take(100) // Take in batches
+		results = append(results, stores...)
 
 		if !hasMore {
 			break

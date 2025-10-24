@@ -117,13 +117,27 @@ results := minikanren.ParallelRunWithConfig(10, goalFunc, config)
 
 ## Common Patterns
 
-### Generate and Test
+### Constraint-First or Generate-First
 ```go
+// Both patterns work identically:
+
+// Constraints first (more natural)
 minikanren.Run(10, func(q *minikanren.Var) minikanren.Goal {
     return minikanren.Conj(
+        // Express constraints naturally
+        minikanren.Symbolo(q),
+        minikanren.Neq(q, minikanren.NewAtom("excluded")),
         // Generate candidates
         minikanren.Membero(q, candidates),
-        // Test constraints
+    )
+})
+
+// Generate first (traditional)
+minikanren.Run(10, func(q *minikanren.Var) minikanren.Goal {
+    return minikanren.Conj(
+        // Generate candidates  
+        minikanren.Membero(q, candidates),
+        // Apply constraints
         minikanren.Symbolo(q),
         minikanren.Neq(q, minikanren.NewAtom("excluded")),
     )
@@ -149,25 +163,34 @@ minikanren.Run(10, func(q *minikanren.Var) minikanren.Goal {
 })
 ```
 
-### Constraint Ordering (Important!)
+### Order-Independent Constraints ✨
 ```go
-// ✅ Correct: bind first, then constrain
+// ✅ Both patterns work identically:
+
+// Pattern 1: Constraint before unification
 minikanren.Conj(
-    minikanren.Eq(x, value),      // Bind variable
-    minikanren.Symbolo(x),        // Check constraint
+    minikanren.Symbolo(x),        // Constraint added to store
+    minikanren.Eq(x, value),      // Unification checks constraints
 )
 
-// ❌ Unreliable: constraint before binding
+// Pattern 2: Unification before constraint
 minikanren.Conj(
-    minikanren.Symbolo(x),        // Constraint on unbound var
-    minikanren.Eq(x, value),      // Binding happens after
+    minikanren.Eq(x, value),      // Bind variable first
+    minikanren.Symbolo(x),        // Constraint checked against binding
+)
+
+// Pattern 3: Mixed ordering also works
+minikanren.Conj(
+    minikanren.Neq(x, forbidden),
+    minikanren.Eq(x, value),
+    minikanren.Symbolo(x),
 )
 ```
 
 ## Performance Tips
 
 1. **Use Run(n, ...) instead of RunStar** for large solution spaces
-2. **Order constraints after unification** for reliable behavior  
+2. **Place constraints anywhere convenient** - order doesn't matter for correctness
 3. **Use parallel execution** for complex goals with independent choice points
 4. **Avoid parallel execution** for simple queries (overhead dominates)
 5. **Use context cancellation** for long-running queries

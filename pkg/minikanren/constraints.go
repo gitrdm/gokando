@@ -2,7 +2,6 @@ package minikanren
 
 import (
 	"context"
-	"reflect"
 )
 
 // Neq creates a disequality constraint that ensures two terms are NOT equal.
@@ -17,73 +16,44 @@ import (
 // Neq implements the disequality constraint.
 // It ensures that two terms are not equal.
 func Neq(t1, t2 Term) Goal {
-	return func(ctx context.Context, s *Substitution) *Stream {
-		// Walk both terms to their final values
-		term1 := s.Walk(t1)
-		term2 := s.Walk(t2)
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		// Create a disequality constraint and add it to the store
+		constraint := NewDisequalityConstraint(t1, t2)
 
-		// If either is a variable, we defer the constraint
-		if term1.IsVar() || term2.IsVar() {
-			// For now, we assume the constraint will be satisfied
-			// In a full implementation, we'd store this constraint
-			// and check it whenever new bindings are made
-			stream := NewStream()
-			go func() {
-				defer stream.Close()
-				stream.Put(s)
-			}()
-			return stream
-		}
+		err := store.AddConstraint(constraint)
 
-		// Both are concrete terms - check if they're equal
-		if term1.Equal(term2) {
-			// Constraint violated - terms are equal
-			stream := NewStream()
-			stream.Close()
-			return stream
-		}
-
-		// Terms are different - constraint satisfied
 		stream := NewStream()
 		go func() {
 			defer stream.Close()
-			stream.Put(s)
+			if err == nil {
+				stream.Put(store)
+			}
 		}()
 		return stream
 	}
 }
 
-// Absento creates an absence constraint ensuring a term does not occur
-// anywhere within another term's structure.
+// Absento creates a constraint ensuring that a term does not appear anywhere
+// within another term (at any level of structure).
 //
 // Example:
 //
 //	x := Fresh("x")
 //	goal := Conj(Absento(NewAtom("bad"), x), Eq(x, List(NewAtom("good"))))
 func Absento(absent, term Term) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
-		walkedTerm := sub.Walk(term)
-		walkedAbsent := sub.Walk(absent)
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		// Create an absence constraint and add it to the store
+		constraint := NewAbsenceConstraint(absent, term)
+
+		err := store.AddConstraint(constraint)
 
 		stream := NewStream()
-
 		go func() {
 			defer stream.Close()
-
-			// If the term is a variable, we defer the constraint
-			if walkedTerm.IsVar() {
-				stream.Put(sub)
-				return
+			if err == nil {
+				stream.Put(store)
 			}
-
-			// Check if absent term occurs in the structure
-			if occurs(walkedAbsent, walkedTerm) {
-				return // Constraint violated - don't put anything
-			}
-
-			stream.Put(sub)
 		}()
-
 		return stream
 	}
 }
@@ -108,30 +78,19 @@ func occurs(needle, haystack Term) bool {
 //	x := Fresh("x")
 //	goal := Conj(Symbolo(x), Eq(x, NewAtom("symbol")))
 func Symbolo(term Term) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
-		walkedTerm := sub.Walk(term)
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		// Create a type constraint for string symbols
+		constraint := NewTypeConstraint(term, SymbolType)
+
+		err := store.AddConstraint(constraint)
 
 		stream := NewStream()
 		go func() {
 			defer stream.Close()
-
-			// If it's a variable, constraint is deferred - we accept it for now
-			if walkedTerm.IsVar() {
-				stream.Put(sub)
-				return
+			if err == nil {
+				stream.Put(store)
 			}
-
-			// Check if it's a symbol (string atom)
-			if atom, ok := walkedTerm.(*Atom); ok {
-				if _, isString := atom.Value().(string); isString {
-					stream.Put(sub)
-					return
-				}
-			}
-
-			// If we reach here, constraint is violated - don't put anything
 		}()
-
 		return stream
 	}
 }
@@ -143,32 +102,19 @@ func Symbolo(term Term) Goal {
 //	x := Fresh("x")
 //	goal := Conj(Numbero(x), Eq(x, NewAtom(42)))
 func Numbero(term Term) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
-		walkedTerm := sub.Walk(term)
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		// Create a type constraint for numbers
+		constraint := NewTypeConstraint(term, NumberType)
+
+		err := store.AddConstraint(constraint)
 
 		stream := NewStream()
 		go func() {
 			defer stream.Close()
-
-			// If it's a variable, constraint is deferred - we accept it for now
-			if walkedTerm.IsVar() {
-				stream.Put(sub)
-				return
+			if err == nil {
+				stream.Put(store)
 			}
-
-			// Check if it's a number
-			if atom, ok := walkedTerm.(*Atom); ok {
-				val := atom.Value()
-				rv := reflect.ValueOf(val)
-				if rv.Kind() >= reflect.Int && rv.Kind() <= reflect.Complex128 {
-					stream.Put(sub)
-					return
-				}
-			}
-
-			// If we reach here, constraint is violated - don't put anything
 		}()
-
 		return stream
 	}
 }
@@ -184,25 +130,25 @@ func Numbero(term Term) Goal {
 func Membero(element, list Term) Goal {
 	return Disj(
 		// Base case: element is the first item of the list
-		func(ctx context.Context, sub *Substitution) *Stream {
+		func(ctx context.Context, store ConstraintStore) *Stream {
 			car := Fresh("car")
 			cdr := Fresh("cdr")
 
 			return Conj(
 				Eq(list, NewPair(car, cdr)),
 				Eq(element, car),
-			)(ctx, sub)
+			)(ctx, store)
 		},
 
 		// Recursive case: element is a member of the rest of the list
-		func(ctx context.Context, sub *Substitution) *Stream {
+		func(ctx context.Context, store ConstraintStore) *Stream {
 			car := Fresh("car")
 			cdr := Fresh("cdr")
 
 			return Conj(
 				Eq(list, NewPair(car, cdr)),
 				Membero(element, cdr),
-			)(ctx, sub)
+			)(ctx, store)
 		},
 	)
 }
@@ -214,8 +160,8 @@ func Membero(element, list Term) Goal {
 //	goal := Onceo(Disj(Eq(x, NewAtom(1)), Eq(x, NewAtom(2))))
 //	// Will only return the first solution
 func Onceo(goal Goal) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
-		goalStream := goal(ctx, sub)
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		goalStream := goal(ctx, store)
 
 		stream := NewStream()
 		go func() {
@@ -244,7 +190,7 @@ func Onceo(goal Goal) Goal {
 //	  []Goal{Success, elseGoal}, // default case
 //	)
 func Conda(clauses ...[]Goal) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		stream := NewStream()
 
 		go func() {
@@ -259,13 +205,13 @@ func Conda(clauses ...[]Goal) Goal {
 				goal := clause[1]
 
 				// Test the condition
-				conditionStream := condition(ctx, sub)
+				conditionStream := condition(ctx, store)
 				solutions, hasMore := conditionStream.Take(1)
 
 				if len(solutions) > 0 {
 					// Condition succeeded, commit to this clause
-					for _, condSub := range solutions {
-						goalStream := goal(ctx, condSub)
+					for _, condStore := range solutions {
+						goalStream := goal(ctx, condStore)
 
 						// Forward all solutions from the goal
 						for {
@@ -292,8 +238,8 @@ func Conda(clauses ...[]Goal) Goal {
 								continue
 							}
 
-							for _, condSub := range moreSolutions {
-								goalStream := goal(ctx, condSub)
+							for _, condStore := range moreSolutions {
+								goalStream := goal(ctx, condStore)
 
 								for {
 									goalSolutions, goalHasMore := goalStream.Take(1)
@@ -329,7 +275,7 @@ func Conda(clauses ...[]Goal) Goal {
 //	  []Goal{Success, elseGoal},
 //	)
 func Condu(clauses ...[]Goal) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		stream := NewStream()
 
 		go func() {
@@ -344,7 +290,7 @@ func Condu(clauses ...[]Goal) Goal {
 				goal := clause[1]
 
 				// Test the condition and collect all solutions
-				conditionStream := condition(ctx, sub)
+				conditionStream := condition(ctx, store)
 				solutions, _ := conditionStream.Take(2) // Take at most 2 to check uniqueness
 
 				if len(solutions) == 1 {
@@ -383,14 +329,14 @@ func Condu(clauses ...[]Goal) Goal {
 //	  return someGoalUsing(values)
 //	})
 func Project(vars []Term, goalFunc func([]Term) Goal) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		values := make([]Term, len(vars))
 		for i, v := range vars {
-			values[i] = sub.Walk(v)
+			values[i] = store.GetSubstitution().Walk(v)
 		}
 
 		newGoal := goalFunc(values)
-		return newGoal(ctx, sub)
+		return newGoal(ctx, store)
 	}
 }
 
@@ -403,9 +349,9 @@ var Nil = NewAtom(nil)
 //
 //	goal := Car(List(NewAtom(1), NewAtom(2)), x) // x = 1
 func Car(pair, car Term) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		cdr := Fresh("cdr")
-		return Eq(pair, NewPair(car, cdr))(ctx, sub)
+		return Eq(pair, NewPair(car, cdr))(ctx, store)
 	}
 }
 
@@ -415,9 +361,9 @@ func Car(pair, car Term) Goal {
 //
 //	goal := Cdr(List(NewAtom(1), NewAtom(2)), x) // x = List(NewAtom(2))
 func Cdr(pair, cdr Term) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		car := Fresh("car")
-		return Eq(pair, NewPair(car, cdr))(ctx, sub)
+		return Eq(pair, NewPair(car, cdr))(ctx, store)
 	}
 }
 
@@ -445,9 +391,9 @@ func Nullo(term Term) Goal {
 //
 //	goal := Pairo(x) // x must be a pair
 func Pairo(term Term) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		car := Fresh("car")
 		cdr := Fresh("cdr")
-		return Eq(term, NewPair(car, cdr))(ctx, sub)
+		return Eq(term, NewPair(car, cdr))(ctx, store)
 	}
 }

@@ -26,9 +26,13 @@ func Fresh(name string) *Var {
 // This is the fundamental operation in miniKanren - it attempts to make
 // two terms identical by binding variables as needed.
 //
+// The new implementation works with constraint stores to provide
+// order-independent constraint semantics. Variable bindings are
+// checked against all active constraints before being accepted.
+//
 // Unification Rules:
 //   - Atom == Atom: succeeds if atoms have the same value
-//   - Var == Term: binds the variable to the term
+//   - Var == Term: binds the variable to the term (subject to constraints)
 //   - Pair == Pair: recursively unifies car and cdr
 //   - Otherwise: fails
 //
@@ -37,7 +41,7 @@ func Fresh(name string) *Var {
 //	x := Fresh("x")
 //	goal := Eq(x, NewAtom("hello"))  // Binds x to "hello"
 func Eq(term1, term2 Term) Goal {
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
@@ -47,13 +51,14 @@ func Eq(term1, term2 Term) Goal {
 		default:
 		}
 
-		unifiedSub := unify(term1, term2, sub)
+		// Attempt unification through the constraint store
+		newStore, success := unifyWithConstraints(term1, term2, store)
 
 		stream := NewStream()
 		go func() {
 			defer stream.Close()
-			if unifiedSub != nil {
-				stream.Put(unifiedSub)
+			if success {
+				stream.Put(newStore)
 			}
 		}()
 
@@ -101,9 +106,67 @@ func unify(term1, term2 Term, sub *Substitution) *Substitution {
 	return nil
 }
 
+// unifyWithConstraints performs unification using the constraint store system.
+// Returns a new constraint store if unification succeeds, and a boolean
+// indicating success. This replaces the old unify function to work with
+// the order-independent constraint system.
+func unifyWithConstraints(term1, term2 Term, store ConstraintStore) (ConstraintStore, bool) {
+	// Clone the store to avoid modifying the original
+	newStore := store.Clone()
+
+	// Get current substitution for walking terms
+	currentSub := newStore.GetSubstitution()
+
+	// Walk both terms to their final values
+	t1 := currentSub.Walk(term1)
+	t2 := currentSub.Walk(term2)
+
+	// If they're the same object, unification succeeds
+	if t1.Equal(t2) {
+		return newStore, true
+	}
+
+	// If t1 is a variable, bind it to t2
+	if t1.IsVar() {
+		err := newStore.AddBinding(t1.(*Var).id, t2)
+		return newStore, err == nil
+	}
+
+	// If t2 is a variable, bind it to t1
+	if t2.IsVar() {
+		err := newStore.AddBinding(t2.(*Var).id, t1)
+		return newStore, err == nil
+	}
+
+	// If both are pairs, unify recursively
+	if p1, ok := t1.(*Pair); ok {
+		if p2, ok := t2.(*Pair); ok {
+			// Unify the cars
+			store1, success1 := unifyWithConstraints(p1.Car(), p2.Car(), newStore)
+			if !success1 {
+				return store, false
+			}
+
+			// Unify the cdrs
+			store2, success2 := unifyWithConstraints(p1.Cdr(), p2.Cdr(), store1)
+			return store2, success2
+		}
+	}
+
+	// If both are atoms, check equality
+	if a1, ok := t1.(*Atom); ok {
+		if a2, ok := t2.(*Atom); ok {
+			return newStore, a1.Equal(a2)
+		}
+	}
+
+	// Unification failed
+	return store, false
+}
+
 // Conj creates a conjunction goal that requires all goals to succeed.
 // The goals are evaluated sequentially, with each goal operating on
-// the substitutions produced by the previous goal.
+// the constraint stores produced by the previous goal.
 //
 // Example:
 //
@@ -119,18 +182,18 @@ func Conj(goals ...Goal) Goal {
 		return goals[0]
 	}
 
-	return func(ctx context.Context, sub *Substitution) *Stream {
-		return conjHelper(ctx, goals, sub)
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		return conjHelper(ctx, goals, store)
 	}
 }
 
 // conjHelper recursively evaluates conjunction goals
-func conjHelper(ctx context.Context, goals []Goal, sub *Substitution) *Stream {
+func conjHelper(ctx context.Context, goals []Goal, store ConstraintStore) *Stream {
 	if len(goals) == 0 {
 		stream := NewStream()
 		go func() {
 			defer stream.Close()
-			stream.Put(sub)
+			stream.Put(store)
 		}()
 		return stream
 	}
@@ -144,10 +207,8 @@ func conjHelper(ctx context.Context, goals []Goal, sub *Substitution) *Stream {
 		defer stream.Close()
 
 		// Evaluate the first goal
-		firstStream := firstGoal(ctx, sub)
+		firstStream := firstGoal(ctx, store)
 
-		// For each substitution from the first goal,
-		// evaluate the rest of the goals
 		for {
 			select {
 			case <-ctx.Done():
@@ -155,28 +216,31 @@ func conjHelper(ctx context.Context, goals []Goal, sub *Substitution) *Stream {
 			default:
 			}
 
+			// Get next result from first goal
 			subs, hasMore := firstStream.Take(1)
 			if len(subs) == 0 {
-				if !hasMore {
-					break
-				}
-				continue
+				return // No more results
 			}
 
-			// Evaluate remaining goals with this substitution
+			// Recursively evaluate remaining goals with each result
 			restStream := conjHelper(ctx, restGoals, subs[0])
 
-			// Forward all results from the rest
+			// Forward all results from rest stream
 			for {
-				restSubs, restHasMore := restStream.Take(1)
-				if len(restSubs) == 0 {
-					if !restHasMore {
-						break
-					}
-					continue
+				results, moreAvailable := restStream.Take(10)
+				if len(results) == 0 {
+					break
 				}
+				for _, result := range results {
+					stream.Put(result)
+				}
+				if !moreAvailable {
+					break
+				}
+			}
 
-				stream.Put(restSubs[0])
+			if !hasMore {
+				return
 			}
 		}
 	}()
@@ -201,7 +265,7 @@ func Disj(goals ...Goal) Goal {
 		return goals[0]
 	}
 
-	return func(ctx context.Context, sub *Substitution) *Stream {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
 		stream := NewStream()
 
 		go func() {
@@ -215,7 +279,7 @@ func Disj(goals ...Goal) Goal {
 				go func(g Goal) {
 					defer wg.Done()
 
-					goalStream := g(ctx, sub)
+					goalStream := g(ctx, store)
 
 					// Forward all substitutions from this goal
 					for {
@@ -280,14 +344,14 @@ func RunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term
 	q := Fresh("q")
 	goal := goalFunc(q)
 
-	initialSub := NewSubstitution()
-	stream := goal(ctx, initialSub)
+	initialStore := NewLocalConstraintStore(NewGlobalConstraintBus())
+	stream := goal(ctx, initialStore)
 
 	solutions, _ := stream.Take(n)
 
 	var results []Term
-	for _, sub := range solutions {
-		value := sub.Walk(q)
+	for _, store := range solutions {
+		value := store.GetSubstitution().Walk(q)
 		results = append(results, value)
 	}
 
@@ -313,8 +377,8 @@ func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term {
 	q := Fresh("q")
 	goal := goalFunc(q)
 
-	initialSub := NewSubstitution()
-	stream := goal(ctx, initialSub)
+	initialStore := NewLocalConstraintStore(NewGlobalConstraintBus())
+	stream := goal(ctx, initialStore)
 
 	var results []Term
 
@@ -327,8 +391,8 @@ func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term {
 
 		solutions, hasMore := stream.Take(10) // Take in batches
 
-		for _, sub := range solutions {
-			value := sub.Walk(q)
+		for _, store := range solutions {
+			value := store.GetSubstitution().Walk(q)
 			results = append(results, value)
 		}
 
@@ -383,7 +447,7 @@ func Appendo(l1, l2, l3 Term) Goal {
 		Conj(Eq(l1, NewAtom(nil)), Eq(l2, l3)),
 
 		// Recursive case: l1 = (a . d), l3 = (a . res), append(d, l2, res)
-		func(ctx context.Context, sub *Substitution) *Stream {
+		func(ctx context.Context, store ConstraintStore) *Stream {
 			a := Fresh("a")
 			d := Fresh("d")
 			res := Fresh("res")
@@ -392,7 +456,7 @@ func Appendo(l1, l2, l3 Term) Goal {
 				Eq(l1, NewPair(a, d)),
 				Eq(l3, NewPair(a, res)),
 				Appendo(d, l2, res),
-			)(ctx, sub)
+			)(ctx, store)
 		},
 	)
 }

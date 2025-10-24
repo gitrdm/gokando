@@ -275,52 +275,55 @@ func (s *Substitution) String() string {
 	return result
 }
 
-// Stream represents a (potentially infinite) sequence of substitutions.
+// Stream represents a (potentially infinite) sequence of constraint stores.
 // Streams are the core data structure for representing multiple solutions
-// in miniKanren. This implementation uses channels for thread-safe
-// concurrent access and supports parallel evaluation.
+// in miniKanren. Each constraint store contains variable bindings and
+// active constraints representing a consistent logical state.
+//
+// This implementation uses channels for thread-safe concurrent access
+// and supports parallel evaluation with proper constraint coordination.
 type Stream struct {
-	ch   chan *Substitution // Channel for streaming substitutions
-	done chan struct{}      // Channel to signal completion
-	mu   sync.Mutex         // Protects stream state
+	ch   chan ConstraintStore // Channel for streaming constraint stores
+	done chan struct{}        // Channel to signal completion
+	mu   sync.Mutex           // Protects stream state
 }
 
 // NewStream creates a new empty stream.
 func NewStream() *Stream {
 	return &Stream{
-		ch:   make(chan *Substitution),
+		ch:   make(chan ConstraintStore),
 		done: make(chan struct{}),
 	}
 }
 
-// Take retrieves up to n substitutions from the stream.
-// Returns a slice of substitutions and a boolean indicating
-// if more substitutions might be available.
-func (s *Stream) Take(n int) ([]*Substitution, bool) {
-	var results []*Substitution
+// Take retrieves up to n constraint stores from the stream.
+// Returns a slice of constraint stores and a boolean indicating
+// if more stores might be available.
+func (s *Stream) Take(n int) ([]ConstraintStore, bool) {
+	var results []ConstraintStore
 
 	for i := 0; i < n; i++ {
 		select {
-		case sub := <-s.ch:
-			if sub != nil {
-				results = append(results, sub)
+		case store := <-s.ch:
+			if store != nil {
+				results = append(results, store)
 			}
 		case <-s.done:
-			return results, false // No more substitutions
+			return results, false // No more stores
 		}
 	}
 
 	// Check if stream is done after taking n items
 	select {
 	case <-s.done:
-		return results, false // No more substitutions
+		return results, false // No more stores
 	default:
 		return results, true // Might have more
 	}
-} // Put adds a substitution to the stream.
-func (s *Stream) Put(sub *Substitution) {
+} // Put adds a constraint store to the stream.
+func (s *Stream) Put(store ConstraintStore) {
 	select {
-	case s.ch <- sub:
+	case s.ch <- store:
 	case <-s.done:
 		// Stream is closed
 	}
@@ -340,23 +343,26 @@ func (s *Stream) Close() {
 }
 
 // Goal represents a constraint or a combination of constraints.
-// Goals are functions that take a substitution and return a stream
-// of substitutions representing all possible ways to satisfy the goal.
+// Goals are functions that take a constraint store and return a stream
+// of constraint stores representing all possible ways to satisfy the goal.
 // Goals can be composed to build complex relational programs.
-type Goal func(ctx context.Context, sub *Substitution) *Stream
+//
+// The constraint store contains both variable bindings and active constraints,
+// enabling order-independent constraint logic programming.
+type Goal func(ctx context.Context, store ConstraintStore) *Stream
 
-// Success is a goal that always succeeds with the given substitution.
-var Success Goal = func(ctx context.Context, sub *Substitution) *Stream {
+// Success is a goal that always succeeds with the given constraint store.
+var Success Goal = func(ctx context.Context, store ConstraintStore) *Stream {
 	stream := NewStream()
 	go func() {
 		defer stream.Close()
-		stream.Put(sub)
+		stream.Put(store)
 	}()
 	return stream
 }
 
-// Failure is a goal that always fails (returns no substitutions).
-var Failure Goal = func(ctx context.Context, sub *Substitution) *Stream {
+// Failure is a goal that always fails (returns no constraint stores).
+var Failure Goal = func(ctx context.Context, store ConstraintStore) *Stream {
 	stream := NewStream()
 	stream.Close() // Immediately close to indicate no solutions
 	return stream

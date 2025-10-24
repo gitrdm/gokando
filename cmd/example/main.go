@@ -177,12 +177,12 @@ func parallelExample() {
 	// Create a computationally intensive goal for demonstration
 	heavyGoal := func(value int) func(*minikanren.Var) minikanren.Goal {
 		return func(q *minikanren.Var) minikanren.Goal {
-			return func(ctx context.Context, sub *minikanren.Substitution) *minikanren.Stream {
+			return func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
 				// Simulate meaningful computational work
 				time.Sleep(50 * time.Millisecond) // Increased from 10ms
 
 				// Now bind q to our value
-				return minikanren.Eq(q, minikanren.NewAtom(value))(ctx, sub)
+				return minikanren.Eq(q, minikanren.NewAtom(value))(ctx, store)
 			}
 		}
 	}
@@ -239,12 +239,12 @@ func performanceComparison() {
 		for i := 0; i < numGoals; i++ {
 			value := i
 			goalFuncs[i] = func(q *minikanren.Var) minikanren.Goal {
-				return func(ctx context.Context, sub *minikanren.Substitution) *minikanren.Stream {
+				return func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
 					// Simulate computational work
 					time.Sleep(workDelay)
 
 					// Bind the query variable to our value
-					return minikanren.Eq(q, minikanren.NewAtom(value))(ctx, sub)
+					return minikanren.Eq(q, minikanren.NewAtom(value))(ctx, store)
 				}
 			}
 		}

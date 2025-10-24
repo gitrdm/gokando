@@ -311,9 +311,9 @@ func TestUnification(t *testing.T) {
 func TestGoals(t *testing.T) {
 	t.Run("Success goal", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 
-		stream := Success(ctx, sub)
+		stream := Success(ctx, store)
 		solutions, hasMore := stream.Take(1)
 
 		if len(solutions) != 1 {
@@ -324,16 +324,16 @@ func TestGoals(t *testing.T) {
 			t.Error("Success should not have more solutions")
 		}
 
-		if solutions[0].Size() != sub.Size() {
+		if len(solutions[0].GetSubstitution().bindings) != len(store.GetSubstitution().bindings) {
 			t.Error("Success should return the original substitution")
 		}
 	})
 
 	t.Run("Failure goal", func(t *testing.T) {
 		ctx := context.Background()
-		sub := NewSubstitution()
+		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 
-		stream := Failure(ctx, sub)
+		stream := Failure(ctx, store)
 		solutions, hasMore := stream.Take(1)
 
 		if len(solutions) != 0 {

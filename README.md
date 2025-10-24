@@ -146,26 +146,28 @@ results := minikanren.ParallelRun(10, func(q *minikanren.Var) minikanren.Goal {
 
 ## Important Usage Notes
 
-### Constraint Ordering Requirements
+### Order-Independent Constraints
 
-⚠️ **Critical**: Constraints in this implementation are **order-dependent**. For reliable behavior:
+✨ **Feature**: Constraints in this implementation are **order-independent**. The system provides maximum flexibility:
 
-1. **Bind variables first**, then apply constraints:
+1. **Constraints work before or after unification**:
    ```go
-   // ✅ Correct order
+   // ✅ Both orders work identically
+   
+   // Constraint before unification
+   minikanren.Conj(
+       minikanren.Numbero(q),                       // Constraint added to store
+       minikanren.Eq(q, minikanren.NewAtom(42)),    // Unification checks constraints
+   )
+   
+   // Unification before constraint  
    minikanren.Conj(
        minikanren.Eq(q, minikanren.NewAtom(42)),    // Bind first
        minikanren.Numbero(q),                       // Check constraint after
    )
-   
-   // ❌ May not work as expected  
-   minikanren.Conj(
-       minikanren.Numbero(q),                       // Constraint on unbound var
-       minikanren.Eq(q, minikanren.NewAtom(42)),    // Binding happens after
-   )
    ```
 
-2. **Why this matters**: Our constraint system uses a simplified model where constraints are checked when executed, not propagated after unification. This trade-off provides better performance at the cost of requiring careful goal ordering.
+2. **How this works**: Our hybrid constraint system uses LocalConstraintStore + GlobalConstraintBus to automatically coordinate constraint checking regardless of goal ordering. This provides both flexibility and performance.
 
 ### Parallel Execution Considerations
 
@@ -227,11 +229,11 @@ This implementation provides:
 
 ## Comparison with Other miniKanren Implementations
 
-| Feature | GoKanren | core.logic (Clojure) | miniKanren (Scheme) |
+| Feature | GoKando | core.logic (Clojure) | miniKanren (Scheme) |
 |---------|----------|----------------------|---------------------|
 | Thread Safety | ✅ Built-in | ❌ Requires care | ❌ Single-threaded |
 | Parallel Execution | ✅ Native | ❌ Manual | ❌ No |
-| Constraint Ordering | ⚠️ Order-dependent | ✅ Order-independent | ✅ Order-independent |
+| Constraint Ordering | ✅ Order-independent | ✅ Order-independent | ✅ Order-independent |
 | Performance | ✅ High (compiled) | ✅ Good (JVM) | ✅ Good (compiled) |
 | Type Safety | ✅ Static types | ❌ Dynamic | ❌ Dynamic |
 
