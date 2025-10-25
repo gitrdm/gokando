@@ -11,10 +11,10 @@ const Version = "0.9.0"
 
 // VersionInfo provides detailed version information.
 type VersionInfo struct {
-	Version    string `json:"version"`
-	GoVersion  string `json:"go_version"`
-	GitCommit  string `json:"git_commit,omitempty"`
-	BuildDate  string `json:"build_date,omitempty"`
+	Version   string `json:"version"`
+	GoVersion string `json:"go_version"`
+	GitCommit string `json:"git_commit,omitempty"`
+	BuildDate string `json:"build_date,omitempty"`
 }
 
 // GetVersion returns the current version string.
