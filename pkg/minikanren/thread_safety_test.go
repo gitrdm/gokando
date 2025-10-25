@@ -17,7 +17,7 @@ func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
 	t.Run("Shared Global Bus Concurrent Access", func(t *testing.T) {
 		const numGoroutines = 100
 		const operationsPerGoroutine = 100
-		
+
 		var wg sync.WaitGroup
 		var successCount int64
 		var errorCount int64
@@ -27,19 +27,19 @@ func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
-				
+
 				for j := 0; j < operationsPerGoroutine; j++ {
 					// Use the shared global bus
 					results := Run(1, func(q *Var) Goal {
 						return Eq(q, NewAtom(goroutineID*1000+j))
 					})
-					
+
 					if len(results) == 1 {
 						atomic.AddInt64(&successCount, 1)
 					} else {
 						atomic.AddInt64(&errorCount, 1)
 					}
-					
+
 					// Add some scheduling pressure
 					if j%10 == 0 {
 						runtime.Gosched()
@@ -64,7 +64,7 @@ func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
 	t.Run("Pooled Bus Concurrent Access", func(t *testing.T) {
 		const numGoroutines = 50
 		const operationsPerGoroutine = 50
-		
+
 		var wg sync.WaitGroup
 		var successCount int64
 		var errorCount int64
@@ -74,19 +74,19 @@ func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
-				
+
 				for j := 0; j < operationsPerGoroutine; j++ {
 					// Use pooled buses for isolation
 					results := RunWithIsolation(1, func(q *Var) Goal {
 						return Eq(q, NewAtom(goroutineID*1000+j))
 					})
-					
+
 					if len(results) == 1 {
 						atomic.AddInt64(&successCount, 1)
 					} else {
 						atomic.AddInt64(&errorCount, 1)
 					}
-					
+
 					// Add some scheduling pressure
 					if j%10 == 0 {
 						runtime.Gosched()
@@ -119,7 +119,7 @@ func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
-				
+
 				if goroutineID%2 == 0 {
 					// Use shared bus
 					for j := 0; j < 25; j++ {
@@ -154,23 +154,23 @@ func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
 			t.Errorf("Expected %d isolated results, got %d", expectedEach, isolatedResults)
 		}
 
-		t.Logf("✅ Mixed strategy: %d shared + %d isolated operations completed successfully", 
+		t.Logf("✅ Mixed strategy: %d shared + %d isolated operations completed successfully",
 			sharedResults, isolatedResults)
 	})
 
 	t.Run("Bus Pool Reset Safety", func(t *testing.T) {
 		const numOperations = 1000
 		var wg sync.WaitGroup
-		
+
 		// Test that bus reset doesn't interfere with concurrent operations
 		for i := 0; i < numOperations; i++ {
 			wg.Add(1)
 			go func(opID int) {
 				defer wg.Done()
-				
+
 				bus := GetPooledGlobalBus()
 				defer ReturnPooledGlobalBus(bus)
-				
+
 				// Simulate work
 				store := NewLocalConstraintStore(bus)
 				v := Fresh("test")
@@ -178,7 +178,7 @@ func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
 				if err != nil {
 					t.Errorf("Operation %d failed: %v", opID, err)
 				}
-				
+
 				// Small delay to increase chance of race conditions
 				time.Sleep(time.Microsecond)
 			}(i)
@@ -192,7 +192,7 @@ func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
 		const numGoroutines = 100
 		var wg sync.WaitGroup
 		buses := make([]*GlobalConstraintBus, numGoroutines)
-		
+
 		// Test that GetDefaultGlobalBus returns the same instance across goroutines
 		for i := 0; i < numGoroutines; i++ {
 			wg.Add(1)
@@ -221,7 +221,7 @@ func TestConstraintIsolationAfterOptimization(t *testing.T) {
 	t.Run("Shared Bus - No Constraint Interference", func(t *testing.T) {
 		// Test that using shared bus doesn't cause constraint interference
 		// between different goal executions
-		
+
 		// First execution with constraint
 		results1 := Run(1, func(q *Var) Goal {
 			return Conj(
@@ -229,26 +229,26 @@ func TestConstraintIsolationAfterOptimization(t *testing.T) {
 				Eq(q, NewAtom("allowed")),
 			)
 		})
-		
+
 		// Second execution should not be affected by first
 		results2 := Run(1, func(q *Var) Goal {
 			return Eq(q, NewAtom("forbidden")) // This should work in new execution
 		})
-		
+
 		if len(results1) != 1 || !results1[0].Equal(NewAtom("allowed")) {
 			t.Error("First execution should succeed with 'allowed'")
 		}
-		
+
 		if len(results2) != 1 || !results2[0].Equal(NewAtom("forbidden")) {
 			t.Error("Second execution should succeed with 'forbidden' (no interference)")
 		}
-		
+
 		t.Log("✅ Shared bus maintains proper constraint isolation between executions")
 	})
 
 	t.Run("Isolated Bus - Complete Isolation", func(t *testing.T) {
 		// Test that isolated buses provide complete constraint isolation
-		
+
 		// First execution with constraint
 		results1 := RunWithIsolation(1, func(q *Var) Goal {
 			return Conj(
@@ -256,20 +256,20 @@ func TestConstraintIsolationAfterOptimization(t *testing.T) {
 				Eq(q, NewAtom("allowed")),
 			)
 		})
-		
+
 		// Second execution should not be affected by first
 		results2 := RunWithIsolation(1, func(q *Var) Goal {
 			return Eq(q, NewAtom("forbidden")) // This should work in isolated execution
 		})
-		
+
 		if len(results1) != 1 || !results1[0].Equal(NewAtom("allowed")) {
 			t.Error("First isolated execution should succeed with 'allowed'")
 		}
-		
+
 		if len(results2) != 1 || !results2[0].Equal(NewAtom("forbidden")) {
 			t.Error("Second isolated execution should succeed with 'forbidden'")
 		}
-		
+
 		t.Log("✅ Isolated buses maintain complete constraint isolation")
 	})
 }
@@ -283,7 +283,7 @@ func TestRaceConditionDetectionOptimized(t *testing.T) {
 	t.Run("High Pressure Concurrent Operations", func(t *testing.T) {
 		const numGoroutines = 200
 		const operationsPerGoroutine = 50
-		
+
 		var wg sync.WaitGroup
 		var totalOperations int64
 
@@ -292,7 +292,7 @@ func TestRaceConditionDetectionOptimized(t *testing.T) {
 			wg.Add(1)
 			go func(goroutineID int) {
 				defer wg.Done()
-				
+
 				for j := 0; j < operationsPerGoroutine; j++ {
 					// Alternate between strategies to stress test both paths
 					if (goroutineID+j)%3 == 0 {
@@ -313,9 +313,9 @@ func TestRaceConditionDetectionOptimized(t *testing.T) {
 						store.AddBinding(v.id, NewAtom(goroutineID*1000+j))
 						ReturnPooledGlobalBus(bus)
 					}
-					
+
 					atomic.AddInt64(&totalOperations, 1)
-					
+
 					// Force scheduler switching
 					if j%5 == 0 {
 						runtime.Gosched()
