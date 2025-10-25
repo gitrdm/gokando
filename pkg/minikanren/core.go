@@ -20,6 +20,7 @@ package minikanren
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 )
 
@@ -316,16 +317,20 @@ func (s *Stream) Take(n int) ([]ConstraintStore, bool) {
 				results = append(results, store)
 			}
 		case <-s.done:
-			return results, false // No more stores
+			// Stream is closed, no more items will come
+			return results, false
 		}
 	}
 
-	// Check if stream is done after taking n items
+	// After successfully taking n items, check if stream is done
+	// Use runtime.Gosched() to yield to other goroutines that might be closing the stream
+	runtime.Gosched()
+
 	select {
 	case <-s.done:
-		return results, false // No more stores
+		return results, false // Stream is closed
 	default:
-		return results, true // Might have more
+		return results, true // Stream is still open, might have more
 	}
 } // Put adds a constraint store to the stream.
 func (s *Stream) Put(store ConstraintStore) {
