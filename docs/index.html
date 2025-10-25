@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>gokando Documentation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/github-markdown-css/5.2.0/github-markdown-light.min.css">
+    <style>
+        .markdown-body {
+            box-sizing: border-box;
+            min-width: 200px;
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 45px;
+        }
+
+        @media (max-width: 767px) {
+            .markdown-body {
+                padding: 15px;
+            }
+        }
+
+        .nav-link {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 4px;
+            background-color: #0969da;
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            background-color: #0550ae;
+            color: white;
+            text-decoration: none;
+        }
+
+        .nav-section {
+            margin: 20px 0;
+        }
+
+        .version-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: #0969da;
+            color: white;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            text-decoration: none;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <article class="markdown-body">
+        <h1>gokando Documentation</h1>
+        
+        <a href="https://github.com/gitrdm/gokando/releases" class="version-badge">Version 0.9.1</a>
+
+        <h2>🚀 Quick Navigation</h2>
+
+        <div class="nav-section">
+            <a href="getting-started/README.html" class="nav-link">📚 Getting Started</a>
+            <a href="api-reference/README.html" class="nav-link">🔍 API Reference</a>
+            <a href="examples/README.html" class="nav-link">💡 Examples</a>
+            <a href="guides/README.html" class="nav-link">📖 Guides</a>
+        </div>
+
+        <h2>Package Overview</h2>
+
+        <h3>minikanren</h3>
+        <p>Package minikanren provides a thread-safe, parallel implementation of miniKanren in Go. This implementation follows the core principles of relational programming while leveraging Go's concurrency primitives for parallel execution.</p>
+        
+        <div class="nav-section">
+            <a href="getting-started/minikanren.html" class="nav-link">Getting Started</a>
+            <a href="api-reference/minikanren.html" class="nav-link">API Reference</a>
+            <a href="examples/README.html" class="nav-link">Examples</a>
+            <a href="guides/minikanren/best-practices.html" class="nav-link">Best Practices</a>
+        </div>
+
+        <h3>parallel</h3>
+        <p>Package parallel provides advanced parallel execution capabilities for miniKanren goals. This package contains internal utilities for managing concurrent goal evaluation with proper resource management and backpressure control.</p>
+
+        <div class="nav-section">
+            <a href="getting-started/parallel.html" class="nav-link">Getting Started</a>
+            <a href="api-reference/parallel.html" class="nav-link">API Reference</a>
+            <a href="guides/parallel/best-practices.html" class="nav-link">Best Practices</a>
+        </div>
+
+        <h2>Key Features</h2>
+        <ul>
+            <li><strong>Thread-safe operations</strong> using sync package primitives</li>
+            <li><strong>Parallel goal evaluation</strong> using goroutines and channels</li>
+            <li><strong>Type-safe interfaces</strong> leveraging Go's type system</li>
+            <li><strong>Comprehensive error handling</strong> and resource management</li>
+            <li><strong>Memory leak prevention</strong> with automatic resource cleanup</li>
+            <li><strong>High-performance constraint system</strong> with order-independent semantics</li>
+        </ul>
+
+        <h2>Quick Example</h2>
+        <pre><code>package main
+
+import (
+    "fmt"
+    . "github.com/gitrdm/gokando/pkg/minikanren"
+)
+
+func main() {
+    // Define a simple relation
+    results := Run(1, func(q Var) Goal {
+        return Eq(q, "hello")
+    })
+    
+    fmt.Println(results) // Output: [hello]
+}
+</code></pre>
+
+        <h2>External Resources</h2>
+        <div class="nav-section">
+            <a href="https://github.com/gitrdm/gokando" class="nav-link">🐙 GitHub Repository</a>
+            <a href="https://pkg.go.dev/github.com/gitrdm/gokando" class="nav-link">📦 pkg.go.dev</a>
+            <a href="https://github.com/gitrdm/gokando/issues" class="nav-link">🐛 Issues & Support</a>
+        </div>
+
+        <h2>Contributing</h2>
+        <p>See our <a href="guides/contributing.html">Contributing Guide</a> to get started.</p>
+
+        <hr>
+        <p><em>Documentation generated automatically with <a href="https://github.com/kolosys/proton">Proton</a></em></p>
+    </article>
+</body>
+</html>
