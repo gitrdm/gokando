@@ -395,3 +395,26 @@ func (gcb *GlobalConstraintBus) handleConstraintViolated(event ConstraintEvent) 
 func (gcb *GlobalConstraintBus) handleStoreCloned(event ConstraintEvent) {
 	// Track cloned stores for proper resource management
 }
+
+// Reset clears the constraint bus state for reuse in a pool.
+// This method prepares the bus for safe reuse by clearing all state
+// while keeping the goroutine and channels alive.
+func (gcb *GlobalConstraintBus) Reset() {
+	gcb.mu.Lock()
+	defer gcb.mu.Unlock()
+
+	// Clear all constraints and stores
+	gcb.crossStoreConstraints = make(map[string]Constraint)
+	gcb.storeRegistry = make(map[string]LocalConstraintStore)
+
+	// Drain the event channel of any pending events
+	for {
+		select {
+		case <-gcb.events:
+			// Drain pending events
+		default:
+			// Channel is empty
+			return
+		}
+	}
+}

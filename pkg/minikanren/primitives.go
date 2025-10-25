@@ -344,7 +344,8 @@ func RunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term
 	q := Fresh("q")
 	goal := goalFunc(q)
 
-	initialStore := NewLocalConstraintStore(NewGlobalConstraintBus())
+	// Use shared global bus for better performance
+	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
 	stream := goal(ctx, initialStore)
 
 	solutions, _ := stream.Take(n)
@@ -377,7 +378,8 @@ func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term {
 	q := Fresh("q")
 	goal := goalFunc(q)
 
-	initialStore := NewLocalConstraintStore(NewGlobalConstraintBus())
+	// Use shared global bus for better performance
+	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
 	stream := goal(ctx, initialStore)
 
 	var results []Term
@@ -399,6 +401,36 @@ func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term {
 		if !hasMore {
 			break
 		}
+	}
+
+	return results
+}
+
+// RunWithIsolation is like Run but uses an isolated constraint bus.
+// Use this when you need complete constraint isolation between goals.
+// Slightly slower than Run() but provides stronger isolation guarantees.
+func RunWithIsolation(n int, goalFunc func(*Var) Goal) []Term {
+	return RunWithIsolationContext(context.Background(), n, goalFunc)
+}
+
+// RunWithIsolationContext is like RunWithContext but uses an isolated constraint bus.
+func RunWithIsolationContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term {
+	q := Fresh("q")
+	goal := goalFunc(q)
+
+	// Use pooled bus for isolation while still optimizing allocations
+	bus := GetPooledGlobalBus()
+	defer ReturnPooledGlobalBus(bus)
+
+	initialStore := NewLocalConstraintStore(bus)
+	stream := goal(ctx, initialStore)
+
+	solutions, _ := stream.Take(n)
+
+	var results []Term
+	for _, store := range solutions {
+		value := store.GetSubstitution().Walk(q)
+		results = append(results, value)
 	}
 
 	return results
