@@ -1,10 +1,10 @@
-# GoKanren - Thread-Safe Parallel miniKanren in Go
+# GoKando - Thread-Safe Parallel miniKanren in Go
 
 [![Version](https://img.shields.io/badge/version-0.9.0-blue.svg)](https://github.com/gitrdm/gokando/releases)
 [![Go Version](https://img.shields.io/badge/go-1.18%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-GoKanren is a production-quality implementation of miniKanren in Go, designed with thread-safety and parallel execution as first-class concerns. This implementation provides a complete set of miniKanren operators with high-performance concurrent execution.
+GoKando is a production-quality implementation of miniKanren in Go, designed with thread-safety and parallel execution as first-class concerns. This implementation provides a complete set of miniKanren operators with high-performance concurrent execution.
 
 ## Features
 
