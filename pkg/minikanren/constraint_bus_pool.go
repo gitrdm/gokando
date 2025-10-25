@@ -27,6 +27,11 @@ func (p *GlobalConstraintBusPool) Get() *GlobalConstraintBus {
 
 // Put returns a constraint bus to the pool after cleaning it
 func (p *GlobalConstraintBusPool) Put(bus *GlobalConstraintBus) {
+	// Don't return shutdown buses to the pool
+	if bus.shutdown {
+		return // Let it be garbage collected
+	}
+	
 	// Clean the bus before returning to pool
 	bus.Reset()
 	p.pool.Put(bus)

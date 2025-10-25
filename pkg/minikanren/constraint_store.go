@@ -200,6 +200,9 @@ type GlobalConstraintBus struct {
 
 	// shutdownCh is closed when the bus shuts down
 	shutdownCh chan struct{}
+
+	// refCount tracks active references to this bus for automatic cleanup
+	refCount int64
 }
 
 // NewGlobalConstraintBus creates a new global constraint bus for coordinating
@@ -229,16 +232,27 @@ func (gcb *GlobalConstraintBus) RegisterStore(store LocalConstraintStore) error 
 	}
 
 	gcb.storeRegistry[store.ID()] = store
+	gcb.refCount++
 	return nil
 }
 
 // UnregisterStore removes a local constraint store from the global registry.
-// Should be called when a store is no longer needed to prevent memory leaks.
+// Automatically shuts down the bus when no stores remain (reference counting).
 func (gcb *GlobalConstraintBus) UnregisterStore(storeID string) {
 	gcb.mu.Lock()
 	defer gcb.mu.Unlock()
 
-	delete(gcb.storeRegistry, storeID)
+	if _, exists := gcb.storeRegistry[storeID]; exists {
+		delete(gcb.storeRegistry, storeID)
+		gcb.refCount--
+		
+		// Auto-shutdown when no stores remain
+		if gcb.refCount <= 0 && !gcb.shutdown {
+			gcb.shutdown = true
+			close(gcb.shutdownCh)
+			close(gcb.events)
+		}
+	}
 }
 
 // AddCrossStoreConstraint registers a constraint that requires global coordination.
@@ -403,9 +417,17 @@ func (gcb *GlobalConstraintBus) Reset() {
 	gcb.mu.Lock()
 	defer gcb.mu.Unlock()
 
+	// If the bus was shut down, we can't reuse it safely
+	// because the goroutine and channels are closed
+	if gcb.shutdown {
+		// Cannot reset a shutdown bus - pool should create new ones
+		return
+	}
+
 	// Clear all constraints and stores
 	gcb.crossStoreConstraints = make(map[string]Constraint)
 	gcb.storeRegistry = make(map[string]LocalConstraintStore)
+	gcb.refCount = 0 // Reset reference count
 
 	// Drain the event channel of any pending events
 	for {

@@ -423,8 +423,9 @@ func RunWithIsolationContext(ctx context.Context, n int, goalFunc func(*Var) Goa
 	defer ReturnPooledGlobalBus(bus)
 
 	initialStore := NewLocalConstraintStore(bus)
-	stream := goal(ctx, initialStore)
+	defer initialStore.Shutdown() // Ensure proper cleanup
 
+	stream := goal(ctx, initialStore)
 	solutions, _ := stream.Take(n)
 
 	var results []Term
