@@ -1,10 +1,10 @@
 # Race Condition Testing for GoKando
 
-This document describes the comprehensive race condition testing suite for the GoKando miniKanren implementation.
+This document describes the race condition testing suite for the GoKando miniKanren implementation.
 
 ## Overview
 
-The race detection testing has been significantly enhanced from basic "smoke tests" to **robust, production-ready race detection** that can catch subtle timing-dependent race conditions.
+The race detection testing provides comprehensive coverage from basic smoke tests to intensive stress testing to detect race conditions under various scenarios.
 
 ## Testing Levels
 
@@ -68,12 +68,11 @@ go test -race -run="TestMemoryPressureRaces" -v ./pkg/minikanren
 
 ## Fixed Race Conditions
 
-### Stream.Take() Race Condition ✅ FIXED
+### Stream.Take() Race Condition
 **Issue**: Race condition between stream closure and hasMore determination in Success goal
-**Root Cause**: The Success goal puts one item and closes the stream in a goroutine, but the Take() method's hasMore check happened before the goroutine had a chance to close the stream
+**Root Cause**: The Success goal puts one item and closes the stream in a goroutine, but the Take() method's hasMore check occurred before the goroutine had a chance to close the stream
 **Symptoms**: Intermittent test failures under high concurrency where hasMore returned true when it should return false
 **Fix**: Added `runtime.Gosched()` before the final hasMore check to yield execution to other goroutines, allowing the producer goroutine to complete stream closure
-**Test**: `go test -race -count=100 -run="TestGoals/Success_goal"` - now passes consistently
 **Technical Details**: The race occurred between:
   1. Main thread: `stream.Take(1)` reads one item, then checks if more are available
   2. Goroutine: `stream.Put(store)` then `stream.Close()` 
@@ -82,7 +81,7 @@ go test -race -run="TestMemoryPressureRaces" -v ./pkg/minikanren
 
 ## Test Classifications
 
-### Robust Tests (Production Ready) ✅
+### Robust Tests (Production Ready)
 - **TestStressRaceConditions**: High concurrency, long duration, multiple scenarios
 - **TestMemoryPressureRaces**: GC pressure, memory allocation races
 - **Intensive race detection**: Multiple iterations with high parallelism
@@ -111,7 +110,7 @@ This provides balanced coverage without excessive resource usage.
 
 ## Race Detection Capabilities
 
-✅ **Catches**:
+**Detects**:
 - Data races in variable ID generation
 - Concurrent stream operations
 - Parallel goal execution races
@@ -119,7 +118,7 @@ This provides balanced coverage without excessive resource usage.
 - Memory allocation races
 - GC-related timing issues
 
-❌ **Limitations**:
+**Limitations**:
 - Cannot detect logical race conditions (only data races)
 - May miss races that require very specific timing
 - Performance overhead during testing
@@ -146,4 +145,4 @@ go test -race -run="TestStressRaceConditions/Massive_concurrent_variable_creatio
 
 ## Conclusion
 
-The race detection testing has been transformed from basic smoke tests to a comprehensive, robust testing suite that provides high confidence in the thread safety of the GoKando implementation.
+The race detection testing provides comprehensive coverage and high confidence in the thread safety of the GoKando implementation.

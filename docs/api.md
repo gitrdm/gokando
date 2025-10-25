@@ -173,9 +173,15 @@ func Run(n int, goalFunc func(*Var) Goal) []Term
 func RunStar(goalFunc func(*Var) Goal) []Term
 func RunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term
 func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term
+func RunWithIsolation(n int, goalFunc func(*Var) Goal) []Term
+func RunWithIsolationContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term
 ```
 
 Execute goals and return solutions.
+
+- `Run` / `RunStar`: Standard execution with shared constraint bus
+- `RunWithIsolation`: Execution with isolated constraint bus for complete separation
+- Context variants: Support timeout and cancellation
 
 **Example:**
 ```go
@@ -194,9 +200,28 @@ allResults := RunStar(func(q *Var) Goal {
     return Eq(q, NewAtom("hello"))
 })
 // allResults: ["hello"]
+
+// Isolated execution for constraint separation
+isolatedResults := RunWithIsolation(10, func(q *Var) Goal {
+    return someGoalWithConstraints(q)
+})
 ```
 
-## List Operations
+## Data Construction Functions
+
+### AtomFromValue
+```go
+func AtomFromValue(value interface{}) *Atom
+```
+
+Creates an atom from any Go value. The value is stored directly in the atom.
+
+**Example:**
+```go
+atom := AtomFromValue(42)
+stringAtom := AtomFromValue("hello")
+sliceAtom := AtomFromValue([]int{1, 2, 3})
+```
 
 ### List
 ```go
@@ -235,6 +260,164 @@ results = Run(3, func(q *Var) Goal {
     return Appendo(q, list34, list1234)
 })
 // results: [(1 . (2 . nil))]
+```
+
+## Constraint Operations
+
+### Neq (Disequality)
+```go
+func Neq(t1, t2 Term) Goal
+```
+
+Creates a constraint that t1 and t2 must not unify.
+
+**Example:**
+```go
+x := Fresh("x")
+goal := Conj(
+    Neq(x, NewAtom("forbidden")),
+    Eq(x, NewAtom("allowed")),
+)
+```
+
+### Absento (Absence)
+```go
+func Absento(absent, term Term) Goal
+```
+
+Creates a constraint that absent does not occur anywhere in term.
+
+**Example:**
+```go
+x := Fresh("x")
+list := List(NewAtom(1), x, NewAtom(3))
+goal := Conj(
+    Absento(NewAtom(2), list), // 2 must not appear in list
+    Eq(x, NewAtom(5)),         // So x can be 5 but not 2
+)
+```
+
+### Type Constraints
+```go
+func Symbolo(term Term) Goal
+func Numbero(term Term) Goal
+```
+
+Type constraints for symbols (strings) and numbers.
+
+**Example:**
+```go
+x := Fresh("x")
+goal := Conj(
+    Symbolo(x),                    // x must be a string
+    Eq(x, NewAtom("hello")),       // Valid: "hello" is a string
+)
+
+y := Fresh("y")
+goal2 := Conj(
+    Numbero(y),                    // y must be a number
+    Eq(y, NewAtom(42)),           // Valid: 42 is a number
+)
+```
+
+### List Constraints
+```go
+func Membero(element, list Term) Goal
+func Car(pair, car Term) Goal
+func Cdr(pair, cdr Term) Goal
+func Cons(car, cdr, pair Term) Goal
+func Nullo(term Term) Goal
+func Pairo(term Term) Goal
+```
+
+List structure and membership constraints.
+
+**Example:**
+```go
+// Membership
+x := Fresh("x")
+list := List(NewAtom(1), NewAtom(2), NewAtom(3))
+memberGoal := Membero(x, list) // x can be 1, 2, or 3
+
+// List deconstruction
+head := Fresh("head")
+tail := Fresh("tail")
+carGoal := Car(list, head)     // head = 1
+cdrGoal := Cdr(list, tail)     // tail = (2 . (3 . nil))
+
+// List construction
+newPair := Fresh("pair")
+consGoal := Cons(NewAtom(0), list, newPair) // pair = (0 . (1 . (2 . (3 . nil))))
+
+// Type checks
+emptyList := NewAtom(nil)
+nullGoal := Nullo(emptyList)   // succeeds: nil is empty list
+pairGoal := Pairo(list)        // succeeds: list is non-empty
+```
+
+### Control Flow
+```go
+func Onceo(goal Goal) Goal
+func Conda(clauses ...[]Goal) Goal
+func Condu(clauses ...[]Goal) Goal
+```
+
+Control flow and cut operations.
+
+**Example:**
+```go
+// Cut - succeed at most once
+x := Fresh("x")
+onceGoal := Onceo(Disj(
+    Eq(x, NewAtom(1)),
+    Eq(x, NewAtom(2)),
+    Eq(x, NewAtom(3)),
+)) // Only returns first solution: x = 1
+
+// If-then-else with cut (conda)
+condaGoal := Conda(
+    []Goal{Eq(x, NewAtom(1)), Success},              // if x=1 then succeed
+    []Goal{Eq(x, NewAtom(2)), Eq(x, NewAtom(20))},   // else if x=2 then x=20
+    []Goal{Success, Failure},                         // else fail
+)
+
+// If-then-else with uniqueness (condu)
+conduGoal := Condu(
+    []Goal{Eq(x, NewAtom(1)), Success},              // if x=1 uniquely then succeed
+    []Goal{Success, Failure},                         // else fail
+)
+```
+
+### Advanced Operations
+```go
+func Project(vars []Term, goalFunc func([]Term) Goal) Goal
+```
+
+Project variables out of the logic context for computation.
+
+**Example:**
+```go
+x := Fresh("x")
+y := Fresh("y")
+goal := Conj(
+    Eq(x, NewAtom(5)),
+    Eq(y, NewAtom(3)),
+    Project([]Term{x, y}, func(vals []Term) Goal {
+        // vals[0] = 5, vals[1] = 3
+        if atom1, ok := vals[0].(*Atom); ok {
+            if atom2, ok := vals[1].(*Atom); ok {
+                if val1, ok := atom1.Value().(int); ok {
+                    if val2, ok := atom2.Value().(int); ok {
+                        sum := val1 + val2
+                        result := Fresh("result")
+                        return Eq(result, NewAtom(sum)) // result = 8
+                    }
+                }
+            }
+        }
+        return Failure
+    }),
+)
 ```
 
 ## Parallel Execution
