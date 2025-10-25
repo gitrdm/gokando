@@ -30,7 +30,7 @@ jobs:
         run: go install github.com/kolosys/proton/cmd/proton@latest
 
       - name: Generate documentation
-        run: proton generate
+        run: proton generate . --output ./docs
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
