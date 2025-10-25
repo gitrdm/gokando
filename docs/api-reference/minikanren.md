@@ -80,7 +80,7 @@ Version represents the current version of the GoKando miniKanren implementation.
 
 
 ```go
-&{<nil> [Version] <nil> [0xc00040d620] <nil>}
+&{<nil> [Version] <nil> [0xc00040d700] <nil>}
 ```
 
 ## Variables
@@ -91,7 +91,7 @@ Nil represents the empty list
 
 
 ```go
-&{<nil> [Nil] <nil> [0xc000381200] <nil>}
+&{<nil> [Nil] <nil> [0xc000381240] <nil>}
 ```
 
 ## Types
@@ -169,28 +169,28 @@ func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a deep copy of the constraint for parallel execution. Implements the Constraint interface.
 
 ```go
-func (*Substitution) Clone() *Substitution
+func (*MembershipConstraint) Clone() Constraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- *Substitution
+- Constraint
 
 ### ID
 
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*Var) ID() int64
+func (*MembershipConstraint) ID() string
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int64
+- string
 
 ### IsLocal
 
@@ -211,7 +211,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (ConstraintEventType) String() string
+func (*MembershipConstraint) String() string
 ```
 
 **Parameters:**
@@ -297,14 +297,14 @@ func NewAtom(value interface{}) *Atom
 Clone creates a copy of the atom.
 
 ```go
-func (*MembershipConstraint) Clone() Constraint
+func (*Substitution) Clone() *Substitution
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- *Substitution
 
 ### Equal
 
@@ -339,7 +339,7 @@ func (*Pair) IsVar() bool
 String returns a string representation of the atom.
 
 ```go
-func (*LocalConstraintStoreImpl) String() string
+func (ConstraintEventType) String() string
 ```
 
 **Parameters:**
@@ -522,7 +522,7 @@ type ConstraintResult int
 String returns a human-readable representation of the constraint result.
 
 ```go
-func (*LocalConstraintStoreImpl) String() string
+func (*MembershipConstraint) String() string
 ```
 
 **Parameters:**
@@ -770,7 +770,7 @@ func (*MembershipConstraint) Clone() Constraint
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*LocalConstraintStoreImpl) ID() string
+func (*MembershipConstraint) ID() string
 ```
 
 **Parameters:**
@@ -798,7 +798,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (ConstraintEventType) String() string
+func (*MembershipConstraint) String() string
 ```
 
 **Parameters:**
@@ -977,7 +977,7 @@ func (*GlobalConstraintBus) Reset()
 Shutdown gracefully shuts down the global constraint bus. Should be called when constraint processing is complete.
 
 ```go
-func (*LocalConstraintStoreImpl) Shutdown()
+func (*GlobalConstraintBus) Shutdown()
 ```
 
 **Parameters:**
@@ -1213,15 +1213,14 @@ func Appendo(l1, l2, l3 Term) Goal
 Car extracts the first element of a pair/list. Example: goal := Car(List(NewAtom(1), NewAtom(2)), x) // x = 1
 
 ```go
-func Car(pair, car Term) Goal
+func (*Pair) Car() Term
 ```
 
 **Parameters:**
-- `pair` (Term)
-- `car` (Term)
+  None
 
 **Returns:**
-- Goal
+- Term
 
 ### Cdr
 
@@ -1682,7 +1681,7 @@ func (*LocalConstraintStoreImpl) IsEmpty() bool
 Shutdown cleanly shuts down the store and unregisters it from the global constraint bus. Should be called when the store is no longer needed to prevent memory leaks.
 
 ```go
-func (*LocalConstraintStoreImpl) Shutdown()
+func (*ParallelExecutor) Shutdown()
 ```
 
 **Parameters:**
@@ -1696,7 +1695,7 @@ func (*LocalConstraintStoreImpl) Shutdown()
 String returns a human-readable representation of the constraint store for debugging and error reporting. Implements the ConstraintStore interface.
 
 ```go
-func (*MembershipConstraint) String() string
+func (ConstraintEventType) String() string
 ```
 
 **Parameters:**
@@ -1806,14 +1805,14 @@ func (*Substitution) Clone() *Substitution
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*Var) ID() int64
+func (*MembershipConstraint) ID() string
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int64
+- string
 
 ### IsLocal
 
@@ -1834,7 +1833,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (ConstraintEventType) String() string
+func (*LocalConstraintStoreImpl) String() string
 ```
 
 **Parameters:**
@@ -1927,28 +1926,29 @@ func (*Pair) Car() Term
 Cdr returns the rest of the pair.
 
 ```go
-func (*Pair) Cdr() Term
+func Cdr(pair, cdr Term) Goal
 ```
 
 **Parameters:**
-  None
+- `pair` (Term)
+- `cdr` (Term)
 
 **Returns:**
-- Term
+- Goal
 
 ### Clone
 
 Clone creates a deep copy of the pair.
 
 ```go
-func (*MembershipConstraint) Clone() Constraint
+func (*Substitution) Clone() *Substitution
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- *Substitution
 
 ### Equal
 
@@ -1983,7 +1983,7 @@ func (*Pair) IsVar() bool
 String returns a string representation of the pair.
 
 ```go
-func (ConstraintEventType) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -2786,14 +2786,14 @@ func (*Substitution) Clone() *Substitution
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*Var) ID() int64
+func (*LocalConstraintStoreImpl) ID() string
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int64
+- string
 
 ### IsLocal
 
@@ -2814,7 +2814,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (ConstraintEventType) String() string
+func (*LocalConstraintStoreImpl) String() string
 ```
 
 **Parameters:**
@@ -2953,14 +2953,14 @@ func extractVariables(term Term) []*Var
 Clone creates a copy of the variable with the same identity.
 
 ```go
-func (*Substitution) Clone() *Substitution
+func (*MembershipConstraint) Clone() Constraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- *Substitution
+- Constraint
 
 ### Equal
 
