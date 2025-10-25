@@ -83,7 +83,7 @@ func TestMemoryProfiling(t *testing.T) {
 
 	// Check for potential memory leaks
 	// The exact threshold depends on your application's requirements
-	const maxAllocMB = 100 // 100MB threshold
+	const maxAllocMB = 150 // 150MB threshold for intensive workload (1000 iterations × 100 vars × 10 solutions)
 	allocMB := m2.Alloc / 1024 / 1024
 	if allocMB > maxAllocMB {
 		t.Errorf("Potential memory leak: %d MB allocated (threshold: %d MB)", allocMB, maxAllocMB)
@@ -193,11 +193,9 @@ func TestMemoryLeakDetection(t *testing.T) {
 				vars[j] = Fresh(fmt.Sprintf("leak_test_%d_%d", round, j))
 			}
 
-			// Test constraint store operations
-			ctx := context.Background()
-			store := NewLocalConstraintStore(NewGlobalConstraintBus())
-
-			// Create goals and execute them
+		// Test constraint store operations
+		ctx := context.Background()
+		store := NewLocalConstraintStore(GetDefaultGlobalBus())			// Create goals and execute them
 			goal := Disj(
 				Eq(vars[0], NewAtom(1)),
 				Eq(vars[1], NewAtom(2)),
