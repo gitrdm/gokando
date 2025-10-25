@@ -7,7 +7,7 @@ GoKanren is a production-quality implementation of miniKanren in Go, designed wi
 ### Core miniKanren
 - **Complete Operator Set**: All standard miniKanren operators including constraints
 - **Thread-Safe**: All operations are safe for concurrent use across goroutines
-- **Parallel Execution**: Goals can be evaluated in parallel using configurable worker pools
+- **Parallel Execution**: Goals can be evaluated in parallel using configurable worker pools (1-N workers, queue size, backpressure, rate limiting)
 - **Type-Safe**: Leverages Go's type system for safe relational programming
 - **Stream-Based**: Lazy evaluation with channel-based streaming for scalability
 
@@ -134,14 +134,34 @@ results := minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal {
 
 ### Parallel Execution
 ```go
-// Concurrent goal evaluation
+// Concurrent goal evaluation with default configuration
 results := minikanren.ParallelRun(10, func(q *minikanren.Var) minikanren.Goal {
-    return minikanren.ParallelDisj(
+    return minikanren.Disj(
         minikanren.Eq(q, minikanren.NewAtom(1)),
         minikanren.Eq(q, minikanren.NewAtom(2)),
         minikanren.Eq(q, minikanren.NewAtom(3)),
     )
 })
+
+// Custom worker pool configuration
+config := &minikanren.ParallelConfig{
+    MaxWorkers:         8,                // 8 worker goroutines
+    MaxQueueSize:       100,              // Queue up to 100 tasks
+    EnableBackpressure: true,             // Enable backpressure control
+    RateLimit:          50,               // Limit to 50 operations/second
+}
+
+executor := minikanren.NewParallelExecutor(config)
+defer executor.Shutdown()
+
+// Use custom configuration
+results = minikanren.ParallelRunWithConfig(10, func(q *minikanren.Var) minikanren.Goal {
+    return executor.ParallelDisj(
+        computeIntensiveGoal1(q),  // Your custom goal functions
+        computeIntensiveGoal2(q),  // would be defined here
+        computeIntensiveGoal3(q),
+    )
+}, config)
 ```
 
 ## Important Usage Notes
@@ -174,6 +194,11 @@ results := minikanren.ParallelRun(10, func(q *minikanren.Var) minikanren.Goal {
 - **Overhead**: Parallel execution has coordination overhead. For simple goals, sequential execution may be faster
 - **Resource Usage**: Parallel execution uses more memory and CPU cores
 - **Cancellation**: All parallel operations support context cancellation for clean shutdown
+- **Configuration Options**:
+  - `MaxWorkers`: Number of concurrent worker goroutines (default: `runtime.NumCPU()`)
+  - `MaxQueueSize`: Maximum pending tasks before backpressure kicks in (default: `MaxWorkers * 10`)
+  - `EnableBackpressure`: Automatic memory protection for large search spaces (default: `true`)
+  - `RateLimit`: Maximum operations per second, 0 for unlimited (default: `0`)
 
 ### Performance Characteristics
 
@@ -192,7 +217,7 @@ go test ./...
 go test ./... -v
 
 # Run specific test suites
-go test ./pkg/minikanren/ -run TestConstraints -v
+go test ./pkg/minikanren/ -run TestComplexConstraints -v
 
 # Run benchmarks
 go test -bench=. ./...
@@ -205,10 +230,19 @@ go test -race ./...
 
 ### Parallel Configuration
 ```go
+// Default configuration (good for most cases)
+defaultConfig := minikanren.DefaultParallelConfig()
+// MaxWorkers: runtime.NumCPU()
+// MaxQueueSize: runtime.NumCPU() * 10  
+// EnableBackpressure: true
+// RateLimit: 0 (unlimited)
+
+// Custom configuration for high-concurrency scenarios
 config := &minikanren.ParallelConfig{
-    MaxWorkers:      runtime.NumCPU(),
-    BufferSize:      1000,
-    BackpressureEnabled: true,
+    MaxWorkers:         16,               // More workers for CPU-intensive tasks
+    MaxQueueSize:       1000,             // Larger queue for bursty workloads
+    EnableBackpressure: true,             // Prevent memory exhaustion
+    RateLimit:          100,              // Limit operations per second
 }
 
 results := minikanren.ParallelRunWithConfig(10, goalFunc, config)
