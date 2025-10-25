@@ -1,8 +1,8 @@
-# Documentation Examples Verification Summary
+# GoKando - Documentation Examples Verification Summary
 
 ## Overview
 
-All code examples in the best-practices documentation files have been verified to be working, accurate, and follow Go best practices.
+All code examples in the GoKando best-practices documentation files have been verified to be working, accurate, and follow Go best practices.
 
 ## Files Updated
 
