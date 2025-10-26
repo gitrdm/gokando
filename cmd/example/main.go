@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"gokando/pkg/minikanren"
+	"github.com/gitrdm/gokando/pkg/minikanren"
 )
 
 func main() {

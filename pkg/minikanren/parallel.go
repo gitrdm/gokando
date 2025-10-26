@@ -2,7 +2,7 @@ package minikanren
 
 import (
 	"context"
-	"gokando/internal/parallel"
+	"github.com/gitrdm/gokando/internal/parallel"
 	"runtime"
 	"sync"
 )
