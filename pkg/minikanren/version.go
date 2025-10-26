@@ -1,13 +1,13 @@
 // Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 //
-// Version: 0.9.1
+// Version: 0.9.2
 //
 // This package offers a complete set of miniKanren operators with high-performance
 // concurrent execution capabilities, designed for production use.
 package minikanren
 
 // Version represents the current version of the GoKando miniKanren implementation.
-const Version = "0.9.1"
+const Version = "0.9.2"
 
 // VersionInfo provides detailed version information.
 type VersionInfo struct {
