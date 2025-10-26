@@ -102,7 +102,7 @@ docs/             # Architecture and API documentation
 
 ### Basic Unification
 ```go
-import "gokando/pkg/minikanren"
+import "github.com/gitrdm/gokando/pkg/minikanren"
 
 // Simple value binding
 results := minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal {
