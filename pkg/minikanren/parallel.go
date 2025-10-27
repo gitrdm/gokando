@@ -2,9 +2,10 @@ package minikanren
 
 import (
 	"context"
-	"github.com/gitrdm/gokando/internal/parallel"
 	"runtime"
 	"sync"
+
+	"github.com/gitrdm/gokando/internal/parallel"
 )
 
 // ParallelConfig holds configuration for parallel goal execution.
@@ -229,7 +230,7 @@ func ParallelRunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal
 
 	var results []Term
 	for _, store := range solutions {
-		value := store.GetSubstitution().Walk(q)
+		value := store.GetSubstitution().DeepWalk(q)
 		results = append(results, value)
 	}
 
