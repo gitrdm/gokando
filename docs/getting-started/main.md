@@ -1,15 +1,53 @@
 # Getting Started with main
 
-This example shows how to use the core primitives to solve
-simple relational programming problems.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+
+The Zebra puzzle is a logic puzzle with the following constraints:
+  - There are five houses.
+  - The English man lives in the red house.
+  - The Swede has a dog.
+  - The Dane drinks tea.
+  - The green house is immediately to the left of the white house.
+  - They drink coffee in the green house.
+  - The man who smokes Pall Mall has a bird.
+  - In the yellow house they smoke Dunhill.
+  - In the middle house they drink milk.
+  - The Norwegian lives in the first house.
+  - The Blend-smoker lives in the house next to the house with a cat.
+  - In a house next to the house with a horse, they smoke Dunhill.
+  - The man who smokes Blue Master drinks beer.
+  - The German smokes Prince.
+  - The Norwegian lives next to the blue house.
+  - They drink water in a house next to the house where they smoke Blend.
+
+Question: Who owns the zebra?
 
 
 ## Overview
 
-**Import Path:** `github.com/gitrdm/gokando/cmd/example`
+**Import Path:** `github.com/gitrdm/gokando/examples/zebra`
 
-This example shows how to use the core primitives to solve
-simple relational programming problems.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+
+The Zebra puzzle is a logic puzzle with the following constraints:
+  - There are five houses.
+  - The English man lives in the red house.
+  - The Swede has a dog.
+  - The Dane drinks tea.
+  - The green house is immediately to the left of the white house.
+  - They drink coffee in the green house.
+  - The man who smokes Pall Mall has a bird.
+  - In the yellow house they smoke Dunhill.
+  - In the middle house they drink milk.
+  - The Norwegian lives in the first house.
+  - The Blend-smoker lives in the house next to the house with a cat.
+  - In a house next to the house with a horse, they smoke Dunhill.
+  - The man who smokes Blue Master drinks beer.
+  - The German smokes Prince.
+  - The Norwegian lives next to the blue house.
+  - They drink water in a house next to the house where they smoke Blend.
+
+Question: Who owns the zebra?
 
 
 ## Installation
@@ -17,7 +55,7 @@ simple relational programming problems.
 ### Install the package
 
 ```bash
-go get github.com/gitrdm/gokando/cmd/example
+go get github.com/gitrdm/gokando/examples/zebra
 ```
 
 ### Verify installation
@@ -29,7 +67,7 @@ package main
 
 import (
     "fmt"
-    "github.com/gitrdm/gokando/cmd/example"
+    "github.com/gitrdm/gokando/examples/zebra"
 )
 
 func main() {
@@ -54,7 +92,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/gitrdm/gokando/cmd/example"
+    "github.com/gitrdm/gokando/examples/zebra"
 )
 
 func main() {
@@ -77,6 +115,6 @@ For more detailed examples, see the [Examples](../examples/README.md) section.
 
 ## Documentation Links
 
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokando/cmd/example)
-- [Source Code](https://github.com/gitrdm/gokando/tree/master/cmd/example)
+- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokando/examples/zebra)
+- [Source Code](https://github.com/gitrdm/gokando/tree/master/examples/zebra)
 - [GitHub Issues](https://github.com/gitrdm/gokando/issues)

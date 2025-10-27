@@ -23,6 +23,140 @@ Key APIs:
 - Constants and variables
 - Detailed usage examples
 
+### [main](main.md)
+
+Package main solves the apartment floor puzzle using GoKando.
+
+The puzzle: Baker, Cooper, Fletcher, Miller, and Smith live on different
+floors of an apartment house that contains only five floors.
+
+Constraints:
+  - Baker does not live on the top floor.
+  - Cooper does not live on the bottom floor.
+  - Fletcher does not live on either the top or the bottom floor.
+  - Miller lives on a higher floor than does Cooper.
+  - Smith does not live on a floor adjacent to Fletcher's.
+  - Fletcher does not live on a floor adjacent to Cooper's.
+
+Question: Where does everyone live?
+
+
+**[→ Full API Documentation](main.md)**
+
+Key APIs:
+
+- Types and interfaces
+- Functions and methods
+- Constants and variables
+- Detailed usage examples
+
+### [main](main.md)
+
+Graph Coloring Problem: Color the vertices of a graph such that no two
+adjacent vertices share the same color, using the minimum number of colors.
+
+This example demonstrates:
+- Pure relational constraints with Neq
+- Parallel search with ParallelDisj and ParallelRun
+- Performance comparison between sequential and parallel execution
+
+The example uses a map of Australia with 7 regions and demonstrates
+the classic 3-coloring problem.
+
+
+**[→ Full API Documentation](main.md)**
+
+Key APIs:
+
+- Types and interfaces
+- Functions and methods
+- Constants and variables
+- Detailed usage examples
+
+### [main](main.md)
+
+Package main solves the N-Queens puzzle using GoKando.
+
+The N-Queens puzzle: Place N queens on an N×N chessboard such that no two queens
+attack each other. Queens can attack any piece on the same row, column, or diagonal.
+
+This implementation uses Project to verify the constraints efficiently for small N (4-8).
+For larger boards, a more sophisticated constraint propagation approach would be needed.
+
+
+**[→ Full API Documentation](main.md)**
+
+Key APIs:
+
+- Types and interfaces
+- Functions and methods
+- Constants and variables
+- Detailed usage examples
+
+### [main](main.md)
+
+Package main solves the Twelve Statements puzzle using GoKando.
+
+The puzzle: Given twelve statements about themselves, determine which are true.
+
+ 1. This is a numbered list of twelve statements.
+ 2. Exactly 3 of the last 6 statements are true.
+ 3. Exactly 2 of the even-numbered statements are true.
+ 4. If statement 5 is true, then statements 6 and 7 are both true.
+ 5. The 3 preceding statements are all false.
+ 6. Exactly 4 of the odd-numbered statements are true.
+ 7. Either statement 2 or 3 is true, but not both.
+ 8. If statement 7 is true, then 5 and 6 are both true.
+ 9. Exactly 3 of the first 6 statements are true.
+
+10. The next two statements are both true.
+11. Exactly 1 of statements 7, 8 and 9 are true.
+12. Exactly 4 of the preceding statements are true.
+
+
+**[→ Full API Documentation](main.md)**
+
+Key APIs:
+
+- Types and interfaces
+- Functions and methods
+- Constants and variables
+- Detailed usage examples
+
+### [main](main.md)
+
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+
+The Zebra puzzle is a logic puzzle with the following constraints:
+  - There are five houses.
+  - The English man lives in the red house.
+  - The Swede has a dog.
+  - The Dane drinks tea.
+  - The green house is immediately to the left of the white house.
+  - They drink coffee in the green house.
+  - The man who smokes Pall Mall has a bird.
+  - In the yellow house they smoke Dunhill.
+  - In the middle house they drink milk.
+  - The Norwegian lives in the first house.
+  - The Blend-smoker lives in the house next to the house with a cat.
+  - In a house next to the house with a horse, they smoke Dunhill.
+  - The man who smokes Blue Master drinks beer.
+  - The German smokes Prince.
+  - The Norwegian lives next to the blue house.
+  - They drink water in a house next to the house where they smoke Blend.
+
+Question: Who owns the zebra?
+
+
+**[→ Full API Documentation](main.md)**
+
+Key APIs:
+
+- Types and interfaces
+- Functions and methods
+- Constants and variables
+- Detailed usage examples
+
 ### [parallel](parallel.md)
 
 Package parallel provides advanced parallel execution capabilities
@@ -102,7 +236,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 0.9.1
+Version: 0.11.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.

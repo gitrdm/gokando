@@ -4,8 +4,27 @@ Best practices and recommended patterns for using the main package effectively.
 
 ## Overview
 
-This example shows how to use the core primitives to solve
-simple relational programming problems.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+
+The Zebra puzzle is a logic puzzle with the following constraints:
+  - There are five houses.
+  - The English man lives in the red house.
+  - The Swede has a dog.
+  - The Dane drinks tea.
+  - The green house is immediately to the left of the white house.
+  - They drink coffee in the green house.
+  - The man who smokes Pall Mall has a bird.
+  - In the yellow house they smoke Dunhill.
+  - In the middle house they drink milk.
+  - The Norwegian lives in the first house.
+  - The Blend-smoker lives in the house next to the house with a cat.
+  - In a house next to the house with a horse, they smoke Dunhill.
+  - The man who smokes Blue Master drinks beer.
+  - The German smokes Prince.
+  - The Norwegian lives next to the blue house.
+  - They drink water in a house next to the house where they smoke Blend.
+
+Question: Who owns the zebra?
 
 
 ## General Best Practices
@@ -13,7 +32,7 @@ simple relational programming problems.
 ### Import and Setup
 
 ```go
-import "github.com/gitrdm/gokando/cmd/example"
+import "github.com/gitrdm/gokando/examples/zebra"
 
 // Always check for errors when initializing
 config, err := main.New()
