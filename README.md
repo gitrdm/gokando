@@ -168,6 +168,36 @@ results = minikanren.ParallelRunWithConfig(10, func(q *minikanren.Var) minikanre
 }, config)
 ```
 
+### Zebra Puzzle (Einstein's Riddle)
+
+A complete implementation of the famous logic puzzle demonstrating constraint solving:
+
+```bash
+cd examples/zebra
+go run main.go
+```
+
+The Zebra puzzle showcases:
+- Complex constraint satisfaction with 15 interrelated rules
+- Proper use of Disj (disjunction) for choice points  
+- Neq constraints for ensuring all values are different
+- Solving a real-world logic puzzle in ~20ms
+
+**Output:**
+```
+House | Nationality | Color  | Pet    | Drink  | Smoke
+------|-------------|--------|--------|--------|-------------
+  1   | Norwegian   | yellow | cat    | water  | Dunhill
+  2   | Dane        | blue   | horse  | tea    | Blend
+  3   | English     | red    | bird   | milk   | Pall Mall
+  4   | German      | green  | zebra  | coffee | Prince
+  5   | Swede       | white  | dog    | beer   | Blue Master
+
+🦓 Answer: The German owns the zebra!
+```
+
+See [`examples/zebra/main.go`](examples/zebra/main.go) for the complete implementation.
+
 ## Important Usage Notes
 
 ### Order-Independent Constraints
