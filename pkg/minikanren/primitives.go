@@ -352,7 +352,7 @@ func RunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term
 
 	var results []Term
 	for _, store := range solutions {
-		value := store.GetSubstitution().Walk(q)
+		value := store.GetSubstitution().DeepWalk(q)
 		results = append(results, value)
 	}
 
@@ -394,7 +394,7 @@ func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term {
 		solutions, hasMore := stream.Take(10) // Take in batches
 
 		for _, store := range solutions {
-			value := store.GetSubstitution().Walk(q)
+			value := store.GetSubstitution().DeepWalk(q)
 			results = append(results, value)
 		}
 
@@ -430,7 +430,7 @@ func RunWithIsolationContext(ctx context.Context, n int, goalFunc func(*Var) Goa
 
 	var results []Term
 	for _, store := range solutions {
-		value := store.GetSubstitution().Walk(q)
+		value := store.GetSubstitution().DeepWalk(q)
 		results = append(results, value)
 	}
 

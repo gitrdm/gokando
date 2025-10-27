@@ -254,6 +254,19 @@ func (s *Substitution) Walk(term Term) Term {
 	return term // Unbound variable
 }
 
+// DeepWalk recursively walks a term, resolving variables in compound structures.
+// This is essential for reifying solutions that contain nested structures.
+func (s *Substitution) DeepWalk(term Term) Term {
+	walked := s.Walk(term)
+
+	// If it's a pair, recursively walk both car and cdr
+	if pair, ok := walked.(*Pair); ok {
+		return NewPair(s.DeepWalk(pair.Car()), s.DeepWalk(pair.Cdr()))
+	}
+
+	return walked
+}
+
 // Size returns the number of bindings in the substitution.
 func (s *Substitution) Size() int {
 	s.mu.RLock()
