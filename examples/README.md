@@ -222,21 +222,137 @@ Queens placed at columns: [4 2 5 1 3 6]
 ✅ All constraints satisfied!
 ```
 
-## Example Categories
+## MiniKanren Idiomaticity Guide
 
-The examples demonstrate different approaches and capabilities of miniKanren:
+Understanding when and why to deviate from pure relational programming helps you choose the right approach for your problem.
 
-1. **Graph Coloring** - Parallel search with `ParallelDisj` (demonstrates concurrency features)
-2. **Zebra Puzzle** - Pure relational programming with helper functions (idiomatic miniKanren)
-3. **Apartment Puzzle** - Using `Project` for arithmetic comparisons (pragmatic miniKanren)
-4. **Twelve Statements** - Using `Project` for constraint verification (constraint satisfaction)
-5. **N-Queens** - Backtracking search (shows performance boundaries without CLP(FD))
+### What is "Idiomatic MiniKanren"?
 
-Each approach is suited to different problem types:
-- **Best for miniKanren**: Relational/structural constraints (Zebra, Graph Coloring)
-- **Pragmatic with Project**: Spatial/arithmetic comparisons (Apartment, N-Queens)
-- **Verification approach**: Self-referential/counting constraints (Twelve Statements)
-- **Performance limits**: Large combinatorial spaces without constraint propagation (N-Queens N>6)
+Idiomatic miniKanren means writing **pure relational constraints** that:
+- Use only declarative operators: `Eq`, `Neq`, `Disj`, `Conj`, `Fresh`
+- State *what* the solution must satisfy, not *how* to find it
+- Let constraints **guide the search** rather than **verify solutions**
+- Avoid extracting values with `Project` for host-language computation
+
+### Idiomaticity Spectrum
+
+Our examples range from purely idiomatic to pragmatically mixed approaches:
+
+#### ⭐⭐⭐⭐⭐ **Fully Idiomatic** (Graph Coloring, Zebra Puzzle)
+
+**Graph Coloring** and **Zebra Puzzle** represent miniKanren at its best:
+- **Pure relational constraints**: Only `Eq`, `Neq`, `Disj`, `Conj`
+- **Constraint-driven**: `Neq(wa, nt)` means "WA and NT must differ" - the constraint IS the specification
+- **No arithmetic**: All relationships are structural/symbolic
+- **No verification**: Constraints actively guide search, not passively check results
+
+**Why they're perfect for miniKanren:**
+- Graph adjacency is naturally relational (symmetric, structural)
+- Logic puzzle constraints are declarative statements
+- No numeric computations required
+
+#### ⭐⭐⭐ **Pragmatic** (Apartment Puzzle)
+
+**Apartment** uses `Project` for arithmetic but stays mostly relational:
+
+```go
+higherThan := func(p1, p2 Term) Goal {
+    return Project(List(p1, p2), func(vals []Term) Goal {
+        floor1 := vals[0].(*Atom).Value().(int)
+        floor2 := vals[1].(*Atom).Value().(int)
+        if floor1 > floor2 {
+            return Success
+        }
+        return Failure
+    })
+}
+```
+
+**Why deviate:** MiniKanren lacks built-in arithmetic constraints like `>`, `<`, `abs()`. Rather than enumerate all valid pairs, `Project` extracts values for a quick Go comparison.
+
+**When this is acceptable:**
+- The core problem is still relational (floor assignments, adjacency)
+- Arithmetic is a small part of the constraint set
+- Alternative would be verbose manual enumeration
+
+#### ⭐⭐ **Mixed Approach** (N-Queens)
+
+**N-Queens** uses relational constraints for columns but arithmetic for diagonals:
+
+```go
+// Idiomatic: column distinctness
+Neq(col1, col2)
+
+// Pragmatic: diagonal checking requires arithmetic
+Project(List(col1, col2), func(vals []Term) Goal {
+    c1, c2 := vals[0].(*Atom).Value().(int), vals[1].(*Atom).Value().(int)
+    if abs(c1-c2) == abs(row1-row2) {
+        return Failure  // On same diagonal
+    }
+    return Success
+})
+```
+
+**Why deviate:** Diagonal constraints involve `abs()` and arithmetic differences. Pure relational encoding would require pre-computing all valid diagonal pairs.
+
+**Trade-off:** Less idiomatic, but far more practical than encoding arithmetic relationally.
+
+#### ⭐ **Verification Oracle** (Twelve Statements)
+
+**Twelve Statements** uses miniKanren primarily for enumeration, with `Project` doing heavy verification:
+
+```go
+Project(s, func(vals []Term) Goal {
+    // Extract all 12 boolean values
+    // Verify complex interdependent logic in Go
+    if statement1_implies_statement2 && exactly_N_true(...) {
+        return Success
+    }
+    return Failure
+})
+```
+
+**Why deviate:** Self-referential statements with counting constraints ("exactly 3 of the last 6 are true") don't map naturally to relational programming. The problem is inherently imperative.
+
+**When this approach makes sense:**
+- Small search space (2^12 = 4096 states)
+- Constraints are deeply interdependent and numeric
+- Verification logic is clearer in imperative code
+- Alternative would be extremely verbose and unclear
+
+### Choosing Your Approach
+
+| Problem Type | Recommended Approach | Example |
+|--------------|---------------------|---------|
+| Symbolic/structural constraints | Pure relational (no `Project`) | Graph coloring, Zebra |
+| Mostly symbolic + some arithmetic | Relational core + `Project` for math | Apartment |
+| Mixed symbolic/numeric | Relational where possible, `Project` for computation | N-Queens |
+| Numeric/counting/self-referential | `Project` verification oracle | Twelve Statements |
+| Large combinatorial (no CLP) | Consider alternative tools | Sudoku (removed) |
+
+### Performance Boundaries
+
+MiniKanren excels at:
+- ✅ Moderate search spaces with good constraint propagation
+- ✅ Structural/symbolic relationships
+- ✅ Problems where constraints prune the search effectively
+
+MiniKanren struggles with:
+- ❌ Large combinatorial spaces without constraint propagation
+- ❌ Finite domain arithmetic (lacks CLP(FD) like Prolog)
+- ❌ Problems requiring extensive numeric computation
+
+**N-Queens illustrates this:** N=6 works (228ms), but N=8 is slow (26s) due to the combinatorial explosion. Languages with CLP(FD) constraint propagation handle this better.
+
+### Best Practices
+
+1. **Start idiomatic**: Try pure relational first
+2. **Use `Project` sparingly**: Only when arithmetic/imperative logic is truly needed
+3. **Keep `Project` focused**: Extract minimal values, return quickly to relational constraints
+4. **Document deviations**: Explain why `Project` is necessary (see Apartment, Twelve Statements examples)
+5. **Consider alternatives**: If `Project` dominates, miniKanren may not be the right tool
+
+The goal isn't purity for its own sake - it's using the right abstraction for your problem. Pure relational miniKanren is beautiful and powerful when it fits; pragmatic deviations are acceptable when they're the clearest solution.
 
 ## Creating Your Own Examples
 
