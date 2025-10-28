@@ -4,6 +4,7 @@ package minikanren
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -33,6 +34,7 @@ type SolverStats struct {
 
 // SolverMonitor provides monitoring capabilities for the FD solver
 type SolverMonitor struct {
+	mu        sync.Mutex
 	stats     *SolverStats
 	startTime time.Time
 	propStart time.Time
@@ -52,17 +54,23 @@ func NewSolverMonitor() *SolverMonitor {
 
 // GetStats returns a copy of the current statistics
 func (m *SolverMonitor) GetStats() *SolverStats {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	stats := *m.stats
 	return &stats
 }
 
 // StartPropagation marks the beginning of a propagation operation
 func (m *SolverMonitor) StartPropagation() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.propStart = time.Now()
 }
 
 // EndPropagation marks the end of a propagation operation
 func (m *SolverMonitor) EndPropagation() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if !m.propStart.IsZero() {
 		m.stats.PropagationTime += time.Since(m.propStart)
 		m.stats.PropagationCount++
@@ -72,21 +80,29 @@ func (m *SolverMonitor) EndPropagation() {
 
 // RecordBacktrack records a backtrack operation
 func (m *SolverMonitor) RecordBacktrack() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.stats.Backtracks++
 }
 
 // RecordNode records exploring a search node
 func (m *SolverMonitor) RecordNode() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.stats.NodesExplored++
 }
 
 // RecordSolution records finding a solution
 func (m *SolverMonitor) RecordSolution() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.stats.SolutionsFound++
 }
 
 // RecordDepth records the current search depth
 func (m *SolverMonitor) RecordDepth(depth int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if depth > m.stats.MaxDepth {
 		m.stats.MaxDepth = depth
 	}
@@ -94,11 +110,15 @@ func (m *SolverMonitor) RecordDepth(depth int) {
 
 // RecordConstraint records adding a constraint
 func (m *SolverMonitor) RecordConstraint() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.stats.ConstraintsAdded++
 }
 
 // RecordTrailSize records the current trail size
 func (m *SolverMonitor) RecordTrailSize(size int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if size > m.stats.PeakTrailSize {
 		m.stats.PeakTrailSize = size
 	}
@@ -106,6 +126,8 @@ func (m *SolverMonitor) RecordTrailSize(size int) {
 
 // RecordQueueSize records the current queue size
 func (m *SolverMonitor) RecordQueueSize(size int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	if size > m.stats.PeakQueueSize {
 		m.stats.PeakQueueSize = size
 	}
@@ -115,6 +137,9 @@ func (m *SolverMonitor) RecordQueueSize(size int) {
 func (m *SolverMonitor) CaptureInitialDomains(store *FDStore) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	m.stats.InitialDomains = make([]BitSet, len(store.vars))
 	for i, v := range store.vars {
@@ -126,6 +151,9 @@ func (m *SolverMonitor) CaptureInitialDomains(store *FDStore) {
 func (m *SolverMonitor) CaptureFinalDomains(store *FDStore) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
 	m.stats.FinalDomains = make([]BitSet, len(store.vars))
 	m.stats.DomainReductions = make([]int, len(store.vars))
@@ -142,6 +170,8 @@ func (m *SolverMonitor) CaptureFinalDomains(store *FDStore) {
 
 // FinishSearch marks the end of the search process
 func (m *SolverMonitor) FinishSearch() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 	m.stats.SearchTime = time.Since(m.startTime)
 }
 

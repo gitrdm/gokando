@@ -205,6 +205,8 @@ func TestAdvancedHeuristics(t *testing.T) {
 
 func TestMonitoring(t *testing.T) {
 	store := NewFDStoreWithDomain(4)
+	monitor := NewSolverMonitor()
+	store.SetMonitor(monitor)
 
 	vars := store.MakeFDVars(3)
 	store.AddAllDifferent(vars)
@@ -213,6 +215,25 @@ func TestMonitoring(t *testing.T) {
 	_, err := store.Solve(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("Solve failed: %v", err)
+	}
+
+	stats := store.GetStats()
+	if stats == nil {
+		t.Fatal("Stats should not be nil")
+	}
+
+	if stats.NodesExplored == 0 {
+		t.Error("Should have explored some nodes")
+	}
+
+	if stats.ConstraintsAdded == 0 {
+		t.Error("Should have recorded constraint additions")
+	}
+
+	// Check string representation
+	statsStr := stats.String()
+	if len(statsStr) == 0 {
+		t.Error("Stats string should not be empty")
 	}
 }
 

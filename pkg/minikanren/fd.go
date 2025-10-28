@@ -468,8 +468,9 @@ func (s *FDStore) propagateLocked() error {
 // SetMonitor enables statistics collection for this store
 func (s *FDStore) SetMonitor(monitor *SolverMonitor) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.monitor = monitor
+	s.mu.Unlock()
+
 	if s.monitor != nil {
 		s.monitor.CaptureInitialDomains(s)
 	}
