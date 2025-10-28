@@ -1,4 +1,4 @@
-# GoKando - Thread-Safe Parallel miniKanren in Go
+# GoKando - Thread-Safe Parallel miniKanren and FD Solver in Go
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gitrdm/gokando/releases)
 [![Go Version](https://img.shields.io/badge/go-1.18%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
