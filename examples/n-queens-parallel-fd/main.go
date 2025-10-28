@@ -1,5 +1,4 @@
-// Package main demonstrates a parallel N-Queens solver using the FD solverpackage nqueensparallelfd
-
+// Package main demonstrates a parallel N-Queens solver using the FD solver
 // and GoKando's parallel execution framework.
 package main
 
@@ -8,6 +7,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"time"
 
 	. "github.com/gitrdm/gokando/pkg/minikanren"
 )
@@ -23,22 +23,34 @@ func main() {
 
 	fmt.Printf("=== Parallel FD %d-Queens Demo ===\n\n", n)
 
-	// Use a small parallel config to demonstrate multi-worker execution
-	config := DefaultParallelConfig()
-	config.MaxWorkers = runtime.NumCPU()
+	// Run sequential (single-threaded) first to compare
+	seqStart := time.Now()
+	seq := Run(1, func(q *Var) Goal { return nQueensFD(n, q) })
+	seqDur := time.Since(seqStart)
 
-	results := ParallelRunWithConfig(1, func(q *Var) Goal {
-		return nQueensFD(n, q)
-	}, config)
-
-	if len(results) == 0 {
-		fmt.Println("No solution found")
-		return
+	if len(seq) == 0 {
+		fmt.Println("Sequential: no solution found")
+	} else {
+		fmt.Printf("Sequential solved in %s\n", seqDur)
+		displayBoard(seq[0], n)
 	}
 
-	fmt.Printf("✓ Parallel FD solution for %d queens:\n\n", n)
-	displayBoard(results[0], n)
+	// Now run parallel
+	config := DefaultParallelConfig()
+	config.MaxWorkers = runtime.NumCPU()
+	parStart := time.Now()
+	par := ParallelRunWithConfig(1, func(q *Var) Goal { return nQueensFD(n, q) }, config)
+	parDur := time.Since(parStart)
+
+	if len(par) == 0 {
+		fmt.Println("Parallel: no solution found")
+	} else {
+		fmt.Printf("Parallel solved in %s\n", parDur)
+		displayBoard(par[0], n)
+	}
 }
+
+// done
 
 // nQueensFD uses the FD solver for column constraints and Project for diagonals.
 func nQueensFD(n int, q *Var) Goal {
@@ -50,45 +62,11 @@ func nQueensFD(n int, q *Var) Goal {
 		queens[i] = v
 		terms[i] = v
 	}
-
-	var goals []Goal
-
-	// Enforce column domain 1..n and all-different using the FD engine
-	goals = append(goals, FDAllDifferentGoal(queens, n))
-
-	// Diagonal check using Project: ensure no two queens share a diagonal
-	goals = append(goals, Project(terms, func(vals []Term) Goal {
-		cols := make([]int, n)
-		for i, val := range vals {
-			atom, ok := val.(*Atom)
-			if !ok {
-				return Failure
-			}
-			c, ok2 := atom.Value().(int)
-			if !ok2 {
-				return Failure
-			}
-			cols[i] = c
-		}
-
-		for i := 0; i < n; i++ {
-			for j := i + 1; j < n; j++ {
-				rd := j - i
-				cd := cols[j] - cols[i]
-				if cd < 0 {
-					cd = -cd
-				}
-				if rd == cd {
-					return Failure
-				}
-			}
-		}
-		return Success
-	}))
+	// Use the FD-based queens goal (will assert offsets and AllDifferent on diagonals)
+	goals := []Goal{FDQueensGoal(queens, n)}
 
 	// Return the solution as a list in q
 	termList := List()
-	// Build list from right to left to match List helper (List constructs with NewAtom(nil) as nil)
 	for i := n - 1; i >= 0; i-- {
 		termList = NewPair(queens[i], termList)
 	}

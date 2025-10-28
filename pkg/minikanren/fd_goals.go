@@ -77,3 +77,97 @@ func FDAllDifferentGoal(vars []*Var, domainSize int) Goal {
 		return stream
 	}
 }
+
+// FDQueensGoal models N-Queens using the FD engine idiomatically:
+// - column variables range 1..n
+// - derived diagonal variables are created as offsets of columns
+// - AllDifferent is applied to columns and both diagonal sets
+func FDQueensGoal(vars []*Var, n int) Goal {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// FD domain size: allow shifts for diagonals (Ci +/- i). Use 2n to be safe.
+			fd := NewFDStoreWithDomain(2 * n)
+
+			// create FD variables matching logic vars
+			fdVars := make([]*FDVar, 0, len(vars))
+			for range vars {
+				fdVars = append(fdVars, fd.NewVar())
+			}
+
+			// derived diagonal vars
+			d1 := make([]*FDVar, n)
+			d2 := make([]*FDVar, n)
+			for i := 0; i < n; i++ {
+				d1[i] = fd.NewVar()
+				d2[i] = fd.NewVar()
+			}
+
+			// link offsets: d1 = C + i ; d2 = C - i + n
+			for i := 0; i < n; i++ {
+				// dst = src + offset
+				if !fd.AddOffsetConstraint(fdVars[i], i, d1[i]) {
+					return
+				}
+				if !fd.AddOffsetConstraint(fdVars[i], -i+n, d2[i]) {
+					return
+				}
+			}
+
+			// all-different on columns and diagonals
+			if !fd.AddAllDifferentRegin(fdVars) {
+				return
+			}
+			if !fd.AddAllDifferentRegin(d1) {
+				return
+			}
+			if !fd.AddAllDifferentRegin(d2) {
+				return
+			}
+
+			// apply current bindings from the constraint store
+			sub := store.GetSubstitution()
+			for i, v := range vars {
+				walked := sub.DeepWalk(v)
+				if !walked.IsVar() {
+					if atom, ok := walked.(*Atom); ok {
+						if val, ok2 := atom.Value().(int); ok2 {
+							// expect 1..n values
+							if !fd.Assign(fdVars[i], val) {
+								return
+							}
+						} else {
+							return
+						}
+					} else {
+						return
+					}
+				}
+			}
+
+			sols, err := fd.Solve(0)
+			if err != nil {
+				return
+			}
+
+			for _, sol := range sols {
+				cloned := store.Clone()
+				ok := true
+				for i, v := range vars {
+					if err := cloned.AddBinding(v.id, NewAtom(sol[i])); err != nil {
+						ok = false
+						break
+					}
+				}
+				if ok {
+					stream.Put(cloned)
+				}
+			}
+		}()
+
+		return stream
+	}
+}

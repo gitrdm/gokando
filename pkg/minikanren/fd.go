@@ -89,6 +89,17 @@ type FDVar struct {
 	peers  []*FDVar
 }
 
+// offsetLink connects two FDVars with an integer offset: other = self + offset
+type offsetLink struct {
+	other  *FDVar
+	offset int
+}
+
+// Extend FDVar with offset links
+// (placed here to avoid changing many other files)
+// Note: we keep it unexported and simple; propagation logic in FDStore will consult these.
+// We'll attach via a small map in FDStore to avoid changing serialized layout of FDVar across code paths.
+
 // FDChange represents a single domain change for undo
 type FDChange struct {
 	vid    int
@@ -103,6 +114,8 @@ type FDStore struct {
 	queue      []int      // variable ids to propagate
 	trail      []FDChange // undo trail
 	domainSize int
+	// offsetLinks maps a variable id to offset links used for arithmetic propagation
+	offsetLinks map[int][]offsetLink
 }
 
 // NewFDStore creates a store with default domain size 9 (1..9)
@@ -258,6 +271,29 @@ func (s *FDStore) propagateLocked() bool {
 			// collect singleton values among peers
 			// currently unused, left for future pruning
 			_ = 0
+		}
+		// propagate offset links (arithmetic constraints)
+		if s.offsetLinks != nil {
+			if links, ok := s.offsetLinks[vid]; ok {
+				for _, l := range links {
+					// compute image of v under offset
+					img := imageOfDomain(v.domain, l.offset, s.domainSize)
+					// intersect with other domain
+					other := l.other
+					if other == nil {
+						continue
+					}
+					newDom := intersectBitSet(other.domain, img)
+					if !bitSetEquals(newDom, other.domain) {
+						s.trail = append(s.trail, FDChange{vid: other.ID, domain: other.domain.Clone()})
+						other.domain = newDom
+						if other.domain.Count() == 0 {
+							return false
+						}
+						s.enqueue(other.ID)
+					}
+				}
+			}
 		}
 	}
 	return true
