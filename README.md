@@ -4,221 +4,93 @@
 [![Go Version](https://img.shields.io/badge/go-1.18%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-GoKando is a production-quality implementation of miniKanren in Go, designed with thread-safety and parallel execution as first-class concerns. This implementation provides a complete set of miniKanren operators with high-performance concurrent execution.
+GoKando is a production-quality implementation of miniKanren in Go, designed with thread-safety and parallel execution as first-class concerns. This implementation provides a complete set of miniKanren operators with high-performance concurrent execution and an integrated finite domain constraint solver.
 
-## Features
+## Installation
 
-### Core miniKanren
-- **Complete Operator Set**: All standard miniKanren operators including constraints
-- **Thread-Safe**: All operations are safe for concurrent use across goroutines
-- **Parallel Execution**: Goals can be evaluated in parallel using configurable worker pools (1-N workers, queue size, backpressure, rate limiting)
-- **Type-Safe**: Leverages Go's type system for safe relational programming
-- **Stream-Based**: Lazy evaluation with channel-based streaming for scalability
-
-### Advanced Features  
-- **Constraint System**: Full constraint support (disequality, absence, type constraints)
-- **Parallel Goal Evaluation**: Concurrent disjunction and stream processing
-- **Backpressure Control**: Automatic rate limiting and resource management
-- **Context Support**: Timeout and cancellation support for all operations
-- **Production Ready**: Extensive testing, benchmarking, and documentation
-
-## Requirements
-
-### System Requirements
+### Requirements
 - **Go Version**: Go 1.18+ (uses generics and modern concurrency patterns)
-- **Memory**: Sufficient RAM for concurrent goal evaluation (scales with parallelism level)
 - **OS**: Any platform supporting Go (Linux, macOS, Windows)
 
-### Development Requirements
+### Install from Source
 ```bash
+# Clone the repository
+git clone https://github.com/gitrdm/gokando.git
+cd gokando
+
 # Install dependencies
 go mod tidy
 
-# Run tests
+# Run tests to verify installation
 go test ./...
 
-# Run benchmarks  
+# Run benchmarks (optional)
 go test -bench=. ./...
 ```
 
-## Architecture
-
-```
-pkg/minikanren/     # Core miniKanren implementation
-├── core.go         # Basic types (Term, Var, Atom, Pair, Substitution, Stream, Goal)
-├── primitives.go   # Core operations (Fresh, Eq, Conj, Disj, Run, Appendo)
-├── parallel.go     # Parallel execution framework
-├── constraints.go  # Extended constraint operators
-└── *_test.go      # Comprehensive test suites
-
-internal/parallel/  # Parallel execution internals
-├── pool.go        # Worker pools and backpressure control
-
-cmd/example/       # Example applications and demos
-docs/             # Architecture and API documentation
-```
-
-## Complete Operator Reference
-
-### Core Operations
-- `Fresh(name)` - Create fresh logic variables
-- `Eq(t1, t2)` - Unification constraint (t1 == t2)
-- `Conj(goals...)` - Logical AND (all goals must succeed)
-- `Disj(goals...)` - Logical OR (any goal can succeed)
-- `Run(n, goalFunc)` - Execute goal and return up to n solutions
-- `RunStar(goalFunc)` - Execute goal and return all solutions
-
-### Constraint Operators
-- `Neq(t1, t2)` - Disequality constraint (t1 != t2)
-- `Absento(absent, term)` - Absence constraint (absent not in term)
-- `Symbolo(term)` - Type constraint (term must be symbol/string)
-- `Numbero(term)` - Type constraint (term must be number)
-- `Membero(elem, list)` - List membership relation
-- `Onceo(goal)` - Cut operator (succeed at most once)
-
-### Committed Choice
-- `Conda(clauses...)` - If-then-else with cut
-- `Condu(clauses...)` - If-then-else with uniqueness requirement
-
-### Advanced Operations
-- `Project(vars, goalFunc)` - Variable projection and computation
-- `Car(list, head)` - Extract list head
-- `Cdr(list, tail)` - Extract list tail  
-- `Cons(head, tail, list)` - Construct list
-- `Nullo(term)` - Empty list check
-- `Pairo(term)` - Non-empty list check
-
-### Parallel Execution
-- `ParallelRun(n, goalFunc)` - Parallel goal execution
-- `ParallelDisj(goals...)` - Concurrent disjunction
-- `ParallelStream` - Concurrent stream processing
-
-### List Relations
-- `Appendo(l1, l2, l3)` - List append relation (l1 + l2 = l3)
-- `List(elements...)` - Construct proper lists
-- `Nil` - Empty list constant
-
-## Usage Examples
-
-### Basic Unification
+### Quick Start
 ```go
-import "github.com/gitrdm/gokando/pkg/minikanren"
+package main
 
-// Simple value binding
-results := minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal {
-    return minikanren.Eq(q, minikanren.NewAtom("hello"))
-})
-fmt.Println(results) // [hello]
-```
+import (
+    "fmt"
+    "github.com/gitrdm/gokando/pkg/minikanren"
+)
 
-### List Operations
-```go
-// List append relation
-results := minikanren.Run(5, func(q *minikanren.Var) minikanren.Goal {
-    return minikanren.Appendo(
-        minikanren.List(minikanren.NewAtom(1), minikanren.NewAtom(2)),
-        minikanren.List(minikanren.NewAtom(3)),
-        q,
-    )
-})
-fmt.Println(results) // [(1 2 3)]
-```
+func main() {
+    // Simple unification
+    results := minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal {
+        return minikanren.Eq(q, minikanren.NewAtom("hello"))
+    })
+    fmt.Println(results) // [hello]
 
-### Constraints
-```go
-// Find symbols that aren't "forbidden"
-results := minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal {
-    return minikanren.Conj(
-        minikanren.Eq(q, minikanren.NewAtom("allowed")),      // Bind first
-        minikanren.Symbolo(q),                                 // Then check type
-        minikanren.Neq(q, minikanren.NewAtom("forbidden")),   // Then check inequality
-    )
-})
-```
-
-### Parallel Execution
-```go
-// Concurrent goal evaluation with default configuration
-results := minikanren.ParallelRun(10, func(q *minikanren.Var) minikanren.Goal {
-    return minikanren.Disj(
-        minikanren.Eq(q, minikanren.NewAtom(1)),
-        minikanren.Eq(q, minikanren.NewAtom(2)),
-        minikanren.Eq(q, minikanren.NewAtom(3)),
-    )
-})
-
-// Custom worker pool configuration
-config := &minikanren.ParallelConfig{
-    MaxWorkers:         8,                // 8 worker goroutines
-    MaxQueueSize:       100,              // Queue up to 100 tasks
-    EnableBackpressure: true,             // Enable backpressure control
-    RateLimit:          50,               // Limit to 50 operations/second
+    // List operations
+    results = minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal {
+        return minikanren.Appendo(
+            minikanren.List(minikanren.NewAtom(1), minikanren.NewAtom(2)),
+            minikanren.List(minikanren.NewAtom(3)),
+            q,
+        )
+    })
+    fmt.Println(results) // [(1 2 3)]
 }
-
-executor := minikanren.NewParallelExecutor(config)
-defer executor.Shutdown()
-
-// Use custom configuration
-results = minikanren.ParallelRunWithConfig(10, func(q *minikanren.Var) minikanren.Goal {
-    return executor.ParallelDisj(
-        computeIntensiveGoal1(q),  // Your custom goal functions
-        computeIntensiveGoal2(q),  // would be defined here
-        computeIntensiveGoal3(q),
-    )
-}, config)
 ```
 
-## Examples
+## Documentation
 
-For complete working examples demonstrating GoKanDo's capabilities, see the [`examples/`](examples/) directory:
+For comprehensive documentation, see the [`docs/`](docs/) directory:
 
-- **[Zebra Puzzle](examples/zebra/)** - Einstein's Riddle with 15 constraints
-- **[Apartment Floor Puzzle](examples/apartment/)** - Floor assignment problem with spatial constraints
+### Core miniKanren
+- **[Core Concepts](docs/minikanren/core.md)**: Logic variables, unification, goals, streams, and constraint system
+  - **Complete operator set**: `Fresh`, `Eq`, `Conj`, `Disj`, `Run`, `RunStar`
+  - **Order-independent constraints**: Type constraints (`Symbolo`, `Numbero`), disequality (`Neq`), absence (`Absento`)
+  - **List operations**: `Appendo`, `Caro`, `Cdru`, `Conso`, `Nullo`, `Pairo`, `Membero`
+  - **Advanced features**: Committed choice (`Conda`, `Condu`), projection, cut operators (`Onceo`)
+  - **Parallel execution**: Worker pools, backpressure control, rate limiting, context cancellation
 
-Each example includes full source code and documentation. See [`examples/README.md`](examples/README.md) for details.
+- **[Finite Domain Solver](docs/minikanren/finite-domains.md)**: Complete FD constraint solver with domain operations, heuristics, and monitoring
+  - **Domain system**: BitSet-based domains, assignment, removal, intersection, union, complement
+  - **Constraint propagation**: AC-3 algorithm, Regin filtering for all-different constraints
+  - **Arithmetic constraints**: Offset links for modeling relationships (e.g., N-Queens diagonals)
+  - **Inequality constraints**: `<`, `<=`, `>`, `>=`, `!=` operators with propagation
+  - **Search heuristics**: Dom/Deg, Domain, Degree, Lexicographic, Random ordering
+  - **Custom constraints**: Extensible framework with `SumConstraint`, `AllDifferentConstraint`
+  - **Monitoring**: Comprehensive statistics, performance tracking, domain reduction metrics
+  - **Integration**: Seamless FD goals (`FDAllDifferentGoal`, `FDQueensGoal`, `FDInequalityGoal`)
 
-## Important Usage Notes
+### Examples and Guides
+- **[Getting Started](docs/getting-started/)**: Tutorials and basic usage examples
+- **[Examples](examples/)**: Complete working examples including Zebra Puzzle and Apartment Floor Puzzle
+- **[API Reference](docs/api-reference/)**: Detailed API documentation
 
-### Order-Independent Constraints
+## Key Features
 
-✨ **Feature**: Constraints in this implementation are **order-independent**. The system provides maximum flexibility:
-
-1. **Constraints work before or after unification**:
-   ```go
-   // ✅ Both orders work identically
-   
-   // Constraint before unification
-   minikanren.Conj(
-       minikanren.Numbero(q),                       // Constraint added to store
-       minikanren.Eq(q, minikanren.NewAtom(42)),    // Unification checks constraints
-   )
-   
-   // Unification before constraint  
-   minikanren.Conj(
-       minikanren.Eq(q, minikanren.NewAtom(42)),    // Bind first
-       minikanren.Numbero(q),                       // Check constraint after
-   )
-   ```
-
-2. **How this works**: Our hybrid constraint system uses LocalConstraintStore + GlobalConstraintBus to automatically coordinate constraint checking regardless of goal ordering. This provides both flexibility and performance.
-
-### Parallel Execution Considerations
-
-- **Overhead**: Parallel execution has coordination overhead. For simple goals, sequential execution may be faster
-- **Resource Usage**: Parallel execution uses more memory and CPU cores
-- **Cancellation**: All parallel operations support context cancellation for clean shutdown
-- **Configuration Options**:
-  - `MaxWorkers`: Number of concurrent worker goroutines (default: `runtime.NumCPU()`)
-  - `MaxQueueSize`: Maximum pending tasks before backpressure kicks in (default: `MaxWorkers * 10`)
-  - `EnableBackpressure`: Automatic memory protection for large search spaces (default: `true`)
-  - `RateLimit`: Maximum operations per second, 0 for unlimited (default: `0`)
-
-### Performance Characteristics
-
-- **Sequential**: Optimal for simple queries and small solution spaces
-- **Parallel**: Best for complex goals with independent choice points
-- **Memory**: Stream-based processing supports large solution spaces efficiently
-- **Concurrency**: Thread-safe for use across multiple goroutines
+- **Complete miniKanren**: All standard operators plus advanced constraints
+- **Thread-Safe**: Safe for concurrent use across goroutines
+- **Parallel Execution**: Configurable worker pools with backpressure control
+- **Finite Domain Solver**: Integrated CSP solver with advanced heuristics
+- **Type-Safe**: Leverages Go's type system for safe relational programming
+- **Production Ready**: Extensive testing and comprehensive documentation
 
 ## Testing
 
@@ -229,60 +101,12 @@ go test ./...
 # Run with verbose output
 go test ./... -v
 
-# Run specific test suites
-go test ./pkg/minikanren/ -run TestComplexConstraints -v
+# Run with race detection
+go test -race ./...
 
 # Run benchmarks
 go test -bench=. ./...
-
-# Run with race detection
-go test -race ./...
 ```
-
-## Performance Tuning
-
-### Parallel Configuration
-```go
-// Default configuration (good for most cases)
-defaultConfig := minikanren.DefaultParallelConfig()
-// MaxWorkers: runtime.NumCPU()
-// MaxQueueSize: runtime.NumCPU() * 10  
-// EnableBackpressure: true
-// RateLimit: 0 (unlimited)
-
-// Custom configuration for high-concurrency scenarios
-config := &minikanren.ParallelConfig{
-    MaxWorkers:         16,               // More workers for CPU-intensive tasks
-    MaxQueueSize:       1000,             // Larger queue for bursty workloads
-    EnableBackpressure: true,             // Prevent memory exhaustion
-    RateLimit:          100,              // Limit operations per second
-}
-
-results := minikanren.ParallelRunWithConfig(10, goalFunc, config)
-```
-
-### Memory Management
-- Use `RunStar` carefully - it returns ALL solutions
-- Consider `Run(n, ...)` with reasonable limits for large solution spaces  
-- Parallel execution automatically manages worker pools and backpressure
-
-## API Stability
-
-This implementation provides:
-- **Stable Core API**: Core miniKanren operations follow standard semantics
-- **Production Quality**: Comprehensive testing and thread-safety guarantees
-- **Performance Focus**: Optimized for concurrent Go applications
-- **Complete Feature Set**: Full miniKanren operator coverage
-
-## Comparison with Other miniKanren Implementations
-
-| Feature | GoKando | core.logic (Clojure) | miniKanren (Scheme) |
-|---------|----------|----------------------|---------------------|
-| Thread Safety | ✅ Built-in | ❌ Requires care | ❌ Single-threaded |
-| Parallel Execution | ✅ Native | ❌ Manual | ❌ No |
-| Constraint Ordering | ✅ Order-independent | ✅ Order-independent | ✅ Order-independent |
-| Performance | ✅ High (compiled) | ✅ Good (JVM) | ✅ Good (compiled) |
-| Type Safety | ✅ Static types | ❌ Dynamic | ❌ Dynamic |
 
 ## Contributing
 
