@@ -381,3 +381,22 @@ func (s *FDStore) Solve(limit int) ([][]int, error) {
 	dfs()
 	return solutions, nil
 }
+
+// MakeFDVars creates n new FD variables with the store's default domain.
+func (s *FDStore) MakeFDVars(n int) []*FDVar {
+	vars := make([]*FDVar, n)
+	for i := 0; i < n; i++ {
+		vars[i] = s.NewVar()
+	}
+	return vars
+}
+
+// AddOffsetLink adds an offset constraint: dst = src + offset
+func (s *FDStore) AddOffsetLink(src *FDVar, offset int, dst *FDVar) bool {
+	return s.AddOffsetConstraint(src, offset, dst)
+}
+
+// ApplyAllDifferentRegin applies the Regin AllDifferent constraint to the variables.
+func (s *FDStore) ApplyAllDifferentRegin(vars []*FDVar) bool {
+	return s.AddAllDifferentRegin(vars)
+}

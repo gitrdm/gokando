@@ -98,6 +98,15 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 				fdVars = append(fdVars, fd.NewVar())
 			}
 
+			// constrain queen columns to 1..n (remove values n+1 .. 2n)
+			for _, v := range fdVars {
+				for i := n + 1; i <= 2*n; i++ {
+					if !fd.Remove(v, i) {
+						return
+					}
+				}
+			}
+
 			// derived diagonal vars
 			d1 := make([]*FDVar, n)
 			d2 := make([]*FDVar, n)
