@@ -60,8 +60,8 @@ func main() {
 
 For comprehensive documentation, see the [`docs/`](docs/) directory:
 
-### Core miniKanren
-- **[Core Concepts](docs/minikanren/core.md)**: Logic variables, unification, goals, streams, and constraint system
+### Core Concepts
+- **[miniKanren](docs/minikanren/core.md)**: Logic variables, unification, goals, streams, and constraint system
   - **Complete operator set**: `Fresh`, `Eq`, `Conj`, `Disj`, `Run`, `RunStar`
   - **Order-independent constraints**: Type constraints (`Symbolo`, `Numbero`), disequality (`Neq`), absence (`Absento`)
   - **List operations**: `Appendo`, `Caro`, `Cdru`, `Conso`, `Nullo`, `Pairo`, `Membero`
