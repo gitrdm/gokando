@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime"
@@ -14,7 +15,7 @@ import (
 
 func main() {
 	// Default to 8 queens (reasonable parallel workload), allow override
-	n := 10
+	n := 12
 	if len(os.Args) > 1 {
 		if parsed, err := strconv.Atoi(os.Args[1]); err == nil && parsed > 0 && parsed <= 12 {
 			n = parsed
@@ -35,24 +36,71 @@ func main() {
 		displayBoard(seq[0], n)
 	}
 
-	// Now run parallel
+	// Now run parallel — actually parallelize across first-row choices using
+	// a ParallelExecutor and ParallelDisj so work is split across workers.
 	config := DefaultParallelConfig()
 	config.MaxWorkers = runtime.NumCPU()
+
+	executor := NewParallelExecutor(config)
+	defer executor.Shutdown()
+
+	// Build one branch per possible column for the first queen. Each branch
+	// creates its own fresh variables and constrains the first queen to a
+	// concrete column value, then delegates to the FD-based queens goal.
+	q := Fresh("q")
+	branches := make([]Goal, n)
+	for col := 1; col <= n; col++ {
+		c := col // capture loop variable
+		branches[col-1] = func(ctx context.Context, store ConstraintStore) *Stream {
+			// Create fresh queen variables for this branch
+			queens := make([]*Var, n)
+			for i := 0; i < n; i++ {
+				queens[i] = Fresh(fmt.Sprintf("q%d", i))
+			}
+
+			// Build the result list term (q) from these queens
+			termList := List()
+			for i := n - 1; i >= 0; i-- {
+				termList = NewPair(queens[i], termList)
+			}
+
+			// Branch: set first queen to c, run FD modeling, and return the
+			// solved list in q.
+			goal := Conj(
+				Eq(queens[0], NewAtom(c)),
+				FDQueensGoal(queens, n),
+				Eq(q, termList),
+			)
+
+			return goal(ctx, store)
+		}
+	}
+
+	// Execute branches in parallel and take the first solution
 	parStart := time.Now()
-	par := ParallelRunWithConfig(1, func(q *Var) Goal { return nQueensFD(n, q) }, config)
+	ctx, cancel := context.WithCancel(context.Background())
+	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
+	stream := executor.ParallelDisj(branches...)(ctx, initialStore)
+	solutions, _ := stream.Take(1)
+	// Cancel remaining workers once we have our solution so they can tear down.
+	cancel()
 	parDur := time.Since(parStart)
 
-	if len(par) == 0 {
+	if len(solutions) == 0 {
 		fmt.Println("Parallel: no solution found")
 	} else {
+		// Extract the q value from the returned constraint store
+		value := solutions[0].GetSubstitution().DeepWalk(q)
 		fmt.Printf("Parallel solved in %s\n", parDur)
-		displayBoard(par[0], n)
+		displayBoard(value, n)
 	}
 }
 
 // done
 
-// nQueensFD uses the FD solver for column constraints and Project for diagonals.
+// nQueensFD uses the FD solver for columns and models diagonals as FD-derived
+// variables with offset links and AllDifferent (no Project is used for
+// diagonals).
 func nQueensFD(n int, q *Var) Goal {
 	// Create N logic variables for each row's column (1..n)
 	queens := make([]*Var, n)
