@@ -179,3 +179,152 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 		return stream
 	}
 }
+
+// FDInequalityGoal creates a goal that enforces an inequality constraint between two variables
+func FDInequalityGoal(x, y *Var, typ InequalityType) Goal {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Create FD store and variables
+			fd := NewFDStore()
+			fdX := fd.NewVar()
+			fdY := fd.NewVar()
+
+			// Add inequality constraint
+			if err := fd.AddInequalityConstraint(fdX, fdY, typ); err != nil {
+				return
+			}
+
+			// Apply current bindings
+			sub := store.GetSubstitution()
+
+			xWalked := sub.DeepWalk(x)
+			if !xWalked.IsVar() {
+				if atom, ok := xWalked.(*Atom); ok {
+					if val, ok2 := atom.Value().(int); ok2 {
+						if err := fd.Assign(fdX, val); err != nil {
+							return
+						}
+					}
+				}
+			}
+
+			yWalked := sub.DeepWalk(y)
+			if !yWalked.IsVar() {
+				if atom, ok := yWalked.(*Atom); ok {
+					if val, ok2 := atom.Value().(int); ok2 {
+						if err := fd.Assign(fdY, val); err != nil {
+							return
+						}
+					}
+				}
+			}
+
+			// Solve and generate solutions
+			sols, err := fd.Solve(context.Background(), 0)
+			if err != nil {
+				return
+			}
+
+			for _, sol := range sols {
+				cloned := store.Clone()
+				ok := true
+
+				// Bind x if it was solved
+				if len(sol) > 0 {
+					if err := cloned.AddBinding(x.id, NewAtom(sol[0])); err != nil {
+						ok = false
+					}
+				}
+
+				// Bind y if it was solved
+				if len(sol) > 1 {
+					if err := cloned.AddBinding(y.id, NewAtom(sol[1])); err != nil {
+						ok = false
+					}
+				}
+
+				if ok {
+					stream.Put(cloned)
+				}
+			}
+		}()
+
+		return stream
+	}
+}
+
+// FDCustomGoal creates a goal that enforces a custom constraint
+func FDCustomGoal(vars []*Var, constraint CustomConstraint) Goal {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Create FD store and map variables
+			fd := NewFDStore()
+			varMap := make(map[*Var]*FDVar)
+
+			constraintVars := constraint.Variables()
+			if len(vars) != len(constraintVars) {
+				return // Mismatch in variable count
+			}
+
+			fdVars := make([]*FDVar, len(vars))
+			for i, v := range vars {
+				fdVars[i] = fd.NewVar()
+				varMap[v] = fdVars[i]
+			}
+
+			// Add custom constraint
+			if err := fd.AddCustomConstraint(constraint); err != nil {
+				return
+			}
+
+			// Apply current bindings
+			sub := store.GetSubstitution()
+			for logicVar, fdVar := range varMap {
+				walked := sub.DeepWalk(logicVar)
+				if !walked.IsVar() {
+					if atom, ok := walked.(*Atom); ok {
+						if val, ok2 := atom.Value().(int); ok2 {
+							if err := fd.Assign(fdVar, val); err != nil {
+								return
+							}
+						}
+					}
+				}
+			}
+
+			// Solve and generate solutions
+			sols, err := fd.Solve(context.Background(), 0)
+			if err != nil {
+				return
+			}
+
+			for _, sol := range sols {
+				cloned := store.Clone()
+				ok := true
+
+				for i, logicVar := range vars {
+					if i < len(sol) {
+						if err := cloned.AddBinding(logicVar.id, NewAtom(sol[i])); err != nil {
+							ok = false
+							break
+						}
+					}
+				}
+
+				if ok {
+					stream.Put(cloned)
+				}
+			}
+		}()
+
+		return stream
+	}
+}

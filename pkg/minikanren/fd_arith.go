@@ -45,6 +45,9 @@ func (s *FDStore) AddOffsetConstraint(src *FDVar, offset int, dst *FDVar) error 
 	// Enqueue both for further propagation
 	s.enqueue(src.ID)
 	s.enqueue(dst.ID)
+	if s.monitor != nil {
+		s.monitor.RecordConstraint()
+	}
 	return s.propagateLocked()
 }
 
