@@ -2,8 +2,9 @@ package minikanren
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math/bits"
+	"sort"
 	"sync"
 )
 
@@ -107,7 +108,23 @@ type FDChange struct {
 	domain BitSet
 }
 
-// FDStore manages variables, constraints and propagation
+// FDStore manages finite-domain variables and constraints for constraint satisfaction problems.
+// It provides efficient propagation and backtracking search with various heuristics.
+//
+// Key features:
+// - BitSet-based domains for memory efficiency
+// - AC-3 style propagation for constraints
+// - Regin AllDifferent filtering for permutation constraints
+// - Offset arithmetic constraints for modeling relationships
+// - Iterative backtracking with dom/deg heuristics
+// - Context-aware cancellation and timeouts
+//
+// Typical usage:
+//
+//	store := NewFDStoreWithDomain(maxValue)
+//	vars := store.MakeFDVars(n)
+//	// Add constraints...
+//	solutions, err := store.Solve(ctx, limit)
 type FDStore struct {
 	mu         sync.Mutex
 	vars       []*FDVar
@@ -176,12 +193,12 @@ func (s *FDStore) undo(to int) {
 	}
 }
 
-// assign domain to singleton value v, returns false on contradiction
-func (s *FDStore) Assign(v *FDVar, value int) bool {
+// assign domain to singleton value v, returns error on contradiction
+func (s *FDStore) Assign(v *FDVar, value int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if value < 1 || value > s.domainSize {
-		return false
+		return ErrInvalidValue
 	}
 	newDom := NewBitSet(s.domainSize)
 	// clear and set only value
@@ -221,7 +238,7 @@ func (s *FDStore) Assign(v *FDVar, value int) bool {
 		}
 	}
 	if !intersect {
-		return false
+		return ErrInconsistent
 	}
 	s.trail = append(s.trail, FDChange{vid: v.ID, domain: v.domain.Clone()})
 	v.domain = newDom
@@ -230,24 +247,24 @@ func (s *FDStore) Assign(v *FDVar, value int) bool {
 }
 
 // Remove removes a value from a variable's domain
-func (s *FDStore) Remove(v *FDVar, value int) bool {
+func (s *FDStore) Remove(v *FDVar, value int) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if !v.domain.Has(value) {
-		return true
+		return nil
 	}
 	s.trail = append(s.trail, FDChange{vid: v.ID, domain: v.domain.Clone()})
 	v.domain = v.domain.RemoveValue(value)
 	// check empty
 	if v.domain.Count() == 0 {
-		return false
+		return ErrDomainEmpty
 	}
 	s.enqueue(v.ID)
 	return s.propagateLocked()
 }
 
 // propagateLocked runs a simple AC-3 style propagation loop (requires lock)
-func (s *FDStore) propagateLocked() bool {
+func (s *FDStore) propagateLocked() error {
 	for len(s.queue) > 0 {
 		vid := s.queue[0]
 		s.queue = s.queue[1:]
@@ -263,7 +280,7 @@ func (s *FDStore) propagateLocked() bool {
 					s.trail = append(s.trail, FDChange{vid: p.ID, domain: p.domain.Clone()})
 					p.domain = p.domain.RemoveValue(val)
 					if p.domain.Count() == 0 {
-						return false
+						return ErrDomainEmpty
 					}
 					s.enqueue(p.ID)
 				}
@@ -289,7 +306,7 @@ func (s *FDStore) propagateLocked() bool {
 						s.trail = append(s.trail, FDChange{vid: other.ID, domain: other.domain.Clone()})
 						other.domain = newDom
 						if other.domain.Count() == 0 {
-							return false
+							return ErrDomainEmpty
 						}
 						s.enqueue(other.ID)
 					}
@@ -297,7 +314,7 @@ func (s *FDStore) propagateLocked() bool {
 			}
 		}
 	}
-	return true
+	return nil
 }
 
 // DomainSnapshot returns a copy of domains for debugging/inspection
@@ -315,10 +332,13 @@ func (s *FDStore) DomainSnapshot() []BitSet {
 func (s *FDStore) Solve(ctx context.Context, limit int) ([][]int, error) {
 	s.mu.Lock()
 	// quick propagation initial
-	ok := s.propagateLocked()
+	if err := s.propagateLocked(); err != nil {
+		s.mu.Unlock()
+		return nil, err
+	}
 	s.mu.Unlock()
-	if !ok {
-		return nil, fmt.Errorf("inconsistent")
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 	solutions := make([][]int, 0)
 
@@ -354,20 +374,7 @@ func (s *FDStore) Solve(ctx context.Context, limit int) ([][]int, error) {
 
 	// Push initial frame
 	s.mu.Lock()
-	best := -1
-	bestSize := 1 << 30
-	for _, v := range s.vars {
-		c := v.domain.Count()
-		if c > 1 && c < bestSize {
-			bestSize = c
-			best = v.ID
-		}
-	}
-	var choices []int
-	if best != -1 {
-		dom := s.idToVar[best].domain
-		dom.IterateValues(func(val int) { choices = append(choices, val) })
-	}
+	best, choices := s.selectNextVariable()
 	s.mu.Unlock()
 	if best == -1 {
 		return solutions, nil
@@ -395,7 +402,7 @@ func (s *FDStore) Solve(ctx context.Context, limit int) ([][]int, error) {
 		f.valIdx++
 
 		// Try assignment
-		if !s.Assign(s.idToVar[f.varID], val) {
+		if err := s.Assign(s.idToVar[f.varID], val); err != nil {
 			continue
 		}
 
@@ -426,20 +433,7 @@ func (s *FDStore) Solve(ctx context.Context, limit int) ([][]int, error) {
 
 		// Find next variable
 		s.mu.Lock()
-		nextBest := -1
-		nextBestSize := 1 << 30
-		for _, v := range s.vars {
-			c := v.domain.Count()
-			if c > 1 && c < nextBestSize {
-				nextBestSize = c
-				nextBest = v.ID
-			}
-		}
-		var nextChoices []int
-		if nextBest != -1 {
-			dom := s.idToVar[nextBest].domain
-			dom.IterateValues(func(val int) { nextChoices = append(nextChoices, val) })
-		}
+		nextBest, nextChoices := s.selectNextVariable()
 		s.mu.Unlock()
 		if nextBest == -1 {
 			s.undo(f.snap)
@@ -454,6 +448,8 @@ func (s *FDStore) Solve(ctx context.Context, limit int) ([][]int, error) {
 }
 
 // MakeFDVars creates n new FD variables with the store's default domain.
+// The variables are initialized with full domains (1..domainSize).
+// Returns a slice of *FDVar ready for constraint application.
 func (s *FDStore) MakeFDVars(n int) []*FDVar {
 	vars := make([]*FDVar, n)
 	for i := 0; i < n; i++ {
@@ -463,11 +459,63 @@ func (s *FDStore) MakeFDVars(n int) []*FDVar {
 }
 
 // AddOffsetLink adds an offset constraint: dst = src + offset
-func (s *FDStore) AddOffsetLink(src *FDVar, offset int, dst *FDVar) bool {
+// This establishes a bidirectional relationship where changes to either variable
+// propagate to restrict the other's domain. Useful for modeling arithmetic relationships
+// like diagonals in N-Queens or temporal constraints.
+func (s *FDStore) AddOffsetLink(src *FDVar, offset int, dst *FDVar) error {
 	return s.AddOffsetConstraint(src, offset, dst)
 }
 
 // ApplyAllDifferentRegin applies the Regin AllDifferent constraint to the variables.
-func (s *FDStore) ApplyAllDifferentRegin(vars []*FDVar) bool {
+// This ensures all variables take distinct values, using efficient bipartite matching
+// to prune domains beyond basic pairwise propagation. Essential for permutation problems
+// like Sudoku rows/columns or N-Queens columns.
+func (s *FDStore) ApplyAllDifferentRegin(vars []*FDVar) error {
 	return s.AddAllDifferentRegin(vars)
 }
+
+// variableDegree returns the degree (number of constraints) for a variable
+func (s *FDStore) variableDegree(v *FDVar) int {
+	degree := len(v.peers)
+	if s.offsetLinks != nil {
+		if links, ok := s.offsetLinks[v.ID]; ok {
+			degree += len(links)
+		}
+	}
+	return degree
+}
+
+// selectNextVariable selects the next variable to assign using dom/deg heuristic
+func (s *FDStore) selectNextVariable() (int, []int) {
+	bestID := -1
+	bestScore := -1.0
+	var bestChoices []int
+	for _, v := range s.vars {
+		size := v.domain.Count()
+		if size <= 1 {
+			continue
+		}
+		degree := s.variableDegree(v)
+		score := float64(size) / float64(1+degree) // dom/deg
+		if bestID == -1 || score < bestScore {
+			bestScore = score
+			bestID = v.ID
+		}
+	}
+	if bestID == -1 {
+		return -1, nil
+	}
+	dom := s.idToVar[bestID].domain
+	dom.IterateValues(func(val int) { bestChoices = append(bestChoices, val) })
+	// Sort choices ascending for value ordering heuristic
+	sort.Ints(bestChoices)
+	return bestID, bestChoices
+}
+
+// FD errors
+var (
+	ErrInconsistent    = errors.New("constraint store is inconsistent")
+	ErrInvalidValue    = errors.New("value out of domain")
+	ErrDomainEmpty     = errors.New("domain became empty")
+	ErrInvalidArgument = errors.New("invalid argument")
+)

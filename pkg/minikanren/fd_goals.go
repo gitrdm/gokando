@@ -24,7 +24,7 @@ func FDAllDifferentGoal(vars []*Var, domainSize int) Goal {
 			}
 
 			// Add Regin all-different filtering
-			if !fd.AddAllDifferentRegin(fdVars) {
+			if err := fd.AddAllDifferentRegin(fdVars); err != nil {
 				return
 			}
 
@@ -36,8 +36,7 @@ func FDAllDifferentGoal(vars []*Var, domainSize int) Goal {
 					if atom, ok := walked.(*Atom); ok {
 						// expect integer atom
 						if val, ok2 := atom.Value().(int); ok2 {
-							okAssign := fd.Assign(fdVars[i], val)
-							if !okAssign {
+							if err := fd.Assign(fdVars[i], val); err != nil {
 								return
 							}
 						} else {
@@ -101,7 +100,7 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 			// constrain queen columns to 1..n (remove values n+1 .. 2n)
 			for _, v := range fdVars {
 				for i := n + 1; i <= 2*n; i++ {
-					if !fd.Remove(v, i) {
+					if err := fd.Remove(v, i); err != nil {
 						return
 					}
 				}
@@ -118,22 +117,22 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 			// link offsets: d1 = C + i ; d2 = C - i + n
 			for i := 0; i < n; i++ {
 				// dst = src + offset
-				if !fd.AddOffsetConstraint(fdVars[i], i, d1[i]) {
+				if err := fd.AddOffsetConstraint(fdVars[i], i, d1[i]); err != nil {
 					return
 				}
-				if !fd.AddOffsetConstraint(fdVars[i], -i+n, d2[i]) {
+				if err := fd.AddOffsetConstraint(fdVars[i], -i+n, d2[i]); err != nil {
 					return
 				}
 			}
 
 			// all-different on columns and diagonals
-			if !fd.AddAllDifferentRegin(fdVars) {
+			if err := fd.AddAllDifferentRegin(fdVars); err != nil {
 				return
 			}
-			if !fd.AddAllDifferentRegin(d1) {
+			if err := fd.AddAllDifferentRegin(d1); err != nil {
 				return
 			}
-			if !fd.AddAllDifferentRegin(d2) {
+			if err := fd.AddAllDifferentRegin(d2); err != nil {
 				return
 			}
 
@@ -145,7 +144,7 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 					if atom, ok := walked.(*Atom); ok {
 						if val, ok2 := atom.Value().(int); ok2 {
 							// expect 1..n values
-							if !fd.Assign(fdVars[i], val) {
+							if err := fd.Assign(fdVars[i], val); err != nil {
 								return
 							}
 						} else {

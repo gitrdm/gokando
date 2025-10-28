@@ -16,8 +16,8 @@ func TestAddOffsetConstraintBasic(t *testing.T) {
 	}
 
 	ok := s.AddOffsetConstraint(a, 2, b) // b = a + 2
-	if !ok {
-		t.Fatalf("AddOffsetConstraint failed")
+	if ok != nil {
+		t.Fatalf("AddOffsetConstraint failed: %v", ok)
 	}
 
 	// expect b domain to be {3,4,5}
@@ -40,13 +40,13 @@ func TestOffsetPropagationBidirectional(t *testing.T) {
 
 	// both start full
 	ok := s.AddOffsetConstraint(a, 1, b) // b = a + 1
-	if !ok {
-		t.Fatalf("AddOffsetConstraint failed")
+	if ok != nil {
+		t.Fatalf("AddOffsetConstraint failed: %v", ok)
 	}
 
 	// remove some values from b and ensure a is pruned
-	if !s.Remove(b, 9) {
-		t.Fatalf("failed to remove value from b")
+	if err := s.Remove(b, 9); err != nil {
+		t.Fatalf("failed to remove value from b: %v", err)
 	}
 
 	// after removing 9 from b, a cannot be 8

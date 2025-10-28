@@ -34,8 +34,8 @@ func main() {
 	for i := 0; i < 81; i++ {
 		v := puzzle[i]
 		if v != 0 {
-			if !s.Assign(vars[i], v) {
-				fmt.Println("Puzzle inconsistent at given", i)
+			if err := s.Assign(vars[i], v); err != nil {
+				fmt.Println("Puzzle inconsistent at given", i, ":", err)
 				return
 			}
 		}

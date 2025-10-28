@@ -4,12 +4,12 @@ package minikanren
 
 // AddOffsetConstraint enforces dst = src + offset (integer constant). Domains are 1..domainSize.
 // It installs bidirectional propagation so changes to either variable restrict the other.
-func (s *FDStore) AddOffsetConstraint(src *FDVar, offset int, dst *FDVar) bool {
+func (s *FDStore) AddOffsetConstraint(src *FDVar, offset int, dst *FDVar) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if src == nil || dst == nil {
-		return false
+		return ErrInvalidArgument
 	}
 
 	// store links in a map keyed by var id
@@ -28,7 +28,7 @@ func (s *FDStore) AddOffsetConstraint(src *FDVar, offset int, dst *FDVar) bool {
 		s.trail = append(s.trail, FDChange{vid: dst.ID, domain: dst.domain.Clone()})
 		dst.domain = newDst
 		if dst.domain.Count() == 0 {
-			return false
+			return ErrDomainEmpty
 		}
 	}
 
@@ -38,7 +38,7 @@ func (s *FDStore) AddOffsetConstraint(src *FDVar, offset int, dst *FDVar) bool {
 		s.trail = append(s.trail, FDChange{vid: src.ID, domain: src.domain.Clone()})
 		src.domain = newSrc
 		if src.domain.Count() == 0 {
-			return false
+			return ErrDomainEmpty
 		}
 	}
 

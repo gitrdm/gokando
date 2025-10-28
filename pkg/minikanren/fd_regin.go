@@ -109,16 +109,16 @@ func maxMatching(vars []*FDVar, domainSize int) (map[int]int, int) {
 	return res, matched
 }
 
-func (s *FDStore) ReginFilterLocked(vars []*FDVar) bool {
+func (s *FDStore) ReginFilterLocked(vars []*FDVar) error {
 	n := len(vars)
 	if n == 0 {
-		return true
+		return nil
 	}
 
 	// initial matching
 	matchMap, matched := maxMatching(vars, s.domainSize)
 	if matched < n {
-		return false
+		return ErrInconsistent
 	}
 
 	// For each variable, test each value in its domain for support
@@ -155,17 +155,17 @@ func (s *FDStore) ReginFilterLocked(vars []*FDVar) bool {
 				s.trail = append(s.trail, FDChange{vid: v.ID, domain: v.domain.Clone()})
 				v.domain = v.domain.RemoveValue(val)
 				if v.domain.Count() == 0 {
-					return false
+					return ErrDomainEmpty
 				}
 				s.enqueue(v.ID)
 			}
 		}
 	}
-	return true
+	return nil
 }
 
 // AddAllDifferentRegin registers an AllDifferent constraint and applies Regin filtering.
-func (s *FDStore) AddAllDifferentRegin(vars []*FDVar) bool {
+func (s *FDStore) AddAllDifferentRegin(vars []*FDVar) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	// register peers for basic singleton propagation
@@ -178,9 +178,8 @@ func (s *FDStore) AddAllDifferentRegin(vars []*FDVar) bool {
 		}
 	}
 	// run Regin filter
-	ok := s.ReginFilterLocked(vars)
-	if !ok {
-		return false
+	if err := s.ReginFilterLocked(vars); err != nil {
+		return err
 	}
 	// enqueue all vars for further propagation
 	for _, v := range vars {

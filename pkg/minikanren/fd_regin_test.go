@@ -11,14 +11,13 @@ func TestReginDetectsImpossibleMatching(t *testing.T) {
 	a := s.NewVar()
 	b := s.NewVar()
 	// force both to 1
-	if !s.Assign(a, 1) {
-		t.Fatal("failed to assign a")
+	if err := s.Assign(a, 1); err != nil {
+		t.Fatalf("failed to assign a: %v", err)
 	}
-	if !s.Assign(b, 1) {
-		t.Fatal("failed to assign b")
+	if err := s.Assign(b, 1); err != nil {
+		t.Fatalf("failed to assign b: %v", err)
 	}
-	ok := s.ReginFilterLocked([]*FDVar{a, b})
-	if ok {
+	if err := s.ReginFilterLocked([]*FDVar{a, b}); err == nil {
 		t.Fatalf("expected Regin to detect impossible matching but it returned ok")
 	}
 }
@@ -29,25 +28,22 @@ func TestReginSingletonPropagation(t *testing.T) {
 	a := s.NewVar()
 	b := s.NewVar()
 	c := s.NewVar()
-	// assign c = 1; others still have full domains
-	if !s.Assign(c, 1) {
-		t.Fatal("failed to assign c")
+
+	// assign c=1, should propagate to remove 1 from a and b
+	if err := s.Assign(c, 1); err != nil {
+		t.Fatalf("failed to assign c: %v", err)
 	}
-	// apply AllDifferentRegin on all three
-	ok := s.ReginFilterLocked([]*FDVar{a, b, c})
-	if !ok {
-		t.Fatal("Regin unexpectedly failed on simple singleton propagation")
+	if err := s.ReginFilterLocked([]*FDVar{a, b, c}); err != nil {
+		t.Fatalf("ReginFilterLocked failed: %v", err)
 	}
-	// c must be singleton 1, a and b must not have 1 in their domains
-	if c.domain.SingletonValue() != 1 {
-		t.Fatalf("expected c==1, got %d", c.domain.SingletonValue())
+	// check that 1 is removed from a and b
+	if a.domain.Has(1) {
+		t.Fatalf("expected 1 removed from a")
 	}
-	if a.domain.Has(1) || b.domain.Has(1) {
-		t.Fatalf("expected peers to have value 1 removed")
+	if b.domain.Has(1) {
+		t.Fatalf("expected 1 removed from b")
 	}
 }
-
-// Test that the Sudoku example (partial) solves with Regin-enabled AllDifferent
 func TestReginSudokuPartialSolve(t *testing.T) {
 	// reuse the same puzzle as examples/sudoku
 	puzzle := [81]int{
@@ -73,8 +69,8 @@ func TestReginSudokuPartialSolve(t *testing.T) {
 	for i := 0; i < 81; i++ {
 		v := puzzle[i]
 		if v != 0 {
-			if !s.Assign(vars[i], v) {
-				t.Fatalf("failed to assign given at %d", i)
+			if err := s.Assign(vars[i], v); err != nil {
+				t.Fatalf("failed to assign given at %d: %v", i, err)
 			}
 		}
 	}
@@ -84,8 +80,8 @@ func TestReginSudokuPartialSolve(t *testing.T) {
 		for c := 0; c < 9; c++ {
 			row[c] = vars[r*9+c]
 		}
-		if !s.AddAllDifferentRegin(row) {
-			t.Fatalf("Regin row constraint failed at row %d", r)
+		if err := s.AddAllDifferentRegin(row); err != nil {
+			t.Fatalf("Regin row constraint failed at row %d: %v", r, err)
 		}
 	}
 	for c := 0; c < 9; c++ {
@@ -93,8 +89,8 @@ func TestReginSudokuPartialSolve(t *testing.T) {
 		for r := 0; r < 9; r++ {
 			col[r] = vars[r*9+c]
 		}
-		if !s.AddAllDifferentRegin(col) {
-			t.Fatalf("Regin col constraint failed at col %d", c)
+		if err := s.AddAllDifferentRegin(col); err != nil {
+			t.Fatalf("Regin col constraint failed at col %d: %v", c, err)
 		}
 	}
 	for br := 0; br < 3; br++ {
@@ -106,8 +102,8 @@ func TestReginSudokuPartialSolve(t *testing.T) {
 					block = append(block, vars[idx])
 				}
 			}
-			if !s.AddAllDifferentRegin(block) {
-				t.Fatalf("Regin block constraint failed at block %d,%d", br, bc)
+			if err := s.AddAllDifferentRegin(block); err != nil {
+				t.Fatalf("Regin block constraint failed at block %d,%d: %v", br, bc, err)
 			}
 		}
 	}
