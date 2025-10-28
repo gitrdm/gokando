@@ -1,6 +1,7 @@
 package minikanren
 
 import (
+	"context"
 	"fmt"
 	"math/bits"
 	"sync"
@@ -310,8 +311,8 @@ func (s *FDStore) DomainSnapshot() []BitSet {
 	return snap
 }
 
-// Solve using recursive backtracking with MRV heuristic
-func (s *FDStore) Solve(limit int) ([][]int, error) {
+// Solve using iterative backtracking with MRV heuristic
+func (s *FDStore) Solve(ctx context.Context, limit int) ([][]int, error) {
 	s.mu.Lock()
 	// quick propagation initial
 	ok := s.propagateLocked()
@@ -320,10 +321,86 @@ func (s *FDStore) Solve(limit int) ([][]int, error) {
 		return nil, fmt.Errorf("inconsistent")
 	}
 	solutions := make([][]int, 0)
-	var dfs func() bool
-	dfs = func() bool {
+
+	// Iterative backtracking using a stack
+	type frame struct {
+		snap    int // trail snapshot
+		varID   int // variable being tried
+		valIdx  int // index in choices
+		choices []int
+	}
+	stack := []frame{}
+
+	// Initial check
+	s.mu.Lock()
+	allAssigned := true
+	for _, v := range s.vars {
+		if !v.domain.IsSingleton() {
+			allAssigned = false
+			break
+		}
+	}
+	s.mu.Unlock()
+	if allAssigned {
 		s.mu.Lock()
-		// check if complete
+		sol := make([]int, len(s.vars))
+		for i, v := range s.vars {
+			sol[i] = v.domain.SingletonValue()
+		}
+		solutions = append(solutions, sol)
+		s.mu.Unlock()
+		return solutions, nil
+	}
+
+	// Push initial frame
+	s.mu.Lock()
+	best := -1
+	bestSize := 1 << 30
+	for _, v := range s.vars {
+		c := v.domain.Count()
+		if c > 1 && c < bestSize {
+			bestSize = c
+			best = v.ID
+		}
+	}
+	var choices []int
+	if best != -1 {
+		dom := s.idToVar[best].domain
+		dom.IterateValues(func(val int) { choices = append(choices, val) })
+	}
+	s.mu.Unlock()
+	if best == -1 {
+		return solutions, nil
+	}
+	stack = append(stack, frame{snap: s.snapshot(), varID: best, valIdx: 0, choices: choices})
+
+	for len(stack) > 0 {
+		// Check cancellation
+		select {
+		case <-ctx.Done():
+			return solutions, ctx.Err()
+		default:
+		}
+
+		f := &stack[len(stack)-1]
+
+		if f.valIdx >= len(f.choices) {
+			// Backtrack
+			s.undo(f.snap)
+			stack = stack[:len(stack)-1]
+			continue
+		}
+
+		val := f.choices[f.valIdx]
+		f.valIdx++
+
+		// Try assignment
+		if !s.Assign(s.idToVar[f.varID], val) {
+			continue
+		}
+
+		// Check if complete
+		s.mu.Lock()
 		allAssigned := true
 		for _, v := range s.vars {
 			if !v.domain.IsSingleton() {
@@ -331,54 +408,48 @@ func (s *FDStore) Solve(limit int) ([][]int, error) {
 				break
 			}
 		}
+		s.mu.Unlock()
 		if allAssigned {
+			s.mu.Lock()
 			sol := make([]int, len(s.vars))
 			for i, v := range s.vars {
 				sol[i] = v.domain.SingletonValue()
 			}
 			solutions = append(solutions, sol)
 			s.mu.Unlock()
+			s.undo(f.snap)
 			if limit > 0 && len(solutions) >= limit {
-				return true
+				return solutions, nil
 			}
-			return false
+			continue
 		}
 
-		// MRV: pick variable with smallest domain >1
-		best := -1
-		bestSize := 1 << 30
+		// Find next variable
+		s.mu.Lock()
+		nextBest := -1
+		nextBestSize := 1 << 30
 		for _, v := range s.vars {
 			c := v.domain.Count()
-			if c > 1 && c < bestSize {
-				bestSize = c
-				best = v.ID
+			if c > 1 && c < nextBestSize {
+				nextBestSize = c
+				nextBest = v.ID
 			}
 		}
-		if best == -1 {
-			s.mu.Unlock()
-			return false
+		var nextChoices []int
+		if nextBest != -1 {
+			dom := s.idToVar[nextBest].domain
+			dom.IterateValues(func(val int) { nextChoices = append(nextChoices, val) })
 		}
-		var choices []int
-		dom := s.idToVar[best].domain
-		dom.IterateValues(func(val int) { choices = append(choices, val) })
 		s.mu.Unlock()
-
-		// try each choice with snapshot/undo
-		for _, val := range choices {
-			snap := s.snapshot()
-			if !s.Assign(s.idToVar[best], val) {
-				s.undo(snap)
-				continue
-			}
-			stop := dfs()
-			s.undo(snap)
-			if stop {
-				return true
-			}
+		if nextBest == -1 {
+			s.undo(f.snap)
+			continue
 		}
-		return false
+
+		// Push new frame
+		stack = append(stack, frame{snap: s.snapshot(), varID: nextBest, valIdx: 0, choices: nextChoices})
 	}
-	dfs()
+
 	return solutions, nil
 }
 

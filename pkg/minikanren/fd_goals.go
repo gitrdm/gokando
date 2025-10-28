@@ -52,7 +52,7 @@ func FDAllDifferentGoal(vars []*Var, domainSize int) Goal {
 			}
 
 			// Solve all solutions
-			sols, err := fd.Solve(0)
+			sols, err := fd.Solve(context.Background(), 0)
 			if err != nil {
 				return
 			}
@@ -157,7 +157,7 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 				}
 			}
 
-			sols, err := fd.Solve(0)
+			sols, err := fd.Solve(context.Background(), 0)
 			if err != nil {
 				return
 			}

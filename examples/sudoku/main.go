@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -72,7 +73,7 @@ func main() {
 	}
 
 	start := time.Now()
-	sols, err := s.Solve(1)
+	sols, err := s.Solve(context.Background(), 1)
 	dur := time.Since(start)
 	if err != nil {
 		fmt.Println("Solve error:", err)

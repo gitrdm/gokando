@@ -1,6 +1,9 @@
 package minikanren
 
-import "testing"
+import (
+	"context"
+	"testing"
+)
 
 // Test that Regin detects impossible matchings when two vars are singleton to same value
 func TestReginDetectsImpossibleMatching(t *testing.T) {
@@ -109,7 +112,7 @@ func TestReginSudokuPartialSolve(t *testing.T) {
 		}
 	}
 
-	sols, err := s.Solve(1)
+	sols, err := s.Solve(context.Background(), 1)
 	if err != nil {
 		t.Fatalf("Solve error: %v", err)
 	}
