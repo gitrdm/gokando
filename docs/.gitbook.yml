@@ -5,7 +5,7 @@ structure:
   summary: SUMMARY.md
 
 title: gokando
-description: [![Version](https://img.shields.io/badge/version-0.9.1-blue.svg)](https://github.com/gitrdm/gokando/releases)
+description: [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gitrdm/gokando/releases)
 
 gitbook: ">=3.2.0"
 

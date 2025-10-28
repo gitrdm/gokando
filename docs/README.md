@@ -1,6 +1,6 @@
 # gokando Documentation
 
-[![Version](https://img.shields.io/badge/version-0.9.1-blue.svg)](https://github.com/gitrdm/gokando/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gitrdm/gokando/releases)
 
 ## Quick Navigation
 
@@ -84,6 +84,71 @@ attack each other. Queens can attack any piece on the same row, column, or diago
 
 This implementation uses Project to verify the constraints efficiently for small N (4-8).
 For larger boards, a more sophisticated constraint propagation approach would be needed.
+
+
+- [Getting Started](getting-started/main.md)
+- [API Reference](api-reference/main.md)
+- [Examples](examples/README.md)
+- [Best Practices](guides/main/best-practices.md)
+
+### main
+
+Package main demonstrates a parallel N-Queens solver using the FD solver
+and GoKando's parallel execution framework.
+
+This example is written in a literate, explanatory style so you can see
+how the FD solver and the parallel execution framework work together.
+
+High-level idea
+  - We model the N-Queens problem with one logic variable per row that
+    represents the column index (1..N).
+  - Columns are constrained with an AllDifferent constraint implemented
+    with Regin's filtering (the FD engine). Diagonals are modeled as
+    FD-derived variables: each diagonal variable is linked to a row variable
+    via an offset relation (y = x + k). The FD engine propagates those
+    offset constraints so diagonals participate in AllDifferent filtering.
+  - The FD propagation prunes the search aggressively before any search
+    branching occurs — this greatly reduces the work that the search must do.
+
+Parallelization strategy
+  - Finding a single solution is the goal here. We parallelize across the
+    choice for the first row: each worker explores the subproblem where the
+    first queen is fixed to a different column. This is an easy, low-risk
+    way to get parallel speedup because those branches are independent.
+  - The example uses `ParallelExecutor` and `executor.ParallelDisj` to run
+    branches concurrently. Once the first solution is found we cancel the
+    context so remaining workers can stop early.
+
+Why not fully automatic parallelism?
+  - The library exposes helpers (ParallelDisj, ParallelMap) so callers can
+    decide how to split the work. This keeps the core small and flexible —
+    the example shows one idiomatic way the caller can use the executor.
+
+Command-line flags
+  - -n int (default 10): number of queens to place (upper bounded to 16)
+  - -sequential: run only the sequential solver
+  - -both: run sequential first, then the parallel solver
+
+Usage examples
+  - Run parallel default with 12 queens:
+    go run ./examples/n-queens-parallel-fd -n 12
+  - Run sequential only:
+    go run ./examples/n-queens-parallel-fd -n 12 -sequential
+
+Practical notes
+  - This example demonstrates the FD+Regin combination — for larger N you
+    should add symmetry breaking (e.g., canonicalize the first queen into
+    half the board) or more advanced heuristics. The parallel split is a
+    convenient way to use additional cores without changing the solver.
+
+
+- [Getting Started](getting-started/main.md)
+- [API Reference](api-reference/main.md)
+- [Examples](examples/README.md)
+- [Best Practices](guides/main/best-practices.md)
+
+### main
+
 
 
 - [Getting Started](getting-started/main.md)
@@ -222,7 +287,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 0.11.0
+Version: 1.0.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.

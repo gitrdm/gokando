@@ -60,7 +60,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 0.11.0
+Version: 1.0.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.
@@ -130,7 +130,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 0.11.0
+Version: 1.0.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.
@@ -193,7 +193,11 @@ func main() {
 
 - **AbsenceConstraint** - AbsenceConstraint implements the absence constraint (absento). It ensures that a specific term does not occur anywhere within another term's structure, providing structural constraint checking. This constraint performs recursive structural inspection to detect the presence of the forbidden term at any level of nesting.
 
+- **AllDifferentConstraint** - AllDifferentConstraint is a custom version of the all-different constraint This demonstrates how built-in constraints can be reimplemented as custom constraints
+
 - **Atom** - Atom represents an atomic value (symbol, number, string, etc.). Atoms are immutable and represent themselves.
+
+- **BitSet** - Generic BitSet-backed Domain for FD variables. Values are 1-based indices.
 
 - **Constraint** - Constraint represents a logical constraint that can be checked against variable bindings. Constraints are the core abstraction that enables order-independent constraint logic programming. Constraints must be thread-safe as they may be checked concurrently during parallel goal evaluation.
 
@@ -207,13 +211,23 @@ func main() {
 
 - **ConstraintViolationError** - ConstraintViolationError represents an error caused by constraint violations. It provides detailed information about which constraint was violated and why.
 
+- **CustomConstraint** - fd_custom.go: custom constraint interfaces for FDStore CustomConstraint represents a user-defined constraint that can propagate
+
 - **DisequalityConstraint** - DisequalityConstraint implements the disequality constraint (≠). It ensures that two terms are not equal, providing order-independent constraint semantics for the Neq operation. The constraint tracks two terms and checks that they never become equal through unification. If both terms are variables, the constraint remains pending until at least one is bound to a concrete value.
+
+- **FDChange** - Extend FDVar with offset links (placed here to avoid changing many other files) Note: we keep it unexported and simple; propagation logic in FDStore will consult these. We'll attach via a small map in FDStore to avoid changing serialized layout of FDVar across code paths. FDChange represents a single domain change for undo
+
+- **FDStore** - - Offset arithmetic constraints for modeling relationships - Iterative backtracking with dom/deg heuristics - Context-aware cancellation and timeouts Typical usage: store := NewFDStoreWithDomain(maxValue) vars := store.MakeFDVars(n) // Add constraints... solutions, err := store.Solve(ctx, limit)
+
+- **FDVar** - FDVar is a finite-domain variable
 
 - **GlobalConstraintBus** - GlobalConstraintBus coordinates constraint checking across multiple local constraint stores. It handles cross-store constraints and provides a coordination point for complex constraint interactions. The bus is designed to minimize coordination overhead - most constraints should be local and not require global coordination.
 
 - **GlobalConstraintBusPool** - GlobalConstraintBusPool manages a pool of reusable constraint buses
 
 - **Goal** - Goal represents a constraint or a combination of constraints. Goals are functions that take a constraint store and return a stream of constraint stores representing all possible ways to satisfy the goal. Goals can be composed to build complex relational programs. The constraint store contains both variable bindings and active constraints, enabling order-independent constraint logic programming.
+
+- **InequalityType** - fd_ineq.go: arithmetic inequality constraints for FDStore InequalityType represents the type of inequality constraint
 
 - **LocalConstraintStore** - LocalConstraintStore interface defines the operations needed by the GlobalConstraintBus to coordinate with local stores.
 
@@ -229,9 +243,17 @@ func main() {
 
 - **ParallelStream** - ParallelStream represents a stream that can be evaluated in parallel. It wraps the standard Stream with additional parallel capabilities.
 
+- **SolverConfig** - SolverConfig holds configuration for the FD solver
+
+- **SolverMonitor** - SolverMonitor provides monitoring capabilities for the FD solver
+
+- **SolverStats** - SolverStats holds statistics about the FD solving process
+
 - **Stream** - Stream represents a (potentially infinite) sequence of constraint stores. Streams are the core data structure for representing multiple solutions in miniKanren. Each constraint store contains variable bindings and active constraints representing a consistent logical state. This implementation uses channels for thread-safe concurrent access and supports parallel evaluation with proper constraint coordination.
 
 - **Substitution** - Substitution represents a mapping from variables to terms. It's used to track bindings during unification and goal evaluation. The implementation is thread-safe and supports concurrent access.
+
+- **SumConstraint** - Example custom constraint implementations SumConstraint enforces that the sum of variables equals a target value
 
 - **Term** - Term represents any value in the miniKanren universe. Terms can be atoms, variables, compound structures, or any Go value. All Term implementations must be comparable and thread-safe.
 
@@ -239,7 +261,11 @@ func main() {
 
 - **TypeConstraintKind** - TypeConstraintKind represents the different types that can be constrained.
 
+- **ValueOrderingHeuristic** - ValueOrderingHeuristic defines strategies for ordering values within a domain
+
 - **Var** - Var represents a logic variable in miniKanren. Variables can be bound to values through unification. Each variable has a unique identifier to distinguish it from others.
+
+- **VariableOrderingHeuristic** - VariableOrderingHeuristic defines strategies for selecting the next variable to assign
 
 - **VersionInfo** - VersionInfo provides detailed version information.
 

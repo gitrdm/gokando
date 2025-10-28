@@ -23,3 +23,5 @@
 - [Guides Overview](guides/README.md)
 - [Contributing](guides/contributing.md)
 - [FAQ](guides/faq.md)
+- [miniKanren Core](minikanren/core.md)
+- [Finite Domains](minikanren/finite-domains.md)

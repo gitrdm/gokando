@@ -66,7 +66,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 0.11.0
+Version: 1.0.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.
@@ -80,10 +80,19 @@ Version represents the current version of the GoKando miniKanren implementation.
 
 
 ```go
-&{<nil> [Version] <nil> [0xc000495460] <nil>}
+&{<nil> [Version] <nil> [0xc000146cc0] <nil>}
 ```
 
 ## Variables
+
+### ErrInconsistent, ErrInvalidValue, ErrDomainEmpty, ErrInvalidArgument
+
+FD errors
+
+
+```go
+&{<nil> [ErrInconsistent] <nil> [0xc00023a4c0] <nil>}&{<nil> [ErrInvalidValue] <nil> [0xc00023a500] <nil>}&{<nil> [ErrDomainEmpty] <nil> [0xc00023a540] <nil>}&{<nil> [ErrInvalidArgument] <nil> [0xc00023a5c0] <nil>}
+```
 
 ### Nil
 
@@ -91,7 +100,7 @@ Nil represents the empty list
 
 
 ```go
-&{<nil> [Nil] <nil> [0xc00040e240] <nil>}
+&{<nil> [Nil] <nil> [0xc000448ec0] <nil>}
 ```
 
 ## Types
@@ -169,28 +178,28 @@ func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a deep copy of the constraint for parallel execution. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) Clone() Constraint
+func (BitSet) Clone() BitSet
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- BitSet
 
 ### ID
 
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) ID() string
+func (*Var) ID() int64
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- string
+- int64
 
 ### IsLocal
 
@@ -211,7 +220,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (ConstraintEventType) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -225,14 +234,101 @@ func (ConstraintEventType) String() string
 Variables returns the logic variables this constraint depends on. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) Variables() []*Var
+func (*AllDifferentConstraint) Variables() []*FDVar
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*Var
+- []*FDVar
+
+### AllDifferentConstraint
+AllDifferentConstraint is a custom version of the all-different constraint This demonstrates how built-in constraints can be reimplemented as custom constraints
+
+#### Example Usage
+
+```go
+// Create a new AllDifferentConstraint
+alldifferentconstraint := AllDifferentConstraint{
+    vars: [],
+}
+```
+
+#### Type Definition
+
+```go
+type AllDifferentConstraint struct {
+    vars []*FDVar
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| vars | `[]*FDVar` |  |
+
+### Constructor Functions
+
+### NewAllDifferentConstraint
+
+NewAllDifferentConstraint creates a new all-different constraint
+
+```go
+func NewAllDifferentConstraint(vars []*FDVar) *AllDifferentConstraint
+```
+
+**Parameters:**
+- `vars` ([]*FDVar)
+
+**Returns:**
+- *AllDifferentConstraint
+
+## Methods
+
+### IsSatisfied
+
+IsSatisfied checks if all variables have distinct values
+
+```go
+func (*AllDifferentConstraint) IsSatisfied() bool
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- bool
+
+### Propagate
+
+Propagate performs constraint propagation for all-different
+
+```go
+func (*AllDifferentConstraint) Propagate(store *FDStore) (bool, error)
+```
+
+**Parameters:**
+- `store` (*FDStore)
+
+**Returns:**
+- bool
+- error
+
+### Variables
+
+Variables returns the variables involved in this constraint
+
+```go
+func (*AllDifferentConstraint) Variables() []*FDVar
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- []*FDVar
 
 ### Atom
 Atom represents an atomic value (symbol, number, string, etc.). Atoms are immutable and represent themselves.
@@ -297,14 +393,14 @@ func NewAtom(value interface{}) *Atom
 Clone creates a copy of the atom.
 
 ```go
-func (*MembershipConstraint) Clone() Constraint
+func (*Substitution) Clone() *Substitution
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- *Substitution
 
 ### Equal
 
@@ -339,7 +435,7 @@ func (*Pair) IsVar() bool
 String returns a string representation of the atom.
 
 ```go
-func (ConstraintEventType) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -361,6 +457,224 @@ func (*Atom) Value() interface{}
 
 **Returns:**
 - interface{}
+
+### BitSet
+Generic BitSet-backed Domain for FD variables. Values are 1-based indices.
+
+#### Example Usage
+
+```go
+// Create a new BitSet
+bitset := BitSet{
+    n: 42,
+    words: [],
+}
+```
+
+#### Type Definition
+
+```go
+type BitSet struct {
+    n int
+    words []uint64
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| n | `int` |  |
+| words | `[]uint64` |  |
+
+### Constructor Functions
+
+### NewBitSet
+
+
+
+```go
+func NewBitSet(n int) BitSet
+```
+
+**Parameters:**
+- `n` (int)
+
+**Returns:**
+- BitSet
+
+### imageOfDomain
+
+imageOfDomain returns a BitSet representing {v+offset | v in dom} intersected with 1..n
+
+```go
+func imageOfDomain(dom BitSet, offset int, n int) BitSet
+```
+
+**Parameters:**
+- `dom` (BitSet)
+- `offset` (int)
+- `n` (int)
+
+**Returns:**
+- BitSet
+
+### intersectBitSet
+
+
+
+```go
+func intersectBitSet(a, b BitSet) BitSet
+```
+
+**Parameters:**
+- `a` (BitSet)
+- `b` (BitSet)
+
+**Returns:**
+- BitSet
+
+## Methods
+
+### Clone
+
+
+
+```go
+func (*Substitution) Clone() *Substitution
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- *Substitution
+
+### Complement
+
+Complement returns a new BitSet containing all values NOT in this BitSet within the domain 1..n
+
+```go
+func (BitSet) Complement() BitSet
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- BitSet
+
+### Count
+
+
+
+```go
+func (BitSet) Count() int
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- int
+
+### Has
+
+
+
+```go
+func (BitSet) Has(v int) bool
+```
+
+**Parameters:**
+- `v` (int)
+
+**Returns:**
+- bool
+
+### Intersect
+
+Intersect returns a new BitSet containing values present in both this and other BitSet
+
+```go
+func (BitSet) Intersect(other BitSet) BitSet
+```
+
+**Parameters:**
+- `other` (BitSet)
+
+**Returns:**
+- BitSet
+
+### IsSingleton
+
+
+
+```go
+func (BitSet) IsSingleton() bool
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- bool
+
+### IterateValues
+
+
+
+```go
+func (BitSet) IterateValues(f func(v int))
+```
+
+**Parameters:**
+- `f` (func(v int))
+
+**Returns:**
+  None
+
+### RemoveValue
+
+
+
+```go
+func (BitSet) RemoveValue(v int) BitSet
+```
+
+**Parameters:**
+- `v` (int)
+
+**Returns:**
+- BitSet
+
+### SingletonValue
+
+
+
+```go
+func (BitSet) SingletonValue() int
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- int
+
+### Union
+
+Union returns a new BitSet containing values present in either this or other BitSet
+
+```go
+func (BitSet) Union(other BitSet) BitSet
+```
+
+**Parameters:**
+- `other` (BitSet)
+
+**Returns:**
+- BitSet
 
 ### Constraint
 Constraint represents a logical constraint that can be checked against variable bindings. Constraints are the core abstraction that enables order-independent constraint logic programming. Constraints must be thread-safe as they may be checked concurrently during parallel goal evaluation.
@@ -489,7 +803,7 @@ type ConstraintEventType int
 String returns a human-readable representation of the constraint event type.
 
 ```go
-func (ConstraintEventType) String() string
+func (*MembershipConstraint) String() string
 ```
 
 **Parameters:**
@@ -522,7 +836,7 @@ type ConstraintResult int
 String returns a human-readable representation of the constraint result.
 
 ```go
-func (ConstraintEventType) String() string
+func (*LocalConstraintStoreImpl) String() string
 ```
 
 **Parameters:**
@@ -684,6 +998,50 @@ func (*ConstraintViolationError) Error() string
 **Returns:**
 - string
 
+### CustomConstraint
+fd_custom.go: custom constraint interfaces for FDStore CustomConstraint represents a user-defined constraint that can propagate
+
+#### Example Usage
+
+```go
+// Example implementation of CustomConstraint
+type MyCustomConstraint struct {
+    // Add your fields here
+}
+
+func (m MyCustomConstraint) Variables() []*FDVar {
+    // Implement your logic here
+    return
+}
+
+func (m MyCustomConstraint) Propagate(param1 *FDStore) bool {
+    // Implement your logic here
+    return
+}
+
+func (m MyCustomConstraint) IsSatisfied() bool {
+    // Implement your logic here
+    return
+}
+
+
+```
+
+#### Type Definition
+
+```go
+type CustomConstraint interface {
+    Variables() []*FDVar
+    Propagate(store *FDStore) (bool, error)
+    IsSatisfied() bool
+}
+```
+
+## Methods
+
+| Method | Description |
+| ------ | ----------- |
+
 ### DisequalityConstraint
 DisequalityConstraint implements the disequality constraint (≠). It ensures that two terms are not equal, providing order-independent constraint semantics for the Neq operation. The constraint tracks two terms and checks that they never become equal through unification. If both terms are variables, the constraint remains pending until at least one is bound to a concrete value.
 
@@ -756,28 +1114,28 @@ func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a deep copy of the constraint for parallel execution. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) Clone() Constraint
+func (*Substitution) Clone() *Substitution
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- *Substitution
 
 ### ID
 
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) ID() string
+func (*Var) ID() int64
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- string
+- int64
 
 ### IsLocal
 
@@ -798,7 +1156,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (ConstraintEventType) String() string
+func (*LocalConstraintStoreImpl) String() string
 ```
 
 **Parameters:**
@@ -812,14 +1170,750 @@ func (ConstraintEventType) String() string
 Variables returns the logic variables that this constraint depends on. Used to determine when the constraint needs to be re-evaluated. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) Variables() []*Var
+func (*AllDifferentConstraint) Variables() []*FDVar
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*Var
+- []*FDVar
+
+### FDChange
+Extend FDVar with offset links (placed here to avoid changing many other files) Note: we keep it unexported and simple; propagation logic in FDStore will consult these. We'll attach via a small map in FDStore to avoid changing serialized layout of FDVar across code paths. FDChange represents a single domain change for undo
+
+#### Example Usage
+
+```go
+// Create a new FDChange
+fdchange := FDChange{
+    vid: 42,
+    domain: BitSet{},
+}
+```
+
+#### Type Definition
+
+```go
+type FDChange struct {
+    vid int
+    domain BitSet
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| vid | `int` |  |
+| domain | `BitSet` |  |
+
+### FDStore
+- Offset arithmetic constraints for modeling relationships - Iterative backtracking with dom/deg heuristics - Context-aware cancellation and timeouts Typical usage: store := NewFDStoreWithDomain(maxValue) vars := store.MakeFDVars(n) // Add constraints... solutions, err := store.Solve(ctx, limit)
+
+#### Example Usage
+
+```go
+// Create a new FDStore
+fdstore := FDStore{
+    mu: /* value */,
+    vars: [],
+    idToVar: map[],
+    queue: [],
+    trail: [],
+    domainSize: 42,
+    offsetLinks: map[],
+    ineqLinks: map[],
+    customConstraints: [],
+    config: &SolverConfig{}{},
+    monitor: &SolverMonitor{}{},
+}
+```
+
+#### Type Definition
+
+```go
+type FDStore struct {
+    mu sync.Mutex
+    vars []*FDVar
+    idToVar map[int]*FDVar
+    queue []int
+    trail []FDChange
+    domainSize int
+    offsetLinks map[int][]offsetLink
+    ineqLinks map[int][]ineqLink
+    customConstraints []CustomConstraint
+    config *SolverConfig
+    monitor *SolverMonitor
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| mu | `sync.Mutex` |  |
+| vars | `[]*FDVar` |  |
+| idToVar | `map[int]*FDVar` |  |
+| queue | `[]int` | variable ids to propagate |
+| trail | `[]FDChange` | undo trail |
+| domainSize | `int` |  |
+| offsetLinks | `map[int][]offsetLink` | offsetLinks maps a variable id to offset links used for arithmetic propagation |
+| ineqLinks | `map[int][]ineqLink` | ineqLinks maps a variable id to inequality links used for inequality propagation |
+| customConstraints | `[]CustomConstraint` | customConstraints holds user-defined constraints |
+| config | `*SolverConfig` | config holds solver configuration including heuristics |
+| monitor | `*SolverMonitor` | monitor tracks solving statistics (optional) |
+
+### Constructor Functions
+
+### NewFDStore
+
+NewFDStore creates a store with default domain size 9 (1..9)
+
+```go
+func NewFDStore() *FDStore
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- *FDStore
+
+### NewFDStoreWithConfig
+
+NewFDStoreWithConfig creates a store with custom solver configuration
+
+```go
+func NewFDStoreWithConfig(n int, config *SolverConfig) *FDStore
+```
+
+**Parameters:**
+- `n` (int)
+- `config` (*SolverConfig)
+
+**Returns:**
+- *FDStore
+
+### NewFDStoreWithDomain
+
+NewFDStoreWithDomain creates a store with domain values 1..n
+
+```go
+func NewFDStoreWithDomain(n int) *FDStore
+```
+
+**Parameters:**
+- `n` (int)
+
+**Returns:**
+- *FDStore
+
+## Methods
+
+### AddAllDifferent
+
+AddAllDifferent registers pairwise peers and enqueues initial propagation
+
+```go
+func (*FDStore) AddAllDifferent(vars []*FDVar)
+```
+
+**Parameters:**
+- `vars` ([]*FDVar)
+
+**Returns:**
+  None
+
+### AddAllDifferentRegin
+
+AddAllDifferentRegin registers an AllDifferent constraint and applies Regin filtering.
+
+```go
+func (*FDStore) AddAllDifferentRegin(vars []*FDVar) error
+```
+
+**Parameters:**
+- `vars` ([]*FDVar)
+
+**Returns:**
+- error
+
+### AddCustomConstraint
+
+AddCustomConstraint adds a user-defined custom constraint to the store
+
+```go
+func (*FDStore) AddCustomConstraint(constraint CustomConstraint) error
+```
+
+**Parameters:**
+- `constraint` (CustomConstraint)
+
+**Returns:**
+- error
+
+### AddInequalityConstraint
+
+AddInequalityConstraint adds an inequality constraint between two variables. The constraint enforces the relationship specified by the inequality type.
+
+```go
+func (*FDStore) AddInequalityConstraint(x, y *FDVar, typ InequalityType) error
+```
+
+**Parameters:**
+- `x` (*FDVar)
+- `y` (*FDVar)
+- `typ` (InequalityType)
+
+**Returns:**
+- error
+
+### AddOffsetConstraint
+
+AddOffsetConstraint enforces dst = src + offset (integer constant). Domains are 1..domainSize. It installs bidirectional propagation so changes to either variable restrict the other.
+
+```go
+func (*FDStore) AddOffsetConstraint(src *FDVar, offset int, dst *FDVar) error
+```
+
+**Parameters:**
+- `src` (*FDVar)
+- `offset` (int)
+- `dst` (*FDVar)
+
+**Returns:**
+- error
+
+### AddOffsetLink
+
+AddOffsetLink adds an offset constraint: dst = src + offset This establishes a bidirectional relationship where changes to either variable propagate to restrict the other's domain. Useful for modeling arithmetic relationships like diagonals in N-Queens or temporal constraints.
+
+```go
+func (*FDStore) AddOffsetLink(src *FDVar, offset int, dst *FDVar) error
+```
+
+**Parameters:**
+- `src` (*FDVar)
+- `offset` (int)
+- `dst` (*FDVar)
+
+**Returns:**
+- error
+
+### ApplyAllDifferentRegin
+
+ApplyAllDifferentRegin applies the Regin AllDifferent constraint to the variables. This ensures all variables take distinct values, using efficient bipartite matching to prune domains beyond basic pairwise propagation. Essential for permutation problems like Sudoku rows/columns or N-Queens columns.
+
+```go
+func (*FDStore) ApplyAllDifferentRegin(vars []*FDVar) error
+```
+
+**Parameters:**
+- `vars` ([]*FDVar)
+
+**Returns:**
+- error
+
+### Assign
+
+assign domain to singleton value v, returns error on contradiction
+
+```go
+func (*FDStore) Assign(v *FDVar, value int) error
+```
+
+**Parameters:**
+- `v` (*FDVar)
+- `value` (int)
+
+**Returns:**
+- error
+
+### ComplementDomain
+
+ComplementDomain replaces the domain of v with its complement
+
+```go
+func (*FDStore) ComplementDomain(v *FDVar) error
+```
+
+**Parameters:**
+- `v` (*FDVar)
+
+**Returns:**
+- error
+
+### GetDomain
+
+GetDomain returns a copy of the variable's current domain
+
+```go
+func (*FDStore) GetDomain(v *FDVar) BitSet
+```
+
+**Parameters:**
+- `v` (*FDVar)
+
+**Returns:**
+- BitSet
+
+### GetMonitor
+
+GetMonitor returns the current monitor, or nil if monitoring is disabled
+
+```go
+func (*FDStore) GetMonitor() *SolverMonitor
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- *SolverMonitor
+
+### GetStats
+
+GetStats returns current solving statistics, or nil if monitoring is disabled
+
+```go
+func (*FDStore) GetStats() *SolverStats
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- *SolverStats
+
+### IntersectDomains
+
+IntersectDomains intersects the domain of v with the given BitSet
+
+```go
+func (*FDStore) IntersectDomains(v *FDVar, other BitSet) error
+```
+
+**Parameters:**
+- `v` (*FDVar)
+- `other` (BitSet)
+
+**Returns:**
+- error
+
+### MakeFDVars
+
+MakeFDVars creates n new FD variables with the store's default domain. The variables are initialized with full domains (1..domainSize). Returns a slice of *FDVar ready for constraint application.
+
+```go
+func (*FDStore) MakeFDVars(n int) []*FDVar
+```
+
+**Parameters:**
+- `n` (int)
+
+**Returns:**
+- []*FDVar
+
+### NewVar
+
+
+
+```go
+func (*FDStore) NewVar() *FDVar
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- *FDVar
+
+### ReginFilterLocked
+
+
+
+```go
+func (*FDStore) ReginFilterLocked(vars []*FDVar) error
+```
+
+**Parameters:**
+- `vars` ([]*FDVar)
+
+**Returns:**
+- error
+
+### Remove
+
+Remove removes a value from a variable's domain
+
+```go
+func (*FDStore) Remove(v *FDVar, value int) error
+```
+
+**Parameters:**
+- `v` (*FDVar)
+- `value` (int)
+
+**Returns:**
+- error
+
+### SetMonitor
+
+SetMonitor enables statistics collection for this store
+
+```go
+func (*FDStore) SetMonitor(monitor *SolverMonitor)
+```
+
+**Parameters:**
+- `monitor` (*SolverMonitor)
+
+**Returns:**
+  None
+
+### Solve
+
+Solve using iterative backtracking with MRV heuristic
+
+```go
+func (*FDStore) Solve(ctx context.Context, limit int) ([][]int, error)
+```
+
+**Parameters:**
+- `ctx` (context.Context)
+- `limit` (int)
+
+**Returns:**
+- [][]int
+- error
+
+### UnionDomains
+
+UnionDomains unions the domain of v with the given BitSet
+
+```go
+func (*FDStore) UnionDomains(v *FDVar, other BitSet) error
+```
+
+**Parameters:**
+- `v` (*FDVar)
+- `other` (BitSet)
+
+**Returns:**
+- error
+
+### enqueue
+
+
+
+```go
+func (*FDStore) enqueue(vid int)
+```
+
+**Parameters:**
+- `vid` (int)
+
+**Returns:**
+  None
+
+### propagateCustomConstraintsLocked
+
+propagateCustomConstraintsLocked runs propagation for all custom constraints
+
+```go
+func (*FDStore) propagateCustomConstraintsLocked() error
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- error
+
+### propagateGreaterEqual
+
+propagateGreaterEqual prunes domains for X >= Y constraint
+
+```go
+func (*FDStore) propagateGreaterEqual(x, y *FDVar) error
+```
+
+**Parameters:**
+- `x` (*FDVar)
+- `y` (*FDVar)
+
+**Returns:**
+- error
+
+### propagateGreaterThan
+
+propagateGreaterThan prunes domains for X > Y constraint
+
+```go
+func (*FDStore) propagateGreaterThan(x, y *FDVar) error
+```
+
+**Parameters:**
+- `x` (*FDVar)
+- `y` (*FDVar)
+
+**Returns:**
+- error
+
+### propagateInequalityLocked
+
+propagateInequalityLocked performs initial pruning for an inequality constraint
+
+```go
+func (*FDStore) propagateInequalityLocked(x, y *FDVar, typ InequalityType) error
+```
+
+**Parameters:**
+- `x` (*FDVar)
+- `y` (*FDVar)
+- `typ` (InequalityType)
+
+**Returns:**
+- error
+
+### propagateLessEqual
+
+propagateLessEqual prunes domains for X <= Y constraint
+
+```go
+func (*FDStore) propagateLessEqual(x, y *FDVar) error
+```
+
+**Parameters:**
+- `x` (*FDVar)
+- `y` (*FDVar)
+
+**Returns:**
+- error
+
+### propagateLessThan
+
+propagateLessThan prunes domains for X < Y constraint
+
+```go
+func (*FDStore) propagateLessThan(x, y *FDVar) error
+```
+
+**Parameters:**
+- `x` (*FDVar)
+- `y` (*FDVar)
+
+**Returns:**
+- error
+
+### propagateLocked
+
+propagateLocked runs a simple AC-3 style propagation loop (requires lock)
+
+```go
+func (*FDStore) propagateLocked() error
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- error
+
+### propagateNotEqual
+
+propagateNotEqual prunes domains for X != Y constraint
+
+```go
+func (*FDStore) propagateNotEqual(x, y *FDVar) error
+```
+
+**Parameters:**
+- `x` (*FDVar)
+- `y` (*FDVar)
+
+**Returns:**
+- error
+
+### selectNextVariableAdvanced
+
+selectNextVariableAdvanced selects the next variable using the configured heuristic
+
+```go
+func (*FDStore) selectNextVariableAdvanced(config *SolverConfig) (int, []int)
+```
+
+**Parameters:**
+- `config` (*SolverConfig)
+
+**Returns:**
+- int
+- []int
+
+### selectNextVariableDeg
+
+selectNextVariableDeg selects variable with highest degree (most constraints)
+
+```go
+func (*FDStore) selectNextVariableDeg() (int, []int)
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- int
+- []int
+
+### selectNextVariableDom
+
+selectNextVariableDom selects variable with smallest domain
+
+```go
+func (*FDStore) selectNextVariableDom() (int, []int)
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- int
+- []int
+
+### selectNextVariableDomDeg
+
+selectNextVariableDomDeg implements the original dom/deg heuristic
+
+```go
+func (*FDStore) selectNextVariableDomDeg() (int, []int)
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- int
+- []int
+
+### selectNextVariableLex
+
+selectNextVariableLex selects the first variable by ID
+
+```go
+func (*FDStore) selectNextVariableLex() (int, []int)
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- int
+- []int
+
+### selectNextVariableRandom
+
+selectNextVariableRandom selects a random unassigned variable
+
+```go
+func (*FDStore) selectNextVariableRandom(seed int64) (int, []int)
+```
+
+**Parameters:**
+- `seed` (int64)
+
+**Returns:**
+- int
+- []int
+
+### setDomainLocked
+
+
+
+```go
+func (*FDStore) setDomainLocked(v *FDVar, newDom BitSet)
+```
+
+**Parameters:**
+- `v` (*FDVar)
+- `newDom` (BitSet)
+
+**Returns:**
+  None
+
+### snapshot
+
+snapshot returns current trail size for backtracking
+
+```go
+func (*FDStore) snapshot() int
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- int
+
+### undo
+
+undo to snapshot
+
+```go
+func (*FDStore) undo(to int)
+```
+
+**Parameters:**
+- `to` (int)
+
+**Returns:**
+  None
+
+### variableDegree
+
+variableDegree returns the degree (number of constraints) for a variable
+
+```go
+func (*FDStore) variableDegree(v *FDVar) int
+```
+
+**Parameters:**
+- `v` (*FDVar)
+
+**Returns:**
+- int
+
+### FDVar
+FDVar is a finite-domain variable
+
+#### Example Usage
+
+```go
+// Create a new FDVar
+fdvar := FDVar{
+    ID: 42,
+    domain: BitSet{},
+    peers: [],
+}
+```
+
+#### Type Definition
+
+```go
+type FDVar struct {
+    ID int
+    domain BitSet
+    peers []*FDVar
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| ID | `int` |  |
+| domain | `BitSet` |  |
+| peers | `[]*FDVar` |  |
 
 ### GlobalConstraintBus
 GlobalConstraintBus coordinates constraint checking across multiple local constraint stores. It handles cross-store constraints and provides a coordination point for complex constraint interactions. The bus is designed to minimize coordination overhead - most constraints should be local and not require global coordination.
@@ -1228,14 +2322,15 @@ func Car(pair, car Term) Goal
 Cdr extracts the rest of a pair/list. Example: goal := Cdr(List(NewAtom(1), NewAtom(2)), x) // x = List(NewAtom(2))
 
 ```go
-func (*Pair) Cdr() Term
+func Cdr(pair, cdr Term) Goal
 ```
 
 **Parameters:**
-  None
+- `pair` (Term)
+- `cdr` (Term)
 
 **Returns:**
-- Term
+- Goal
 
 ### Conda
 
@@ -1334,6 +2429,67 @@ func Eq(term1, term2 Term) Goal
 **Parameters:**
 - `term1` (Term)
 - `term2` (Term)
+
+**Returns:**
+- Goal
+
+### FDAllDifferentGoal
+
+FDAllDifferentGoal creates a Goal that enforces an all-different constraint over the provided logic variables. domainSize specifies the integer domain (values 1..domainSize). The goal, when executed, will enumerate all assignments that satisfy the AllDifferent constraint and existing bindings in the provided ConstraintStore.
+
+```go
+func FDAllDifferentGoal(vars []*Var, domainSize int) Goal
+```
+
+**Parameters:**
+- `vars` ([]*Var)
+- `domainSize` (int)
+
+**Returns:**
+- Goal
+
+### FDCustomGoal
+
+FDCustomGoal creates a goal that enforces a custom constraint
+
+```go
+func FDCustomGoal(vars []*Var, constraint CustomConstraint) Goal
+```
+
+**Parameters:**
+- `vars` ([]*Var)
+- `constraint` (CustomConstraint)
+
+**Returns:**
+- Goal
+
+### FDInequalityGoal
+
+FDInequalityGoal creates a goal that enforces an inequality constraint between two variables
+
+```go
+func FDInequalityGoal(x, y *Var, typ InequalityType) Goal
+```
+
+**Parameters:**
+- `x` (*Var)
+- `y` (*Var)
+- `typ` (InequalityType)
+
+**Returns:**
+- Goal
+
+### FDQueensGoal
+
+FDQueensGoal models N-Queens using the FD engine idiomatically: - column variables range 1..n - derived diagonal variables are created as offsets of columns - AllDifferent is applied to columns and both diagonal sets
+
+```go
+func FDQueensGoal(vars []*Var, n int) Goal
+```
+
+**Parameters:**
+- `vars` ([]*Var)
+- `n` (int)
 
 **Returns:**
 - Goal
@@ -1452,6 +2608,39 @@ func Symbolo(term Term) Goal
 
 **Returns:**
 - Goal
+
+### InequalityType
+fd_ineq.go: arithmetic inequality constraints for FDStore InequalityType represents the type of inequality constraint
+
+#### Example Usage
+
+```go
+// Example usage of InequalityType
+var value InequalityType
+// Initialize with appropriate value
+```
+
+#### Type Definition
+
+```go
+type InequalityType int
+```
+
+### Constructor Functions
+
+### reverseInequalityType
+
+
+
+```go
+func reverseInequalityType(typ InequalityType) InequalityType
+```
+
+**Parameters:**
+- `typ` (InequalityType)
+
+**Returns:**
+- InequalityType
 
 ### LocalConstraintStore
 LocalConstraintStore interface defines the operations needed by the GlobalConstraintBus to coordinate with local stores.
@@ -1584,14 +2773,14 @@ func (*LocalConstraintStoreImpl) AddConstraint(constraint Constraint) error
 Clone creates a deep copy of the constraint store for parallel execution. The clone shares no mutable state with the original store, making it safe for concurrent use in parallel goal evaluation. Cloning is optimized for performance as it's used frequently in parallel execution contexts. The clone initially shares constraint references with the original but will copy-on-write if modified. Implements the ConstraintStore interface.
 
 ```go
-func (*LocalConstraintStoreImpl) Clone() ConstraintStore
+func (*MembershipConstraint) Clone() Constraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- ConstraintStore
+- Constraint
 
 ### Generation
 
@@ -1682,7 +2871,7 @@ func (*LocalConstraintStoreImpl) IsEmpty() bool
 Shutdown cleanly shuts down the store and unregisters it from the global constraint bus. Should be called when the store is no longer needed to prevent memory leaks.
 
 ```go
-func (*GlobalConstraintBus) Shutdown()
+func (*LocalConstraintStoreImpl) Shutdown()
 ```
 
 **Parameters:**
@@ -1806,7 +2995,7 @@ func (*Substitution) Clone() *Substitution
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) ID() string
+func (*LocalConstraintStoreImpl) ID() string
 ```
 
 **Parameters:**
@@ -1834,7 +3023,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -1848,14 +3037,14 @@ func (*MembershipConstraint) String() string
 Variables returns the logic variables this constraint depends on. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) Variables() []*Var
+func (*AllDifferentConstraint) Variables() []*FDVar
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*Var
+- []*FDVar
 
 ### Pair
 Pair represents a cons cell (pair) in miniKanren. Pairs are used to build lists and other compound structures.
@@ -1984,7 +3173,7 @@ func (*Pair) IsVar() bool
 String returns a string representation of the pair.
 
 ```go
-func (*LocalConstraintStoreImpl) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -2122,7 +3311,7 @@ func (*ParallelExecutor) ParallelDisj(goals ...Goal) Goal
 Shutdown gracefully shuts down the parallel executor.
 
 ```go
-func (*GlobalConstraintBus) Shutdown()
+func (*LocalConstraintStoreImpl) Shutdown()
 ```
 
 **Parameters:**
@@ -2223,6 +3412,381 @@ func (*ParallelStream) ParallelMap(fn func(ConstraintStore) ConstraintStore) *Pa
 **Returns:**
 - *ParallelStream
 
+### SolverConfig
+SolverConfig holds configuration for the FD solver
+
+#### Example Usage
+
+```go
+// Create a new SolverConfig
+solverconfig := SolverConfig{
+    VariableHeuristic: VariableOrderingHeuristic{},
+    ValueHeuristic: ValueOrderingHeuristic{},
+    RandomSeed: 42,
+}
+```
+
+#### Type Definition
+
+```go
+type SolverConfig struct {
+    VariableHeuristic VariableOrderingHeuristic
+    ValueHeuristic ValueOrderingHeuristic
+    RandomSeed int64
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| VariableHeuristic | `VariableOrderingHeuristic` |  |
+| ValueHeuristic | `ValueOrderingHeuristic` |  |
+| RandomSeed | `int64` | for reproducible random heuristics |
+
+### Constructor Functions
+
+### DefaultSolverConfig
+
+DefaultSolverConfig returns a default solver configuration
+
+```go
+func DefaultSolverConfig() *SolverConfig
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- *SolverConfig
+
+### SolverMonitor
+SolverMonitor provides monitoring capabilities for the FD solver
+
+#### Example Usage
+
+```go
+// Create a new SolverMonitor
+solvermonitor := SolverMonitor{
+    mu: /* value */,
+    stats: &SolverStats{}{},
+    startTime: /* value */,
+    propStart: /* value */,
+}
+```
+
+#### Type Definition
+
+```go
+type SolverMonitor struct {
+    mu sync.Mutex
+    stats *SolverStats
+    startTime time.Time
+    propStart time.Time
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| mu | `sync.Mutex` |  |
+| stats | `*SolverStats` |  |
+| startTime | `time.Time` |  |
+| propStart | `time.Time` |  |
+
+### Constructor Functions
+
+### NewSolverMonitor
+
+NewSolverMonitor creates a new solver monitor
+
+```go
+func NewSolverMonitor() *SolverMonitor
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- *SolverMonitor
+
+## Methods
+
+### CaptureFinalDomains
+
+CaptureFinalDomains captures the final domain state and computes reductions
+
+```go
+func (*SolverMonitor) CaptureFinalDomains(store *FDStore)
+```
+
+**Parameters:**
+- `store` (*FDStore)
+
+**Returns:**
+  None
+
+### CaptureInitialDomains
+
+CaptureInitialDomains captures the initial domain state
+
+```go
+func (*SolverMonitor) CaptureInitialDomains(store *FDStore)
+```
+
+**Parameters:**
+- `store` (*FDStore)
+
+**Returns:**
+  None
+
+### EndPropagation
+
+EndPropagation marks the end of a propagation operation
+
+```go
+func (*SolverMonitor) EndPropagation()
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+  None
+
+### FinishSearch
+
+FinishSearch marks the end of the search process
+
+```go
+func (*SolverMonitor) FinishSearch()
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+  None
+
+### GetStats
+
+GetStats returns a copy of the current statistics
+
+```go
+func (*SolverMonitor) GetStats() *SolverStats
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- *SolverStats
+
+### RecordBacktrack
+
+RecordBacktrack records a backtrack operation
+
+```go
+func (*SolverMonitor) RecordBacktrack()
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+  None
+
+### RecordConstraint
+
+RecordConstraint records adding a constraint
+
+```go
+func (*SolverMonitor) RecordConstraint()
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+  None
+
+### RecordDepth
+
+RecordDepth records the current search depth
+
+```go
+func (*SolverMonitor) RecordDepth(depth int)
+```
+
+**Parameters:**
+- `depth` (int)
+
+**Returns:**
+  None
+
+### RecordNode
+
+RecordNode records exploring a search node
+
+```go
+func (*SolverMonitor) RecordNode()
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+  None
+
+### RecordQueueSize
+
+RecordQueueSize records the current queue size
+
+```go
+func (*SolverMonitor) RecordQueueSize(size int)
+```
+
+**Parameters:**
+- `size` (int)
+
+**Returns:**
+  None
+
+### RecordSolution
+
+RecordSolution records finding a solution
+
+```go
+func (*SolverMonitor) RecordSolution()
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+  None
+
+### RecordTrailSize
+
+RecordTrailSize records the current trail size
+
+```go
+func (*SolverMonitor) RecordTrailSize(size int)
+```
+
+**Parameters:**
+- `size` (int)
+
+**Returns:**
+  None
+
+### StartPropagation
+
+StartPropagation marks the beginning of a propagation operation
+
+```go
+func (*SolverMonitor) StartPropagation()
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+  None
+
+### SolverStats
+SolverStats holds statistics about the FD solving process
+
+#### Example Usage
+
+```go
+// Create a new SolverStats
+solverstats := SolverStats{
+    NodesExplored: 42,
+    Backtracks: 42,
+    SolutionsFound: 42,
+    SearchTime: /* value */,
+    MaxDepth: 42,
+    PropagationCount: 42,
+    PropagationTime: /* value */,
+    ConstraintsAdded: 42,
+    InitialDomains: [],
+    FinalDomains: [],
+    DomainReductions: [],
+    PeakTrailSize: 42,
+    PeakQueueSize: 42,
+}
+```
+
+#### Type Definition
+
+```go
+type SolverStats struct {
+    NodesExplored int
+    Backtracks int
+    SolutionsFound int
+    SearchTime time.Duration
+    MaxDepth int
+    PropagationCount int
+    PropagationTime time.Duration
+    ConstraintsAdded int
+    InitialDomains []BitSet
+    FinalDomains []BitSet
+    DomainReductions []int
+    PeakTrailSize int
+    PeakQueueSize int
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| NodesExplored | `int` | Search statistics |
+| Backtracks | `int` | Number of backtracks performed |
+| SolutionsFound | `int` | Number of solutions found |
+| SearchTime | `time.Duration` | Time spent in search |
+| MaxDepth | `int` | Maximum search depth reached |
+| PropagationCount | `int` | Propagation statistics |
+| PropagationTime | `time.Duration` | Time spent in propagation |
+| ConstraintsAdded | `int` | Number of constraints added |
+| InitialDomains | `[]BitSet` | Domain statistics |
+| FinalDomains | `[]BitSet` | Final domain snapshots |
+| DomainReductions | `[]int` | Domain size reductions per variable |
+| PeakTrailSize | `int` | Memory statistics |
+| PeakQueueSize | `int` | Peak size of the propagation queue |
+
+## Methods
+
+### String
+
+String returns a formatted string representation of the statistics
+
+```go
+func (*LocalConstraintStoreImpl) String() string
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- string
+
+### averageReduction
+
+averageReduction computes the average domain size reduction
+
+```go
+func (*SolverStats) averageReduction() float64
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- float64
+
 ### Stream
 Stream represents a (potentially infinite) sequence of constraint stores. Streams are the core data structure for representing multiple solutions in miniKanren. Each constraint store contains variable bindings and active constraints representing a consistent logical state. This implementation uses channels for thread-safe concurrent access and supports parallel evaluation with proper constraint coordination.
 
@@ -2308,11 +3872,11 @@ func (*Stream) Close()
 
 
 ```go
-func (*GlobalConstraintBusPool) Put(bus *GlobalConstraintBus)
+func (*Stream) Put(store ConstraintStore)
 ```
 
 **Parameters:**
-- `bus` (*GlobalConstraintBus)
+- `store` (ConstraintStore)
 
 **Returns:**
   None
@@ -2415,14 +3979,14 @@ func (*Substitution) Bind(v *Var, term Term) *Substitution
 Clone creates a deep copy of the substitution.
 
 ```go
-func (*MembershipConstraint) Clone() Constraint
+func (BitSet) Clone() BitSet
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- BitSet
 
 ### DeepWalk
 
@@ -2471,7 +4035,7 @@ func (*Substitution) Size() int
 String returns a string representation of the substitution.
 
 ```go
-func (ConstraintEventType) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -2493,6 +4057,97 @@ func (*Substitution) Walk(term Term) Term
 
 **Returns:**
 - Term
+
+### SumConstraint
+Example custom constraint implementations SumConstraint enforces that the sum of variables equals a target value
+
+#### Example Usage
+
+```go
+// Create a new SumConstraint
+sumconstraint := SumConstraint{
+    vars: [],
+    target: 42,
+}
+```
+
+#### Type Definition
+
+```go
+type SumConstraint struct {
+    vars []*FDVar
+    target int
+}
+```
+
+### Fields
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| vars | `[]*FDVar` |  |
+| target | `int` |  |
+
+### Constructor Functions
+
+### NewSumConstraint
+
+NewSumConstraint creates a new sum constraint
+
+```go
+func NewSumConstraint(vars []*FDVar, target int) *SumConstraint
+```
+
+**Parameters:**
+- `vars` ([]*FDVar)
+- `target` (int)
+
+**Returns:**
+- *SumConstraint
+
+## Methods
+
+### IsSatisfied
+
+IsSatisfied checks if the sum constraint is satisfied
+
+```go
+func (*AllDifferentConstraint) IsSatisfied() bool
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- bool
+
+### Propagate
+
+Propagate performs constraint propagation for the sum constraint
+
+```go
+func (*AllDifferentConstraint) Propagate(store *FDStore) (bool, error)
+```
+
+**Parameters:**
+- `store` (*FDStore)
+
+**Returns:**
+- bool
+- error
+
+### Variables
+
+Variables returns the variables involved in this constraint
+
+```go
+func (*AllDifferentConstraint) Variables() []*FDVar
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- []*FDVar
 
 ### Term
 Term represents any value in the miniKanren universe. Terms can be atoms, variables, compound structures, or any Go value. All Term implementations must be comparable and thread-safe.
@@ -2787,28 +4442,28 @@ func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a deep copy of the constraint for parallel execution. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) Clone() Constraint
+func (BitSet) Clone() BitSet
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- BitSet
 
 ### ID
 
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) ID() string
+func (*Var) ID() int64
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- string
+- int64
 
 ### IsLocal
 
@@ -2829,7 +4484,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (ConstraintEventType) String() string
+func (*LocalConstraintStoreImpl) String() string
 ```
 
 **Parameters:**
@@ -2843,14 +4498,14 @@ func (ConstraintEventType) String() string
 Variables returns the logic variables this constraint depends on. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) Variables() []*Var
+func (*AllDifferentConstraint) Variables() []*FDVar
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*Var
+- []*FDVar
 
 ### hasExpectedType
 
@@ -2890,7 +4545,7 @@ type TypeConstraintKind int
 String returns a human-readable representation of the type constraint kind.
 
 ```go
-func (ConstraintEventType) String() string
+func (*LocalConstraintStoreImpl) String() string
 ```
 
 **Parameters:**
@@ -2898,6 +4553,23 @@ func (ConstraintEventType) String() string
 
 **Returns:**
 - string
+
+### ValueOrderingHeuristic
+ValueOrderingHeuristic defines strategies for ordering values within a domain
+
+#### Example Usage
+
+```go
+// Example usage of ValueOrderingHeuristic
+var value ValueOrderingHeuristic
+// Initialize with appropriate value
+```
+
+#### Type Definition
+
+```go
+type ValueOrderingHeuristic int
+```
 
 ### Var
 Var represents a logic variable in miniKanren. Variables can be bound to values through unification. Each variable has a unique identifier to distinguish it from others.
@@ -2968,14 +4640,14 @@ func extractVariables(term Term) []*Var
 Clone creates a copy of the variable with the same identity.
 
 ```go
-func (*LocalConstraintStoreImpl) Clone() ConstraintStore
+func (*Substitution) Clone() *Substitution
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- ConstraintStore
+- *Substitution
 
 ### Equal
 
@@ -2996,7 +4668,7 @@ func (*Pair) Equal(other Term) bool
 ID returns the unique identifier of the variable.
 
 ```go
-func (*MembershipConstraint) ID() string
+func (*LocalConstraintStoreImpl) ID() string
 ```
 
 **Parameters:**
@@ -3024,7 +4696,7 @@ func (*Pair) IsVar() bool
 String returns a string representation of the variable.
 
 ```go
-func (*MembershipConstraint) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -3032,6 +4704,23 @@ func (*MembershipConstraint) String() string
 
 **Returns:**
 - string
+
+### VariableOrderingHeuristic
+VariableOrderingHeuristic defines strategies for selecting the next variable to assign
+
+#### Example Usage
+
+```go
+// Example usage of VariableOrderingHeuristic
+var value VariableOrderingHeuristic
+// Initialize with appropriate value
+```
+
+#### Type Definition
+
+```go
+type VariableOrderingHeuristic int
+```
 
 ### VersionInfo
 VersionInfo provides detailed version information.

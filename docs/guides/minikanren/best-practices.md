@@ -64,7 +64,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 0.11.0
+Version: 1.0.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.
@@ -131,6 +131,18 @@ absenceconstraint := AbsenceConstraint{
 }
 ```
 
+**AllDifferentConstraint**
+
+AllDifferentConstraint is a custom version of the all-different constraint This demonstrates how built-in constraints can be reimplemented as custom constraints
+
+```go
+// Example usage of AllDifferentConstraint
+// Create a new AllDifferentConstraint
+alldifferentconstraint := AllDifferentConstraint{
+    vars: [],
+}
+```
+
 **Atom**
 
 Atom represents an atomic value (symbol, number, string, etc.). Atoms are immutable and represent themselves.
@@ -140,6 +152,19 @@ Atom represents an atomic value (symbol, number, string, etc.). Atoms are immuta
 // Create a new Atom
 atom := Atom{
     value: /* value */,
+}
+```
+
+**BitSet**
+
+Generic BitSet-backed Domain for FD variables. Values are 1-based indices.
+
+```go
+// Example usage of BitSet
+// Create a new BitSet
+bitset := BitSet{
+    n: 42,
+    words: [],
 }
 ```
 
@@ -289,6 +314,35 @@ constraintviolationerror := ConstraintViolationError{
 }
 ```
 
+**CustomConstraint**
+
+fd_custom.go: custom constraint interfaces for FDStore CustomConstraint represents a user-defined constraint that can propagate
+
+```go
+// Example usage of CustomConstraint
+// Example implementation of CustomConstraint
+type MyCustomConstraint struct {
+    // Add your fields here
+}
+
+func (m MyCustomConstraint) Variables() []*FDVar {
+    // Implement your logic here
+    return
+}
+
+func (m MyCustomConstraint) Propagate(param1 *FDStore) bool {
+    // Implement your logic here
+    return
+}
+
+func (m MyCustomConstraint) IsSatisfied() bool {
+    // Implement your logic here
+    return
+}
+
+
+```
+
 **DisequalityConstraint**
 
 DisequalityConstraint implements the disequality constraint (≠). It ensures that two terms are not equal, providing order-independent constraint semantics for the Neq operation. The constraint tracks two terms and checks that they never become equal through unification. If both terms are variables, the constraint remains pending until at least one is bound to a concrete value.
@@ -300,6 +354,55 @@ disequalityconstraint := DisequalityConstraint{
     id: "example",
     term1: Term{},
     isLocal: true,
+}
+```
+
+**FDChange**
+
+Extend FDVar with offset links (placed here to avoid changing many other files) Note: we keep it unexported and simple; propagation logic in FDStore will consult these. We'll attach via a small map in FDStore to avoid changing serialized layout of FDVar across code paths. FDChange represents a single domain change for undo
+
+```go
+// Example usage of FDChange
+// Create a new FDChange
+fdchange := FDChange{
+    vid: 42,
+    domain: BitSet{},
+}
+```
+
+**FDStore**
+
+- Offset arithmetic constraints for modeling relationships - Iterative backtracking with dom/deg heuristics - Context-aware cancellation and timeouts Typical usage: store := NewFDStoreWithDomain(maxValue) vars := store.MakeFDVars(n) // Add constraints... solutions, err := store.Solve(ctx, limit)
+
+```go
+// Example usage of FDStore
+// Create a new FDStore
+fdstore := FDStore{
+    mu: /* value */,
+    vars: [],
+    idToVar: map[],
+    queue: [],
+    trail: [],
+    domainSize: 42,
+    offsetLinks: map[],
+    ineqLinks: map[],
+    customConstraints: [],
+    config: &SolverConfig{}{},
+    monitor: &SolverMonitor{}{},
+}
+```
+
+**FDVar**
+
+FDVar is a finite-domain variable
+
+```go
+// Example usage of FDVar
+// Create a new FDVar
+fdvar := FDVar{
+    ID: 42,
+    domain: BitSet{},
+    peers: [],
 }
 ```
 
@@ -342,6 +445,17 @@ Goal represents a constraint or a combination of constraints. Goals are function
 // Example usage of Goal
 // Example usage of Goal
 var value Goal
+// Initialize with appropriate value
+```
+
+**InequalityType**
+
+fd_ineq.go: arithmetic inequality constraints for FDStore InequalityType represents the type of inequality constraint
+
+```go
+// Example usage of InequalityType
+// Example usage of InequalityType
+var value InequalityType
 // Initialize with appropriate value
 ```
 
@@ -460,6 +574,59 @@ parallelstream := ParallelStream{
 }
 ```
 
+**SolverConfig**
+
+SolverConfig holds configuration for the FD solver
+
+```go
+// Example usage of SolverConfig
+// Create a new SolverConfig
+solverconfig := SolverConfig{
+    VariableHeuristic: VariableOrderingHeuristic{},
+    ValueHeuristic: ValueOrderingHeuristic{},
+    RandomSeed: 42,
+}
+```
+
+**SolverMonitor**
+
+SolverMonitor provides monitoring capabilities for the FD solver
+
+```go
+// Example usage of SolverMonitor
+// Create a new SolverMonitor
+solvermonitor := SolverMonitor{
+    mu: /* value */,
+    stats: &SolverStats{}{},
+    startTime: /* value */,
+    propStart: /* value */,
+}
+```
+
+**SolverStats**
+
+SolverStats holds statistics about the FD solving process
+
+```go
+// Example usage of SolverStats
+// Create a new SolverStats
+solverstats := SolverStats{
+    NodesExplored: 42,
+    Backtracks: 42,
+    SolutionsFound: 42,
+    SearchTime: /* value */,
+    MaxDepth: 42,
+    PropagationCount: 42,
+    PropagationTime: /* value */,
+    ConstraintsAdded: 42,
+    InitialDomains: [],
+    FinalDomains: [],
+    DomainReductions: [],
+    PeakTrailSize: 42,
+    PeakQueueSize: 42,
+}
+```
+
 **Stream**
 
 Stream represents a (potentially infinite) sequence of constraint stores. Streams are the core data structure for representing multiple solutions in miniKanren. Each constraint store contains variable bindings and active constraints representing a consistent logical state. This implementation uses channels for thread-safe concurrent access and supports parallel evaluation with proper constraint coordination.
@@ -484,6 +651,19 @@ Substitution represents a mapping from variables to terms. It's used to track bi
 substitution := Substitution{
     bindings: map[],
     mu: /* value */,
+}
+```
+
+**SumConstraint**
+
+Example custom constraint implementations SumConstraint enforces that the sum of variables equals a target value
+
+```go
+// Example usage of SumConstraint
+// Create a new SumConstraint
+sumconstraint := SumConstraint{
+    vars: [],
+    target: 42,
 }
 ```
 
@@ -547,6 +727,17 @@ var value TypeConstraintKind
 // Initialize with appropriate value
 ```
 
+**ValueOrderingHeuristic**
+
+ValueOrderingHeuristic defines strategies for ordering values within a domain
+
+```go
+// Example usage of ValueOrderingHeuristic
+// Example usage of ValueOrderingHeuristic
+var value ValueOrderingHeuristic
+// Initialize with appropriate value
+```
+
 **Var**
 
 Var represents a logic variable in miniKanren. Variables can be bound to values through unification. Each variable has a unique identifier to distinguish it from others.
@@ -559,6 +750,17 @@ var := Var{
     name: "example",
     mu: /* value */,
 }
+```
+
+**VariableOrderingHeuristic**
+
+VariableOrderingHeuristic defines strategies for selecting the next variable to assign
+
+```go
+// Example usage of VariableOrderingHeuristic
+// Example usage of VariableOrderingHeuristic
+var value VariableOrderingHeuristic
+// Initialize with appropriate value
 ```
 
 **VersionInfo**
