@@ -84,8 +84,9 @@ func TestStressRaceConditions(t *testing.T) {
 			wg.Add(1)
 			go func(consumerID int) {
 				defer wg.Done()
+				ctx := context.Background()
 				for {
-					stores, hasMore := stream.Take(5)
+					stores, hasMore, _ := stream.Take(ctx, 5)
 					atomic.AddInt64(&consumed, int64(len(stores)))
 
 					if !hasMore {
@@ -108,7 +109,7 @@ func TestStressRaceConditions(t *testing.T) {
 				store := NewLocalConstraintStore(NewGlobalConstraintBus())
 
 				for j := 0; j < itemsPerProducer; j++ {
-					stream.Put(store)
+					stream.Put(context.Background(), store)
 					atomic.AddInt64(&produced, 1)
 
 					// Vary timing to expose races
@@ -180,7 +181,7 @@ func TestStressRaceConditions(t *testing.T) {
 					)
 
 					stream := goal(ctx, store)
-					solutions, _ := stream.Take(10)
+					solutions, _, _ := stream.Take(ctx, 10)
 
 					if len(solutions) > 0 {
 						atomic.AddInt64(&successCount, 1)
@@ -337,7 +338,7 @@ func TestMemoryPressureRaces(t *testing.T) {
 				v := Fresh("pressure")
 				goal := Eq(v, NewAtom(id))
 				stream := goal(ctx, store)
-				solutions, _ := stream.Take(1)
+				solutions, _, _ := stream.Take(ctx, 1)
 
 				if len(solutions) != 1 {
 					t.Errorf("Worker %d: expected 1 solution, got %d", id, len(solutions))

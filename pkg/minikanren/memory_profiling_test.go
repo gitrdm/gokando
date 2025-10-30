@@ -208,7 +208,7 @@ func TestMemoryLeakDetection(t *testing.T) {
 			)
 
 			stream := goal(ctx, store)
-			solutions, _ := stream.Take(10)
+			solutions, _, _ := stream.Take(ctx, 10)
 
 			// Use the solutions to prevent optimization
 			_ = len(solutions)

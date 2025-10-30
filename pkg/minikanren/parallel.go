@@ -107,7 +107,7 @@ func (pe *ParallelExecutor) ParallelDisj(goals ...Goal) Goal {
 		return goals[0]
 	}
 
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 
 		go func() {
@@ -159,8 +159,8 @@ func (pe *ParallelExecutor) ParallelDisj(goals ...Goal) Goal {
 						default:
 						}
 
-						subs, hasMore := goalStream.Take(1)
-						if len(subs) == 0 {
+						subs, hasMore, err := goalStream.Take(ctx, 1)
+						if err != nil || len(subs) == 0 {
 							if !hasMore {
 								break
 							}
@@ -194,7 +194,7 @@ func (pe *ParallelExecutor) ParallelDisj(goals ...Goal) Goal {
 				case <-ctx.Done():
 					return
 				default:
-					stream.Put(result)
+					stream.Put(ctx, result)
 				}
 			}
 		}()
@@ -226,7 +226,7 @@ func ParallelRunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal
 	initialStore := NewLocalConstraintStore(NewGlobalConstraintBus())
 	stream := goal(ctx, initialStore)
 
-	solutions, _ := stream.Take(n)
+	solutions, _, _ := stream.Take(ctx, n)
 
 	var results []Term
 	for _, store := range solutions {
@@ -266,8 +266,8 @@ func (ps *ParallelStream) ParallelMap(fn func(ConstraintStore) ConstraintStore) 
 
 		// Process constraint stores in parallel
 		for {
-			stores, hasMore := ps.Take(ps.executor.config.MaxWorkers)
-			if len(stores) == 0 {
+			stores, hasMore, err := ps.Take(ps.ctx, ps.executor.config.MaxWorkers)
+			if err != nil || len(stores) == 0 {
 				if !hasMore {
 					break
 				}
@@ -321,7 +321,7 @@ func (ps *ParallelStream) ParallelMap(fn func(ConstraintStore) ConstraintStore) 
 
 		// Forward results
 		for result := range resultChan {
-			resultStream.Put(result)
+			resultStream.Put(ps.ctx, result)
 		}
 	}()
 
@@ -343,7 +343,10 @@ func (ps *ParallelStream) Collect() []ConstraintStore {
 	var results []ConstraintStore
 
 	for {
-		stores, hasMore := ps.Take(100) // Take in batches
+		stores, hasMore, err := ps.Take(ps.ctx, 100) // Take in batches
+		if err != nil {
+			break
+		}
 		results = append(results, stores...)
 
 		if !hasMore {

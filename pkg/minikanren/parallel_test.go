@@ -82,7 +82,7 @@ func TestParallelDisj(t *testing.T) {
 
 		goal := executor.ParallelDisj()
 		stream := goal(ctx, store)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 0 {
 			t.Error("Empty parallel disjunction should return no solutions")
@@ -100,7 +100,7 @@ func TestParallelDisj(t *testing.T) {
 
 		goal := executor.ParallelDisj(Eq(v, a))
 		stream := goal(ctx, store)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 1 {
 			t.Fatal("Single goal parallel disjunction should return one solution")
@@ -127,7 +127,7 @@ func TestParallelDisj(t *testing.T) {
 		)
 
 		stream := goal(ctx, store)
-		solutions, _ := stream.Take(3)
+		solutions, _, _ := stream.Take(ctx, 3)
 
 		if len(solutions) != 3 {
 			t.Fatalf("Expected 3 solutions, got %d", len(solutions))
@@ -163,7 +163,7 @@ func TestParallelDisj(t *testing.T) {
 		v := Fresh("x")
 
 		// Create a long-running goal
-		slowGoal := func(ctx context.Context, store ConstraintStore) *Stream {
+		slowGoal := func(ctx context.Context, store ConstraintStore) ResultStream {
 			stream := NewStream()
 			go func() {
 				defer stream.Close()
@@ -171,7 +171,7 @@ func TestParallelDisj(t *testing.T) {
 				case <-time.After(100 * time.Millisecond):
 					newStore := store.Clone()
 					newStore.AddBinding(v.ID(), NewAtom("slow"))
-					stream.Put(newStore)
+					stream.Put(ctx, newStore)
 				case <-ctx.Done():
 					return
 				}
@@ -191,7 +191,7 @@ func TestParallelDisj(t *testing.T) {
 		}()
 
 		stream := goal(ctx, store)
-		solutions, _ := stream.Take(2)
+		solutions, _, _ := stream.Take(ctx, 2)
 
 		// Should get at least the fast solution
 		if len(solutions) == 0 {
@@ -283,7 +283,7 @@ func TestParallelStream(t *testing.T) {
 				store := NewLocalConstraintStore(NewGlobalConstraintBus())
 				v := Fresh("x")
 				store.AddBinding(v.ID(), NewAtom(i))
-				stream.Put(store)
+				stream.Put(ctx, store)
 			}
 		}()
 
@@ -325,7 +325,7 @@ func TestParallelStream(t *testing.T) {
 					v := Fresh("x")
 					store.AddBinding(v.ID(), NewAtom(i))
 				}
-				stream.Put(store)
+				stream.Put(ctx, store)
 			}
 		}()
 
@@ -407,7 +407,7 @@ func TestConcurrentParallelExecution(t *testing.T) {
 
 				store := NewLocalConstraintStore(NewGlobalConstraintBus())
 				stream := goal(ctx, store)
-				solutions, _ := stream.Take(2)
+				solutions, _, _ := stream.Take(ctx, 2)
 
 				results[index] = make([]Term, len(solutions))
 				for j, sol := range solutions {
@@ -446,7 +446,7 @@ func BenchmarkParallelDisjunction(b *testing.B) {
 	goals := make([]Goal, 10)
 	for i := 0; i < 10; i++ {
 		val := i
-		goals[i] = func(ctx context.Context, store ConstraintStore) *Stream {
+		goals[i] = func(ctx context.Context, store ConstraintStore) ResultStream {
 			v := Fresh("x")
 			return Eq(v, NewAtom(val))(ctx, store)
 		}
@@ -458,7 +458,7 @@ func BenchmarkParallelDisjunction(b *testing.B) {
 		ctx := context.Background()
 		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 		stream := goal(ctx, store)
-		stream.Take(10)
+		stream.Take(ctx, 10)
 	}
 }
 
@@ -467,7 +467,7 @@ func BenchmarkSequentialVsParallel(b *testing.B) {
 		goals := make([]Goal, 20)
 		for i := 0; i < 20; i++ {
 			val := i
-			goals[i] = func(ctx context.Context, store ConstraintStore) *Stream {
+			goals[i] = func(ctx context.Context, store ConstraintStore) ResultStream {
 				v := Fresh("x")
 				// Simulate some work
 				time.Sleep(100 * time.Microsecond)
@@ -484,7 +484,7 @@ func BenchmarkSequentialVsParallel(b *testing.B) {
 			ctx := context.Background()
 			store := NewLocalConstraintStore(NewGlobalConstraintBus())
 			stream := goal(ctx, store)
-			stream.Take(20)
+			stream.Take(ctx, 20)
 		}
 	})
 
@@ -498,7 +498,7 @@ func BenchmarkSequentialVsParallel(b *testing.B) {
 			ctx := context.Background()
 			store := NewLocalConstraintStore(NewGlobalConstraintBus())
 			stream := goal(ctx, store)
-			stream.Take(20)
+			stream.Take(ctx, 20)
 		}
 	})
 }

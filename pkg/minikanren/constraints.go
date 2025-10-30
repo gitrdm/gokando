@@ -16,7 +16,7 @@ import (
 // Neq implements the disequality constraint.
 // It ensures that two terms are not equal.
 func Neq(t1, t2 Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		// Create a disequality constraint and add it to the store
 		constraint := NewDisequalityConstraint(t1, t2)
 
@@ -26,7 +26,7 @@ func Neq(t1, t2 Term) Goal {
 		go func() {
 			defer stream.Close()
 			if err == nil {
-				stream.Put(store)
+				stream.Put(ctx, store)
 			}
 		}()
 		return stream
@@ -41,7 +41,7 @@ func Neq(t1, t2 Term) Goal {
 //	x := Fresh("x")
 //	goal := Conj(Absento(NewAtom("bad"), x), Eq(x, List(NewAtom("good"))))
 func Absento(absent, term Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		// Create an absence constraint and add it to the store
 		constraint := NewAbsenceConstraint(absent, term)
 
@@ -51,7 +51,7 @@ func Absento(absent, term Term) Goal {
 		go func() {
 			defer stream.Close()
 			if err == nil {
-				stream.Put(store)
+				stream.Put(ctx, store)
 			}
 		}()
 		return stream
@@ -78,7 +78,7 @@ func occurs(needle, haystack Term) bool {
 //	x := Fresh("x")
 //	goal := Conj(Symbolo(x), Eq(x, NewAtom("symbol")))
 func Symbolo(term Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		// Create a type constraint for string symbols
 		constraint := NewTypeConstraint(term, SymbolType)
 
@@ -88,7 +88,7 @@ func Symbolo(term Term) Goal {
 		go func() {
 			defer stream.Close()
 			if err == nil {
-				stream.Put(store)
+				stream.Put(ctx, store)
 			}
 		}()
 		return stream
@@ -102,7 +102,7 @@ func Symbolo(term Term) Goal {
 //	x := Fresh("x")
 //	goal := Conj(Numbero(x), Eq(x, NewAtom(42)))
 func Numbero(term Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		// Create a type constraint for numbers
 		constraint := NewTypeConstraint(term, NumberType)
 
@@ -112,7 +112,7 @@ func Numbero(term Term) Goal {
 		go func() {
 			defer stream.Close()
 			if err == nil {
-				stream.Put(store)
+				stream.Put(ctx, store)
 			}
 		}()
 		return stream
@@ -130,7 +130,7 @@ func Numbero(term Term) Goal {
 func Membero(element, list Term) Goal {
 	return Disj(
 		// Base case: element is the first item of the list
-		func(ctx context.Context, store ConstraintStore) *Stream {
+		func(ctx context.Context, store ConstraintStore) ResultStream {
 			car := Fresh("car")
 			cdr := Fresh("cdr")
 
@@ -141,7 +141,7 @@ func Membero(element, list Term) Goal {
 		},
 
 		// Recursive case: element is a member of the rest of the list
-		func(ctx context.Context, store ConstraintStore) *Stream {
+		func(ctx context.Context, store ConstraintStore) ResultStream {
 			car := Fresh("car")
 			cdr := Fresh("cdr")
 
@@ -160,7 +160,7 @@ func Membero(element, list Term) Goal {
 //	goal := Onceo(Disj(Eq(x, NewAtom(1)), Eq(x, NewAtom(2))))
 //	// Will only return the first solution
 func Onceo(goal Goal) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		goalStream := goal(ctx, store)
 
 		stream := NewStream()
@@ -168,9 +168,9 @@ func Onceo(goal Goal) Goal {
 			defer stream.Close()
 
 			// Take only the first solution
-			solutions, _ := goalStream.Take(1)
-			if len(solutions) > 0 {
-				stream.Put(solutions[0])
+			solutions, _, err := goalStream.Take(ctx, 1)
+			if err == nil && len(solutions) > 0 {
+				stream.Put(ctx, solutions[0])
 			}
 		}()
 
@@ -190,7 +190,7 @@ func Onceo(goal Goal) Goal {
 //	  []Goal{Success, elseGoal}, // default case
 //	)
 func Conda(clauses ...[]Goal) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 
 		go func() {
@@ -206,7 +206,10 @@ func Conda(clauses ...[]Goal) Goal {
 
 				// Test the condition
 				conditionStream := condition(ctx, store)
-				solutions, hasMore := conditionStream.Take(1)
+				solutions, hasMore, err := conditionStream.Take(ctx, 1)
+				if err != nil {
+					return
+				}
 
 				if len(solutions) > 0 {
 					// Condition succeeded, commit to this clause
@@ -215,7 +218,10 @@ func Conda(clauses ...[]Goal) Goal {
 
 						// Forward all solutions from the goal
 						for {
-							goalSolutions, goalHasMore := goalStream.Take(1)
+							goalSolutions, goalHasMore, goalErr := goalStream.Take(ctx, 1)
+							if goalErr != nil {
+								return
+							}
 							if len(goalSolutions) == 0 {
 								if !goalHasMore {
 									break
@@ -223,14 +229,17 @@ func Conda(clauses ...[]Goal) Goal {
 								continue
 							}
 
-							stream.Put(goalSolutions[0])
+							stream.Put(ctx, goalSolutions[0])
 						}
 					}
 
 					// If there are more solutions from the condition, process them too
 					if hasMore {
 						for {
-							moreSolutions, moreHasMore := conditionStream.Take(1)
+							moreSolutions, moreHasMore, moreErr := conditionStream.Take(ctx, 1)
+							if moreErr != nil {
+								return
+							}
 							if len(moreSolutions) == 0 {
 								if !moreHasMore {
 									break
@@ -242,7 +251,10 @@ func Conda(clauses ...[]Goal) Goal {
 								goalStream := goal(ctx, condStore)
 
 								for {
-									goalSolutions, goalHasMore := goalStream.Take(1)
+									goalSolutions, goalHasMore, goalErr := goalStream.Take(ctx, 1)
+									if goalErr != nil {
+										return
+									}
 									if len(goalSolutions) == 0 {
 										if !goalHasMore {
 											break
@@ -250,7 +262,7 @@ func Conda(clauses ...[]Goal) Goal {
 										continue
 									}
 
-									stream.Put(goalSolutions[0])
+									stream.Put(ctx, goalSolutions[0])
 								}
 							}
 						}
@@ -275,7 +287,7 @@ func Conda(clauses ...[]Goal) Goal {
 //	  []Goal{Success, elseGoal},
 //	)
 func Condu(clauses ...[]Goal) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 
 		go func() {
@@ -291,7 +303,10 @@ func Condu(clauses ...[]Goal) Goal {
 
 				// Test the condition and collect all solutions
 				conditionStream := condition(ctx, store)
-				solutions, _ := conditionStream.Take(2) // Take at most 2 to check uniqueness
+				solutions, _, err := conditionStream.Take(ctx, 2) // Take at most 2 to check uniqueness
+				if err != nil {
+					return
+				}
 
 				if len(solutions) == 1 {
 					// Exactly one solution, commit to this clause
@@ -299,7 +314,10 @@ func Condu(clauses ...[]Goal) Goal {
 
 					// Forward all solutions from the goal
 					for {
-						goalSolutions, goalHasMore := goalStream.Take(1)
+						goalSolutions, goalHasMore, goalErr := goalStream.Take(ctx, 1)
+						if goalErr != nil {
+							return
+						}
 						if len(goalSolutions) == 0 {
 							if !goalHasMore {
 								break
@@ -307,7 +325,7 @@ func Condu(clauses ...[]Goal) Goal {
 							continue
 						}
 
-						stream.Put(goalSolutions[0])
+						stream.Put(ctx, goalSolutions[0])
 					}
 
 					return // Committed to this clause
@@ -329,7 +347,7 @@ func Condu(clauses ...[]Goal) Goal {
 //	  return someGoalUsing(values)
 //	})
 func Project(vars []Term, goalFunc func([]Term) Goal) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		values := make([]Term, len(vars))
 		for i, v := range vars {
 			values[i] = store.GetSubstitution().Walk(v)
@@ -349,7 +367,7 @@ var Nil = NewAtom(nil)
 //
 //	goal := Car(List(NewAtom(1), NewAtom(2)), x) // x = 1
 func Car(pair, car Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		cdr := Fresh("cdr")
 		return Eq(pair, NewPair(car, cdr))(ctx, store)
 	}
@@ -361,7 +379,7 @@ func Car(pair, car Term) Goal {
 //
 //	goal := Cdr(List(NewAtom(1), NewAtom(2)), x) // x = List(NewAtom(2))
 func Cdr(pair, cdr Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		car := Fresh("car")
 		return Eq(pair, NewPair(car, cdr))(ctx, store)
 	}
@@ -391,7 +409,7 @@ func Nullo(term Term) Goal {
 //
 //	goal := Pairo(x) // x must be a pair
 func Pairo(term Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		car := Fresh("car")
 		cdr := Fresh("cdr")
 		return Eq(term, NewPair(car, cdr))(ctx, store)

@@ -314,7 +314,7 @@ func TestGoals(t *testing.T) {
 		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 
 		stream := Success(ctx, store)
-		solutions, hasMore := stream.Take(1)
+		solutions, hasMore, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 1 {
 			t.Error("Success should return one solution")
@@ -334,7 +334,7 @@ func TestGoals(t *testing.T) {
 		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 
 		stream := Failure(ctx, store)
-		solutions, hasMore := stream.Take(1)
+		solutions, hasMore, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 0 {
 			t.Error("Failure should return no solutions")
@@ -353,7 +353,7 @@ func TestGoals(t *testing.T) {
 
 		goal := Eq(v, a)
 		stream := goal(ctx, store)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 1 {
 			t.Fatal("Eq should return one solution")
@@ -373,7 +373,7 @@ func TestGoals(t *testing.T) {
 
 		goal := Eq(a1, a2)
 		stream := goal(ctx, store)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 0 {
 			t.Error("Eq with different atoms should fail")
@@ -389,7 +389,7 @@ func TestConjunction(t *testing.T) {
 
 		goal := Conj()
 		stream := goal(ctx, sub)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 1 {
 			t.Error("Empty conjunction should succeed")
@@ -404,7 +404,7 @@ func TestConjunction(t *testing.T) {
 
 		goal := Eq(v, a)
 		stream := goal(ctx, store)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 1 {
 			t.Fatal("Single goal conjunction should succeed")
@@ -426,7 +426,7 @@ func TestConjunction(t *testing.T) {
 
 		goal := Conj(Eq(v1, a1), Eq(v2, a2))
 		stream := goal(ctx, sub)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 1 {
 			t.Fatal("Multiple goal conjunction should succeed")
@@ -450,7 +450,7 @@ func TestConjunction(t *testing.T) {
 
 		goal := Conj(Eq(v, a1), Eq(v, a2))
 		stream := goal(ctx, sub)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 0 {
 			t.Error("Contradictory conjunction should fail")
@@ -466,7 +466,7 @@ func TestDisjunction(t *testing.T) {
 
 		goal := Disj()
 		stream := goal(ctx, sub)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 0 {
 			t.Error("Empty disjunction should fail")
@@ -481,7 +481,7 @@ func TestDisjunction(t *testing.T) {
 
 		goal := Eq(v, a)
 		stream := goal(ctx, sub)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 
 		if len(solutions) != 1 {
 			t.Fatal("Single goal disjunction should succeed")
@@ -502,7 +502,7 @@ func TestDisjunction(t *testing.T) {
 
 		goal := Disj(Eq(v, a1), Eq(v, a2))
 		stream := goal(ctx, sub)
-		solutions, _ := stream.Take(2)
+		solutions, _, _ := stream.Take(ctx, 2)
 
 		if len(solutions) != 2 {
 			t.Fatalf("Disjunction should return 2 solutions, got %d", len(solutions))
@@ -726,7 +726,7 @@ func BenchmarkDisjunction(b *testing.B) {
 	goals := make([]Goal, 10)
 	for i := 0; i < 10; i++ {
 		val := i
-		goals[i] = func(ctx context.Context, store ConstraintStore) *Stream {
+		goals[i] = func(ctx context.Context, store ConstraintStore) ResultStream {
 			v := Fresh("x")
 			return Eq(v, NewAtom(val))(ctx, store)
 		}
@@ -738,6 +738,6 @@ func BenchmarkDisjunction(b *testing.B) {
 		ctx := context.Background()
 		store := NewLocalConstraintStore(NewGlobalConstraintBus())
 		stream := goal(ctx, store)
-		stream.Take(10)
+		stream.Take(ctx, 10)
 	}
 }

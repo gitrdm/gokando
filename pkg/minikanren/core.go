@@ -320,7 +320,7 @@ func NewStream() *Stream {
 // Take retrieves up to n constraint stores from the stream.
 // Returns a slice of constraint stores and a boolean indicating
 // if more stores might be available.
-func (s *Stream) Take(n int) ([]ConstraintStore, bool) {
+func (s *Stream) Take(ctx context.Context, n int) ([]ConstraintStore, bool, error) {
 	var results []ConstraintStore
 
 	for i := 0; i < n; i++ {
@@ -331,7 +331,10 @@ func (s *Stream) Take(n int) ([]ConstraintStore, bool) {
 			}
 		case <-s.done:
 			// Stream is closed, no more items will come
-			return results, false
+			return results, false, nil
+		case <-ctx.Done():
+			// Context cancelled
+			return results, len(results) > 0, ctx.Err()
 		}
 	}
 
@@ -341,30 +344,42 @@ func (s *Stream) Take(n int) ([]ConstraintStore, bool) {
 
 	select {
 	case <-s.done:
-		return results, false // Stream is closed
+		return results, false, nil // Stream is closed
 	default:
-		return results, true // Stream is still open, might have more
+		return results, true, nil // Stream is still open, might have more
 	}
 } // Put adds a constraint store to the stream.
-func (s *Stream) Put(store ConstraintStore) {
+func (s *Stream) Put(ctx context.Context, store ConstraintStore) error {
 	select {
 	case s.ch <- store:
+		return nil
 	case <-s.done:
 		// Stream is closed
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
 // Close closes the stream, indicating no more substitutions will be added.
-func (s *Stream) Close() {
+func (s *Stream) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	select {
 	case <-s.done:
 		// Already closed
+		return nil
 	default:
 		close(s.done)
+		return nil
 	}
+}
+
+// Count returns the number of stores that have been put into the stream.
+// For the basic Stream implementation, we don't track count, so return 0.
+func (s *Stream) Count() int64 {
+	return 0 // Basic implementation doesn't track count
 }
 
 // Goal represents a constraint or a combination of constraints.
@@ -374,20 +389,20 @@ func (s *Stream) Close() {
 //
 // The constraint store contains both variable bindings and active constraints,
 // enabling order-independent constraint logic programming.
-type Goal func(ctx context.Context, store ConstraintStore) *Stream
+type Goal func(ctx context.Context, store ConstraintStore) ResultStream
 
 // Success is a goal that always succeeds with the given constraint store.
-var Success Goal = func(ctx context.Context, store ConstraintStore) *Stream {
+var Success Goal = func(ctx context.Context, store ConstraintStore) ResultStream {
 	stream := NewStream()
 	go func() {
 		defer stream.Close()
-		stream.Put(store)
+		stream.Put(ctx, store)
 	}()
 	return stream
 }
 
 // Failure is a goal that always fails (returns no constraint stores).
-var Failure Goal = func(ctx context.Context, store ConstraintStore) *Stream {
+var Failure Goal = func(ctx context.Context, store ConstraintStore) ResultStream {
 	stream := NewStream()
 	stream.Close() // Immediately close to indicate no solutions
 	return stream

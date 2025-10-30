@@ -10,7 +10,7 @@ import (
 // assignments that satisfy the AllDifferent constraint and existing bindings
 // in the provided ConstraintStore.
 func FDAllDifferentGoal(vars []*Var, domainSize int) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 
 		go func() {
@@ -68,7 +68,7 @@ func FDAllDifferentGoal(vars []*Var, domainSize int) Goal {
 					}
 				}
 				if ok {
-					stream.Put(cloned)
+					stream.Put(ctx, cloned)
 				}
 			}
 		}()
@@ -82,7 +82,7 @@ func FDAllDifferentGoal(vars []*Var, domainSize int) Goal {
 // - derived diagonal variables are created as offsets of columns
 // - AllDifferent is applied to columns and both diagonal sets
 func FDQueensGoal(vars []*Var, n int) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 
 		go func() {
@@ -171,7 +171,7 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 					}
 				}
 				if ok {
-					stream.Put(cloned)
+					stream.Put(ctx, cloned)
 				}
 			}
 		}()
@@ -182,7 +182,7 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 
 // FDInequalityGoal creates a goal that enforces an inequality constraint between two variables
 func FDInequalityGoal(x, y *Var, typ InequalityType) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 
 		go func() {
@@ -248,7 +248,7 @@ func FDInequalityGoal(x, y *Var, typ InequalityType) Goal {
 				}
 
 				if ok {
-					stream.Put(cloned)
+					stream.Put(ctx, cloned)
 				}
 			}
 		}()
@@ -259,7 +259,7 @@ func FDInequalityGoal(x, y *Var, typ InequalityType) Goal {
 
 // FDCustomGoal creates a goal that enforces a custom constraint
 func FDCustomGoal(vars []*Var, constraint CustomConstraint) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 
 		go func() {
@@ -320,7 +320,7 @@ func FDCustomGoal(vars []*Var, constraint CustomConstraint) Goal {
 				}
 
 				if ok {
-					stream.Put(cloned)
+					stream.Put(ctx, cloned)
 				}
 			}
 		}()

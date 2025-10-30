@@ -105,7 +105,7 @@ func FuzzGoalExecution(f *testing.F) {
 
 		// Execute goal
 		stream := goal(ctx, store)
-		solutions, hasMore := stream.Take(1)
+		solutions, hasMore, _ := stream.Take(ctx, 1)
 
 		// Basic invariants
 		if len(solutions) > 1 {
@@ -129,7 +129,7 @@ func FuzzGoalExecution(f *testing.F) {
 		)
 
 		stream2 := conjGoal(ctx, store)
-		solutions2, _ := stream2.Take(1)
+		solutions2, _, _ := stream2.Take(ctx, 1)
 
 		if len(solutions2) > 1 {
 			t.Error("Simple Conj goal should produce at most 1 solution")
@@ -143,7 +143,7 @@ func FuzzGoalExecution(f *testing.F) {
 			)
 
 			stream3 := contrGoal(ctx, store)
-			solutions3, _ := stream3.Take(1)
+			solutions3, _, _ := stream3.Take(ctx, 1)
 
 			if len(solutions3) != 0 {
 				t.Error("Contradictory goal should produce no solutions")
@@ -194,7 +194,7 @@ func FuzzListOperations(f *testing.F) {
 
 			store := NewLocalConstraintStore(NewGlobalConstraintBus())
 			stream := memberGoal(ctx, store)
-			solutions, _ := stream.Take(length + 5) // Take more than we expect
+			solutions, _, _ := stream.Take(ctx, length + 5) // Take more than we expect
 
 			// Should find exactly the elements we put in
 			if len(solutions) != length {

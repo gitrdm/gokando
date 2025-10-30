@@ -12,14 +12,14 @@ func BenchmarkConstraintBusStrategies(b *testing.B) {
 		// Simulate the old approach
 		for i := 0; i < b.N; i++ {
 			q := Fresh("q")
-			goal := func(ctx context.Context, store ConstraintStore) *Stream {
+			goal := func(ctx context.Context, store ConstraintStore) ResultStream {
 				return Eq(q, NewAtom(i))(ctx, store)
 			}
 
 			// Old approach: new bus every time
 			initialStore := NewLocalConstraintStore(NewGlobalConstraintBus())
 			stream := goal(context.Background(), initialStore)
-			stream.Take(1)
+			stream.Take(context.Background(), 1)
 		}
 	})
 
@@ -27,14 +27,14 @@ func BenchmarkConstraintBusStrategies(b *testing.B) {
 		// New approach with shared bus
 		for i := 0; i < b.N; i++ {
 			q := Fresh("q")
-			goal := func(ctx context.Context, store ConstraintStore) *Stream {
+			goal := func(ctx context.Context, store ConstraintStore) ResultStream {
 				return Eq(q, NewAtom(i))(ctx, store)
 			}
 
 			// New approach: shared bus
 			initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
 			stream := goal(context.Background(), initialStore)
-			stream.Take(1)
+			stream.Take(context.Background(), 1)
 		}
 	})
 
@@ -42,7 +42,7 @@ func BenchmarkConstraintBusStrategies(b *testing.B) {
 		// Pooled approach for isolation
 		for i := 0; i < b.N; i++ {
 			q := Fresh("q")
-			goal := func(ctx context.Context, store ConstraintStore) *Stream {
+			goal := func(ctx context.Context, store ConstraintStore) ResultStream {
 				return Eq(q, NewAtom(i))(ctx, store)
 			}
 
@@ -50,7 +50,7 @@ func BenchmarkConstraintBusStrategies(b *testing.B) {
 			bus := GetPooledGlobalBus()
 			initialStore := NewLocalConstraintStore(bus)
 			stream := goal(context.Background(), initialStore)
-			stream.Take(1)
+			stream.Take(context.Background(), 1)
 			ReturnPooledGlobalBus(bus)
 		}
 	})

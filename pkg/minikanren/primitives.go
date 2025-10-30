@@ -41,7 +41,7 @@ func Fresh(name string) *Var {
 //	x := Fresh("x")
 //	goal := Eq(x, NewAtom("hello"))  // Binds x to "hello"
 func Eq(term1, term2 Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		// Check for context cancellation
 		select {
 		case <-ctx.Done():
@@ -58,7 +58,7 @@ func Eq(term1, term2 Term) Goal {
 		go func() {
 			defer stream.Close()
 			if success {
-				stream.Put(newStore)
+				stream.Put(ctx, newStore)
 			}
 		}()
 
@@ -182,18 +182,18 @@ func Conj(goals ...Goal) Goal {
 		return goals[0]
 	}
 
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		return conjHelper(ctx, goals, store)
 	}
 }
 
 // conjHelper recursively evaluates conjunction goals
-func conjHelper(ctx context.Context, goals []Goal, store ConstraintStore) *Stream {
+func conjHelper(ctx context.Context, goals []Goal, store ConstraintStore) ResultStream {
 	if len(goals) == 0 {
 		stream := NewStream()
 		go func() {
 			defer stream.Close()
-			stream.Put(store)
+			stream.Put(ctx, store)
 		}()
 		return stream
 	}
@@ -217,8 +217,8 @@ func conjHelper(ctx context.Context, goals []Goal, store ConstraintStore) *Strea
 			}
 
 			// Get next result from first goal
-			subs, hasMore := firstStream.Take(1)
-			if len(subs) == 0 {
+			subs, hasMore, err := firstStream.Take(ctx, 1)
+			if err != nil || len(subs) == 0 {
 				return // No more results
 			}
 
@@ -227,12 +227,12 @@ func conjHelper(ctx context.Context, goals []Goal, store ConstraintStore) *Strea
 
 			// Forward all results from rest stream
 			for {
-				results, moreAvailable := restStream.Take(10)
-				if len(results) == 0 {
+				results, moreAvailable, restErr := restStream.Take(ctx, 10)
+				if restErr != nil || len(results) == 0 {
 					break
 				}
 				for _, result := range results {
-					stream.Put(result)
+					stream.Put(ctx, result)
 				}
 				if !moreAvailable {
 					break
@@ -265,7 +265,7 @@ func Disj(goals ...Goal) Goal {
 		return goals[0]
 	}
 
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 
 		go func() {
@@ -289,15 +289,15 @@ func Disj(goals ...Goal) Goal {
 						default:
 						}
 
-						subs, hasMore := goalStream.Take(1)
-						if len(subs) == 0 {
+						subs, hasMore, err := goalStream.Take(ctx, 1)
+						if err != nil || len(subs) == 0 {
 							if !hasMore {
 								break
 							}
 							continue
 						}
 
-						stream.Put(subs[0])
+						stream.Put(ctx, subs[0])
 					}
 				}(goal)
 			}
@@ -348,7 +348,7 @@ func RunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term
 	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
 	stream := goal(ctx, initialStore)
 
-	solutions, _ := stream.Take(n)
+	solutions, _, _ := stream.Take(ctx, n)
 
 	var results []Term
 	for _, store := range solutions {
@@ -391,7 +391,10 @@ func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term {
 		default:
 		}
 
-		solutions, hasMore := stream.Take(10) // Take in batches
+		solutions, hasMore, err := stream.Take(ctx, 10) // Take in batches
+		if err != nil {
+			return results
+		}
 
 		for _, store := range solutions {
 			value := store.GetSubstitution().DeepWalk(q)
@@ -426,7 +429,7 @@ func RunWithIsolationContext(ctx context.Context, n int, goalFunc func(*Var) Goa
 	defer initialStore.Shutdown() // Ensure proper cleanup
 
 	stream := goal(ctx, initialStore)
-	solutions, _ := stream.Take(n)
+	solutions, _, _ := stream.Take(ctx, n)
 
 	var results []Term
 	for _, store := range solutions {
@@ -480,7 +483,7 @@ func Appendo(l1, l2, l3 Term) Goal {
 		Conj(Eq(l1, NewAtom(nil)), Eq(l2, l3)),
 
 		// Recursive case: l1 = (a . d), l3 = (a . res), append(d, l2, res)
-		func(ctx context.Context, store ConstraintStore) *Stream {
+		func(ctx context.Context, store ConstraintStore) ResultStream {
 			a := Fresh("a")
 			d := Fresh("d")
 			res := Fresh("res")
