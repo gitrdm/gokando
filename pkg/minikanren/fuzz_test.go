@@ -194,7 +194,7 @@ func FuzzListOperations(f *testing.F) {
 
 			store := NewLocalConstraintStore(NewGlobalConstraintBus())
 			stream := memberGoal(ctx, store)
-			solutions, _, _ := stream.Take(ctx, length + 5) // Take more than we expect
+			solutions, _, _ := stream.Take(ctx, length+5) // Take more than we expect
 
 			// Should find exactly the elements we put in
 			if len(solutions) != length {
