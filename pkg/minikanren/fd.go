@@ -484,7 +484,7 @@ func (s *FDStore) GetMonitor() *SolverMonitor {
 }
 
 // GetStats returns current solving statistics, or nil if monitoring is disabled
-func (s *FDStore) GetStats() *SolverStats {
+func (s *FDStore) GetStats() *FDSolverStats {
 	if s.monitor == nil {
 		return nil
 	}

@@ -8,8 +8,8 @@ import (
 	"time"
 )
 
-// SolverStats holds statistics about the FD solving process
-type SolverStats struct {
+// FDSolverStats holds statistics about the FD solving process
+type FDSolverStats struct {
 	// Search statistics
 	NodesExplored  int           // Number of search nodes explored
 	Backtracks     int           // Number of backtracks performed
@@ -35,7 +35,7 @@ type SolverStats struct {
 // SolverMonitor provides monitoring capabilities for the FD solver
 type SolverMonitor struct {
 	mu        sync.Mutex
-	stats     *SolverStats
+	stats     *FDSolverStats
 	startTime time.Time
 	propStart time.Time
 }
@@ -43,7 +43,7 @@ type SolverMonitor struct {
 // NewSolverMonitor creates a new solver monitor
 func NewSolverMonitor() *SolverMonitor {
 	return &SolverMonitor{
-		stats: &SolverStats{
+		stats: &FDSolverStats{
 			InitialDomains:   make([]BitSet, 0),
 			FinalDomains:     make([]BitSet, 0),
 			DomainReductions: make([]int, 0),
@@ -53,7 +53,7 @@ func NewSolverMonitor() *SolverMonitor {
 }
 
 // GetStats returns a copy of the current statistics
-func (m *SolverMonitor) GetStats() *SolverStats {
+func (m *SolverMonitor) GetStats() *FDSolverStats {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	stats := *m.stats
@@ -176,7 +176,7 @@ func (m *SolverMonitor) FinishSearch() {
 }
 
 // String returns a formatted string representation of the statistics
-func (s *SolverStats) String() string {
+func (s *FDSolverStats) String() string {
 	return fmt.Sprintf(
 		"Solver Statistics:\n"+
 			"  Search: %d nodes, %d backtracks, %d solutions, %v time, max depth %d\n"+
@@ -191,7 +191,7 @@ func (s *SolverStats) String() string {
 }
 
 // averageReduction computes the average domain size reduction
-func (s *SolverStats) averageReduction() float64 {
+func (s *FDSolverStats) averageReduction() float64 {
 	if len(s.DomainReductions) == 0 {
 		return 0
 	}
