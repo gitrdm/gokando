@@ -22,7 +22,7 @@ import (
 // magicSquareHybrid combines miniKanren relational programming with FD solving
 // for the 3x3 magic square puzzle
 func magicSquareHybrid(grid minikanren.Term) minikanren.Goal {
-	return func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
+	return func(ctx context.Context, store minikanren.ConstraintStore) minikanren.ResultStream {
 		stream := minikanren.NewStream()
 		go func() {
 			defer stream.Close()
@@ -49,10 +49,10 @@ func magicSquareHybrid(grid minikanren.Term) minikanren.Goal {
 				// Return the result using miniKanren unification
 				finalStore := store.Clone()
 				finalStream := minikanren.Eq(grid, gridList)(ctx, finalStore)
-				finalResults, _ := finalStream.Take(1)
+				finalResults, _, _ := finalStream.Take(ctx, 1)
 
 				for _, result := range finalResults {
-					stream.Put(result)
+					stream.Put(ctx, result)
 				}
 			}
 		}()

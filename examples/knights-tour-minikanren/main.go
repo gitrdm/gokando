@@ -58,7 +58,7 @@ func indexToPosition(index int) Position {
 // knightMoveo defines the relational knight move constraint
 // knightMoveo(fromIdx, toIdx) succeeds if a knight can move from fromIdx to toIdx
 func knightMoveo(fromIdx, toIdx Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) *Stream {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
 		stream := NewStream()
 		go func() {
 			defer stream.Close()
@@ -80,9 +80,9 @@ func knightMoveo(fromIdx, toIdx Term) Goal {
 							Eq(toIdx, toAtom),
 						)(ctx, newStore)
 
-						results, _ := unifyStream.Take(1)
+						results, _, _ := unifyStream.Take(ctx, 1)
 						for _, result := range results {
-							stream.Put(result)
+							stream.Put(ctx, result)
 						}
 					}
 				}
@@ -99,38 +99,36 @@ func tourStep(currentPos, visited, nextPos Term) Goal {
 		// nextPos is a valid knight move from currentPos
 		knightMoveo(currentPos, nextPos),
 		// nextPos is not in the visited list
-		func(ctx context.Context, store ConstraintStore) *Stream {
-			return Project([]Term{nextPos, visited}, func(vals []Term) Goal {
-				if nextAtom, ok := vals[0].(*Atom); ok {
-					if nextIdx, ok := nextAtom.Value().(int); ok {
-						// Check if nextIdx is in the visited list
-						visitedList := vals[1]
-						found := false
+		Project([]Term{nextPos, visited}, func(vals []Term) Goal {
+			if nextAtom, ok := vals[0].(*Atom); ok {
+				if nextIdx, ok := nextAtom.Value().(int); ok {
+					// Check if nextIdx is in the visited list
+					visitedList := vals[1]
+					found := false
 
-						// Walk through visited list
-						pair := visitedList
-						for pair != nil {
-							if p, ok := pair.(*Pair); ok {
-								if car, ok := p.Car().(*Atom); ok {
-									if idx, ok := car.Value().(int); ok && idx == nextIdx {
-										found = true
-										break
-									}
+					// Walk through visited list
+					pair := visitedList
+					for pair != nil {
+						if p, ok := pair.(*Pair); ok {
+							if car, ok := p.Car().(*Atom); ok {
+								if idx, ok := car.Value().(int); ok && idx == nextIdx {
+									found = true
+									break
 								}
-								pair = p.Cdr()
-							} else {
-								break
 							}
-						}
-
-						if !found {
-							return Success
+							pair = p.Cdr()
+						} else {
+							break
 						}
 					}
+
+					if !found {
+						return Success
+					}
 				}
-				return Failure
-			})(ctx, store)
-		},
+			}
+			return Failure
+		}),
 	)
 }
 

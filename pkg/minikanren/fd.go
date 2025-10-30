@@ -225,7 +225,7 @@ type FDChange struct {
 // - AC-3 style propagation for constraints
 // - Regin AllDifferent filtering for permutation constraints
 // - Offset arithmetic constraints for modeling relationships
-// - Iterative backtracking with dom/deg heuristics
+// - Iterative backtracking with pluggable strategies
 // - Context-aware cancellation and timeouts
 //
 // Typical usage:
@@ -233,7 +233,7 @@ type FDChange struct {
 //	store := NewFDStoreWithDomain(maxValue)
 //	vars := store.MakeFDVars(n)
 //	// Add constraints...
-//	solutions, err := store.Solve(ctx, limit)
+//	solutions, err := store.SolveWithStrategy(ctx, strategy, limit)
 type FDStore struct {
 	mu         sync.Mutex
 	vars       []*FDVar
@@ -247,8 +247,8 @@ type FDStore struct {
 	ineqLinks map[int][]ineqLink
 	// customConstraints holds user-defined constraints
 	customConstraints []CustomConstraint
-	// config holds solver configuration including heuristics
-	config *SolverConfig
+	// strategy holds solver strategy configuration (replaces old config)
+	strategy *StrategyConfig
 	// monitor tracks solving statistics (optional)
 	monitor *SolverMonitor
 }
@@ -264,14 +264,14 @@ func NewFDStoreWithDomain(n int) *FDStore {
 		queue:      make([]int, 0, 128),
 		trail:      make([]FDChange, 0, 1024),
 		domainSize: n,
-		config:     DefaultSolverConfig(),
+		strategy:   DefaultStrategyConfig(),
 	}
 }
 
-// NewFDStoreWithConfig creates a store with custom solver configuration
-func NewFDStoreWithConfig(n int, config *SolverConfig) *FDStore {
-	if config == nil {
-		config = DefaultSolverConfig()
+// NewFDStoreWithStrategy creates a store with custom strategy configuration
+func NewFDStoreWithStrategy(n int, strategy *StrategyConfig) *FDStore {
+	if strategy == nil {
+		strategy = DefaultStrategyConfig()
 	}
 	return &FDStore{
 		vars:       make([]*FDVar, 0, 128),
@@ -279,7 +279,42 @@ func NewFDStoreWithConfig(n int, config *SolverConfig) *FDStore {
 		queue:      make([]int, 0, 128),
 		trail:      make([]FDChange, 0, 1024),
 		domainSize: n,
-		config:     config,
+		strategy:   strategy,
+	}
+}
+
+// NewFDStoreWithConfig creates a store with custom solver configuration (backward compatibility)
+func NewFDStoreWithConfig(n int, config *SolverConfig) *FDStore {
+	if config == nil {
+		config = DefaultSolverConfig()
+	}
+	// Convert old config to new strategy config
+	strategy := &StrategyConfig{
+		Labeling:   solverConfigToLabeling(config),
+		Search:     NewDFSSearch(),
+		RandomSeed: config.RandomSeed,
+	}
+	return NewFDStoreWithStrategy(n, strategy)
+}
+
+// solverConfigToLabeling converts old SolverConfig to new LabelingStrategy
+func solverConfigToLabeling(config *SolverConfig) LabelingStrategy {
+	switch config.VariableHeuristic {
+	case HeuristicDomDeg:
+		return NewFirstFailLabeling()
+	case HeuristicDom:
+		return NewDomainSizeLabeling()
+	case HeuristicDeg:
+		return NewDegreeLabeling()
+	case HeuristicLex:
+		return NewLexicographicLabeling()
+	case HeuristicRandom:
+		return NewRandomLabeling(config.RandomSeed)
+	case HeuristicActivity:
+		// Fall back to first-fail
+		return NewFirstFailLabeling()
+	default:
+		return NewFirstFailLabeling()
 	}
 }
 
@@ -571,164 +606,80 @@ func (s *FDStore) ComplementDomain(v *FDVar) error {
 
 // FDVar is a finite-domain variable
 
-// Solve using iterative backtracking with MRV heuristic
+// Solve using iterative backtracking with pluggable strategies
 func (s *FDStore) Solve(ctx context.Context, limit int) ([][]int, error) {
+	return s.SolveWithStrategy(ctx, s.strategy, limit)
+}
+
+// SolveWithStrategy solves using the specified strategy configuration
+func (s *FDStore) SolveWithStrategy(ctx context.Context, strategy *StrategyConfig, limit int) ([][]int, error) {
+	if strategy == nil {
+		strategy = DefaultStrategyConfig()
+	}
+
+	// Enable monitoring if requested
+	if strategy.MonitorEnabled && s.monitor == nil {
+		s.SetMonitor(NewSolverMonitor())
+	}
+
+	return strategy.Search.Search(ctx, s, strategy.Labeling, limit)
+}
+
+// GetStrategy returns the current strategy configuration
+func (s *FDStore) GetStrategy() *StrategyConfig {
 	s.mu.Lock()
-	// quick propagation initial
-	if s.monitor != nil {
-		s.monitor.StartPropagation()
-	}
-	if err := s.propagateLocked(); err != nil {
-		s.mu.Unlock()
-		if s.monitor != nil {
-			s.monitor.EndPropagation()
-		}
-		return nil, err
-	}
-	if s.monitor != nil {
-		s.monitor.EndPropagation()
-	}
-	s.mu.Unlock()
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	solutions := make([][]int, 0)
+	defer s.mu.Unlock()
+	return s.strategy.Clone()
+}
 
-	// Iterative backtracking using a stack
-	type frame struct {
-		snap    int // trail snapshot
-		varID   int // variable being tried
-		valIdx  int // index in choices
-		choices []int
-	}
-	stack := []frame{}
-
-	// Initial check
+// SetStrategy updates the strategy configuration
+func (s *FDStore) SetStrategy(strategy *StrategyConfig) {
 	s.mu.Lock()
-	allAssigned := true
-	for _, v := range s.vars {
-		if !v.domain.IsSingleton() {
-			allAssigned = false
-			break
-		}
+	defer s.mu.Unlock()
+	if strategy == nil {
+		strategy = DefaultStrategyConfig()
 	}
-	s.mu.Unlock()
-	if allAssigned {
-		s.mu.Lock()
-		sol := make([]int, len(s.vars))
-		for i, v := range s.vars {
-			sol[i] = v.domain.SingletonValue()
-		}
-		solutions = append(solutions, sol)
-		s.mu.Unlock()
-		return solutions, nil
-	}
+	s.strategy = strategy
+}
 
-	// Push initial frame
+// SetLabelingStrategy updates only the labeling strategy
+func (s *FDStore) SetLabelingStrategy(labeling LabelingStrategy) {
 	s.mu.Lock()
-	best, choices := s.selectNextVariableAdvanced(s.config)
-	s.mu.Unlock()
-	if best == -1 {
-		return solutions, nil
+	defer s.mu.Unlock()
+	if s.strategy == nil {
+		s.strategy = DefaultStrategyConfig()
 	}
-	choices = orderValues(choices, s.config.ValueHeuristic, s.config.RandomSeed)
-	stack = append(stack, frame{snap: s.snapshot(), varID: best, valIdx: 0, choices: choices})
+	s.strategy.Labeling = labeling
+}
 
-	for len(stack) > 0 {
-		// Check cancellation
-		select {
-		case <-ctx.Done():
-			if s.monitor != nil {
-				s.monitor.FinishSearch()
-				s.monitor.CaptureFinalDomains(s)
-			}
-			return solutions, ctx.Err()
-		default:
-		}
-
-		if s.monitor != nil {
-			s.monitor.RecordDepth(len(stack))
-			s.monitor.RecordTrailSize(len(s.trail))
-			s.monitor.RecordQueueSize(len(s.queue))
-		}
-
-		f := &stack[len(stack)-1]
-
-		if f.valIdx >= len(f.choices) {
-			// Backtrack
-			if s.monitor != nil {
-				s.monitor.RecordBacktrack()
-			}
-			s.undo(f.snap)
-			stack = stack[:len(stack)-1]
-			continue
-		}
-
-		if s.monitor != nil {
-			s.monitor.RecordNode()
-		}
-
-		val := f.choices[f.valIdx]
-		f.valIdx++
-
-		// Try assignment
-		if err := s.Assign(s.idToVar[f.varID], val); err != nil {
-			continue
-		}
-
-		// Check if complete
-		s.mu.Lock()
-		allAssigned := true
-		for _, v := range s.vars {
-			if !v.domain.IsSingleton() {
-				allAssigned = false
-				break
-			}
-		}
-		s.mu.Unlock()
-		if allAssigned {
-			s.mu.Lock()
-			sol := make([]int, len(s.vars))
-			for i, v := range s.vars {
-				sol[i] = v.domain.SingletonValue()
-			}
-			solutions = append(solutions, sol)
-			s.mu.Unlock()
-			s.undo(f.snap)
-			if s.monitor != nil {
-				s.monitor.RecordSolution()
-			}
-			if limit > 0 && len(solutions) >= limit {
-				if s.monitor != nil {
-					s.monitor.FinishSearch()
-					s.monitor.CaptureFinalDomains(s)
-				}
-				return solutions, nil
-			}
-			continue
-		}
-
-		// Find next variable
-		s.mu.Lock()
-		nextBest, nextChoices := s.selectNextVariableAdvanced(s.config)
-		s.mu.Unlock()
-		if nextBest == -1 {
-			s.undo(f.snap)
-			continue
-		}
-
-		nextChoices = orderValues(nextChoices, s.config.ValueHeuristic, s.config.RandomSeed)
-
-		// Push new frame
-		stack = append(stack, frame{snap: s.snapshot(), varID: nextBest, valIdx: 0, choices: nextChoices})
+// SetSearchStrategy updates only the search strategy
+func (s *FDStore) SetSearchStrategy(search SearchStrategy) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.strategy == nil {
+		s.strategy = DefaultStrategyConfig()
 	}
+	s.strategy.Search = search
+}
 
-	if s.monitor != nil {
-		s.monitor.FinishSearch()
-		s.monitor.CaptureFinalDomains(s)
+// GetLabelingStrategy returns the current labeling strategy
+func (s *FDStore) GetLabelingStrategy() LabelingStrategy {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.strategy == nil {
+		return NewFirstFailLabeling()
 	}
+	return s.strategy.Labeling
+}
 
-	return solutions, nil
+// GetSearchStrategy returns the current search strategy
+func (s *FDStore) GetSearchStrategy() SearchStrategy {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.strategy == nil {
+		return NewDFSSearch()
+	}
+	return s.strategy.Search
 }
 
 // MakeFDVars creates n new FD variables with the store's default domain.

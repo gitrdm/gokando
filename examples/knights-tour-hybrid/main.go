@@ -159,7 +159,7 @@ func (c *HybridKnightTourConstraint) IsSatisfied() bool {
 
 // knightTourHybrid combines miniKanren relational programming with FD solving
 func knightTourHybrid(startPos minikanren.Term, tour minikanren.Term) minikanren.Goal {
-	return func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
+	return func(ctx context.Context, store minikanren.ConstraintStore) minikanren.ResultStream {
 		stream := minikanren.NewStream()
 		go func() {
 			defer stream.Close()
@@ -180,7 +180,7 @@ func knightTourHybrid(startPos minikanren.Term, tour minikanren.Term) minikanren
 
 			// Execute validation
 			valStream := validationGoal(ctx, store)
-			valResults, _ := valStream.Take(1)
+			valResults, _, _ := valStream.Take(ctx, 1)
 			if len(valResults) == 0 {
 				return // Invalid start position
 			}
@@ -266,10 +266,10 @@ func knightTourHybrid(startPos minikanren.Term, tour minikanren.Term) minikanren
 					// Return the result
 					finalStore := valResults[0].Clone()
 					finalStream := minikanren.Eq(tour, resultList)(ctx, finalStore)
-					finalResults, _ := finalStream.Take(1)
+					finalResults, _, _ := finalStream.Take(ctx, 1)
 
 					for _, result := range finalResults {
-						stream.Put(result)
+						stream.Put(ctx, result)
 					}
 					return // Found a valid solution
 				}

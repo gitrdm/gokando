@@ -129,7 +129,7 @@ func main() {
 		//  4. Constrains the top-level q variable to the resulting list
 		for col := 1; col <= *n; col++ {
 			c := col // capture loop variable for closure
-			branches[col-1] = func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
+			branches[col-1] = func(ctx context.Context, store minikanren.ConstraintStore) minikanren.ResultStream {
 				// Each branch gets its own fresh logical variables.
 				queens := make([]*minikanren.Var, *n)
 				for i := 0; i < *n; i++ {
@@ -162,7 +162,7 @@ func main() {
 		ctx, cancel := context.WithCancel(context.Background())
 		initialStore := minikanren.NewLocalConstraintStore(minikanren.GetDefaultGlobalBus())
 		stream := executor.ParallelDisj(branches...)(ctx, initialStore)
-		solutions, _ := stream.Take(1)
+		solutions, _, _ := stream.Take(ctx, 1)
 		cancel()
 		parDur := time.Since(parStart)
 

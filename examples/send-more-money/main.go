@@ -27,7 +27,7 @@ import (
 // sendMoreMoneyHybrid combines miniKanren relational programming with arithmetic verification
 // for the SEND + MORE = MONEY cryptarithm puzzle
 func sendMoreMoneyHybrid(result minikanren.Term) minikanren.Goal {
-	return func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
+	return func(ctx context.Context, store minikanren.ConstraintStore) minikanren.ResultStream {
 		stream := minikanren.NewStream()
 		go func() {
 			defer stream.Close()
@@ -120,10 +120,10 @@ func sendMoreMoneyHybrid(result minikanren.Term) minikanren.Goal {
 			// Run the combined goal
 			combined := minikanren.Conj(append(constraints, resultGoal)...)
 			finalStream := combined(ctx, store)
-			finalResults, _ := finalStream.Take(10) // Get up to 10 solutions
+			finalResults, _, _ := finalStream.Take(ctx, 10) // Get up to 10 solutions
 
 			for _, res := range finalResults {
-				stream.Put(res)
+				stream.Put(ctx, res)
 			}
 		}()
 		return stream

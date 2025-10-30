@@ -177,7 +177,7 @@ func parallelExample() {
 	// Create a computationally intensive goal for demonstration
 	heavyGoal := func(value int) func(*minikanren.Var) minikanren.Goal {
 		return func(q *minikanren.Var) minikanren.Goal {
-			return func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
+			return func(ctx context.Context, store minikanren.ConstraintStore) minikanren.ResultStream {
 				// Simulate meaningful computational work
 				time.Sleep(50 * time.Millisecond) // Increased from 10ms
 
@@ -239,7 +239,7 @@ func performanceComparison() {
 		for i := 0; i < numGoals; i++ {
 			value := i
 			goalFuncs[i] = func(q *minikanren.Var) minikanren.Goal {
-				return func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
+				return func(ctx context.Context, store minikanren.ConstraintStore) minikanren.ResultStream {
 					// Simulate computational work
 					time.Sleep(workDelay)
 
