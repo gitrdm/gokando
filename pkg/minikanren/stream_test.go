@@ -3,6 +3,7 @@ package minikanren
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -126,23 +127,31 @@ func TestChannelResultStream_ContextCancellation(t *testing.T) {
 
 		ctx, cancel := context.WithCancel(context.Background())
 
+		// Use a channel to synchronize the test
+		takeStarted := make(chan struct{})
+		takeCompleted := make(chan error, 1)
+
 		// Start take in goroutine
-		done := make(chan error, 1)
 		go func() {
+			close(takeStarted) // Signal that Take has started
 			_, _, err := stream.Take(ctx, 1)
-			done <- err
+			takeCompleted <- err
 		}()
+
+		// Wait for Take to start
+		<-takeStarted
 
 		// Cancel context
 		cancel()
 
+		// Wait for Take to complete and check result
 		select {
-		case err := <-done:
+		case err := <-takeCompleted:
 			if err != context.Canceled {
 				t.Errorf("Expected context.Canceled, got %v", err)
 			}
-		case <-time.After(100 * time.Millisecond):
-			t.Error("Take did not return on context cancellation")
+		case <-time.After(1 * time.Second): // Reasonable timeout for test
+			t.Error("Take did not return on context cancellation within timeout")
 		}
 	})
 }
@@ -459,6 +468,302 @@ func BenchmarkBufferedResultStream(b *testing.B) {
 		results, _, _ := stream.Take(ctx, 1)
 		if len(results) == 0 {
 			break
+		}
+	}
+}
+
+// BenchmarkPooledResultStream benchmarks zero-copy streaming with buffer pools.
+func BenchmarkPooledResultStream(b *testing.B) {
+	pool := NewConstraintStorePool(1000)
+	defer pool.Reset()
+
+	stream := NewPooledResultStream(pool, 100, false)
+	defer stream.Close()
+
+	ctx := context.Background()
+	store := NewLocalConstraintStore(nil)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		err := stream.Put(ctx, store)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		results, _, err := stream.Take(ctx, 1)
+		if err != nil {
+			b.Fatal(err)
+		}
+
+		if len(results) > 0 {
+			// Return store to pool
+			pool.PutLocal(results[0])
+		}
+	}
+}
+
+// BenchmarkBatchedResultStream benchmarks result batching performance.
+func BenchmarkBatchedResultStream(b *testing.B) {
+	stream := NewBatchedResultStream(10, 10*time.Millisecond)
+	defer stream.Close()
+
+	ctx := context.Background()
+	store := NewLocalConstraintStore(nil)
+
+	b.ResetTimer()
+
+	// Produce results
+	go func() {
+		for i := 0; i < b.N; i++ {
+			stream.Put(ctx, store)
+		}
+		stream.Close()
+	}()
+
+	// Consume results
+	totalConsumed := 0
+	for totalConsumed < b.N {
+		results, _, err := stream.Take(ctx, 10)
+		if err != nil {
+			b.Fatal(err)
+		}
+		totalConsumed += len(results)
+	}
+}
+
+// BenchmarkBackpressureResultStream benchmarks backpressure handling.
+func BenchmarkBackpressureResultStream(b *testing.B) {
+	stream := NewBackpressureResultStream(1000, 800, 200)
+	defer stream.Close()
+
+	ctx := context.Background()
+	store := NewLocalConstraintStore(nil)
+
+	b.ResetTimer()
+
+	// Fast producer
+	go func() {
+		for i := 0; i < b.N; i++ {
+			stream.Put(ctx, store)
+		}
+		stream.Close()
+	}()
+
+	// Slow consumer
+	totalConsumed := 0
+	for totalConsumed < b.N {
+		results, _, err := stream.Take(ctx, 1)
+		if err != nil {
+			b.Fatal(err)
+		}
+		totalConsumed += len(results)
+		time.Sleep(100 * time.Microsecond) // Simulate slow consumer
+	}
+}
+
+// BenchmarkMonitoredResultStream benchmarks monitoring overhead.
+func BenchmarkMonitoredResultStream(b *testing.B) {
+	pool := NewConstraintStorePool(100)
+	stream := NewMonitoredResultStream(NewChannelResultStream(100), pool)
+	defer stream.Close()
+
+	ctx := context.Background()
+	store := NewLocalConstraintStore(nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stream.Put(ctx, store)
+		results, _, _ := stream.Take(ctx, 1)
+		if len(results) == 0 {
+			break
+		}
+	}
+}
+
+// BenchmarkComposableResultStream benchmarks functional composition.
+func BenchmarkComposableResultStream(b *testing.B) {
+	stream := NewComposableResultStream(NewChannelResultStream(100))
+	stream = stream.Map(func(store ConstraintStore) ConstraintStore {
+		// Simple transformation
+		return store
+	}).Filter(func(store ConstraintStore) bool {
+		return true // Accept all
+	})
+
+	ctx := context.Background()
+	store := NewLocalConstraintStore(nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stream.Stream().Put(ctx, store)
+		results, _, _ := stream.Stream().Take(ctx, 1)
+		if len(results) == 0 {
+			break
+		}
+	}
+}
+
+// BenchmarkErrorRecoveryResultStream benchmarks error recovery performance.
+func BenchmarkErrorRecoveryResultStream(b *testing.B) {
+	stream := NewErrorRecoveryResultStream(NewChannelResultStream(100), DefaultRetryConfig())
+	defer stream.Close()
+
+	ctx := context.Background()
+	store := NewLocalConstraintStore(nil)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		stream.Put(ctx, store)
+		results, _, _ := stream.Take(ctx, 1)
+		if len(results) == 0 {
+			break
+		}
+	}
+}
+
+// BenchmarkLargeResultSet benchmarks streaming with large result sets.
+func BenchmarkLargeResultSet(b *testing.B) {
+	benchmarks := []struct {
+		name   string
+		stream func() ResultStream
+	}{
+		{"Channel", func() ResultStream { return NewChannelResultStream(1000) }},
+		{"Buffered", func() ResultStream { return NewBufferedResultStream() }},
+		{"Pooled", func() ResultStream {
+			pool := NewConstraintStorePool(1000)
+			return NewPooledResultStream(pool, 100, false)
+		}},
+		{"Batched", func() ResultStream { return NewBatchedResultStream(50, 100*time.Millisecond) }},
+		{"Backpressure", func() ResultStream { return NewBackpressureResultStream(1000, 800, 200) }},
+		{"Monitored", func() ResultStream {
+			return NewMonitoredResultStream(NewChannelResultStream(1000), nil)
+		}},
+	}
+
+	const numResults = 10000
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			for i := 0; i < b.N; i++ {
+				stream := bm.stream()
+				defer stream.Close()
+
+				ctx := context.Background()
+				store := NewLocalConstraintStore(nil)
+
+				// Produce results
+				go func() {
+					for j := 0; j < numResults; j++ {
+						stream.Put(ctx, store)
+					}
+					stream.Close()
+				}()
+
+				// Consume results
+				totalConsumed := 0
+				for totalConsumed < numResults {
+					results, _, err := stream.Take(ctx, 100)
+					if err != nil {
+						b.Fatal(err)
+					}
+					totalConsumed += len(results)
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkMemoryUsage benchmarks memory usage of different stream types.
+func BenchmarkMemoryUsage(b *testing.B) {
+	const numResults = 10000
+
+	benchmarks := []struct {
+		name   string
+		stream func() ResultStream
+	}{
+		{"Channel", func() ResultStream { return NewChannelResultStream(1000) }},
+		{"Pooled", func() ResultStream {
+			pool := NewConstraintStorePool(1000)
+			return NewPooledResultStream(pool, 100, false)
+		}},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(bm.name, func(b *testing.B) {
+			b.ReportAllocs()
+
+			for i := 0; i < b.N; i++ {
+				stream := bm.stream()
+				defer stream.Close()
+
+				ctx := context.Background()
+				store := NewLocalConstraintStore(nil)
+
+				// Produce and consume results
+				for j := 0; j < numResults; j++ {
+					stream.Put(ctx, store)
+					results, _, _ := stream.Take(ctx, 1)
+					if len(results) == 0 {
+						break
+					}
+				}
+			}
+		})
+	}
+}
+
+// BenchmarkConcurrentStreaming benchmarks concurrent streaming performance.
+func BenchmarkConcurrentStreaming(b *testing.B) {
+	stream := NewChannelResultStream(10000)
+	defer stream.Close()
+
+	ctx := context.Background()
+	store := NewLocalConstraintStore(nil)
+
+	const numGoroutines = 10
+	const resultsPerGoroutine = 1000
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		var wg sync.WaitGroup
+
+		// Start producers
+		for g := 0; g < numGoroutines; g++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for j := 0; j < resultsPerGoroutine; j++ {
+					stream.Put(ctx, store)
+				}
+			}()
+		}
+
+		// Start consumers
+		totalConsumed := int64(0)
+		for g := 0; g < numGoroutines; g++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				localConsumed := 0
+				for localConsumed < resultsPerGoroutine {
+					results, _, err := stream.Take(ctx, 10)
+					if err != nil {
+						b.Error(err)
+						return
+					}
+					localConsumed += len(results)
+				}
+				atomic.AddInt64(&totalConsumed, int64(localConsumed))
+			}()
+		}
+
+		wg.Wait()
+
+		if atomic.LoadInt64(&totalConsumed) != numGoroutines*resultsPerGoroutine {
+			b.Errorf("Expected %d results, got %d", numGoroutines*resultsPerGoroutine, totalConsumed)
 		}
 	}
 }

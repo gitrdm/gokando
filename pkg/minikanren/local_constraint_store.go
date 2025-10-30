@@ -22,7 +22,7 @@ import (
 // for managing constraints and variable bindings within a single goal context.
 //
 // The store maintains two separate collections:
-//   - Local constraints: Checked quickly without global coordination
+//   - Local constraints: Checked
 //   - Local bindings: Variable-to-term mappings for this context
 //
 // When constraints or bindings are added, the store first checks all local
@@ -338,4 +338,20 @@ func (lcs *LocalConstraintStoreImpl) Shutdown() {
 	lcs.constraints = nil
 	lcs.bindings = nil
 	lcs.globalBus = nil
+}
+
+// Reset prepares the constraint store for reuse in a buffer pool.
+// This method clears all state while keeping the store structure intact
+// for efficient reuse in high-throughput streaming scenarios.
+func (lcs *LocalConstraintStoreImpl) Reset() {
+	lcs.mu.Lock()
+	defer lcs.mu.Unlock()
+
+	// Clear all constraints and bindings while preserving capacity
+	lcs.constraints = lcs.constraints[:0] // Reuse slice capacity
+	lcs.bindings = make(map[int64]Term)   // Reset bindings map
+	lcs.generation = 0
+
+	// Note: We keep the same ID and globalBus reference for reuse
+	// The global bus is reset separately if needed
 }
