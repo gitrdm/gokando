@@ -498,6 +498,21 @@ func (s *FDStore) GetDomain(v *FDVar) BitSet {
 	return v.domain.Clone()
 }
 
+// Domain returns a copy of the variable's current domain (thread-safe)
+func (v *FDVar) Domain() BitSet {
+	return v.domain.Clone()
+}
+
+// IsSingleton returns true if the variable's domain contains exactly one value
+func (v *FDVar) IsSingleton() bool {
+	return v.domain.IsSingleton()
+}
+
+// SingletonValue returns the single value if the domain is singleton, panics otherwise
+func (v *FDVar) SingletonValue() int {
+	return v.domain.SingletonValue()
+}
+
 // FDVar is a finite-domain variable
 
 // IntersectDomains intersects the domain of v with the given BitSet
