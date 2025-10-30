@@ -243,7 +243,7 @@ func (sf *SolverFactory) CreateBacktrackingSolver(id string) Solver {
 	return NewBacktrackingSolver(
 		id,
 		"Backtracking Solver",
-		[]string{"DisequalityConstraint", "TypeConstraint"},
+		[]string{"DisequalityConstraint", "TypeConstraint", "MembershipConstraint"},
 		1,             // Low priority
 		50,            // Max depth
 		5*time.Second, // Timeout
@@ -255,7 +255,7 @@ func (sf *SolverFactory) CreatePropagationSolver(id string) Solver {
 	return NewPropagationSolver(
 		id,
 		"Propagation Solver",
-		[]string{"AbsenceConstraint", "TypeConstraint"},
+		[]string{"AbsenceConstraint", "TypeConstraint", "MembershipConstraint"},
 		2,             // Medium priority
 		20,            // Max iterations
 		3*time.Second, // Timeout
@@ -267,18 +267,30 @@ func (sf *SolverFactory) CreateHybridSolver(id string) Solver {
 	return NewHybridSolver(
 		id,
 		"Hybrid Solver",
-		[]string{"DisequalityConstraint", "AbsenceConstraint", "TypeConstraint"},
+		[]string{"DisequalityConstraint", "AbsenceConstraint", "TypeConstraint", "MembershipConstraint"},
 		3,              // High priority
 		10*time.Second, // Timeout
+	)
+}
+
+// CreateFDSolver creates a standard finite domain solver.
+func (sf *SolverFactory) CreateFDSolver(id string, domainSize int) Solver {
+	return NewFDSolver(
+		id,
+		"FD Solver",
+		domainSize,
+		0, // Unlimited solutions
+		DefaultSolverConfig(),
 	)
 }
 
 // CreateSolverSet creates a complete set of solvers for comprehensive constraint solving.
 func (sf *SolverFactory) CreateSolverSet() []Solver {
 	return []Solver{
-		sf.CreateHybridSolver("hybrid-solver"),
-		sf.CreatePropagationSolver("propagation-solver"),
-		sf.CreateBacktrackingSolver("backtracking-solver"),
+		sf.CreateFDSolver("fd-solver", 9),                  // Priority 5 - highest
+		sf.CreateHybridSolver("hybrid-solver"),             // Priority 3
+		sf.CreatePropagationSolver("propagation-solver"),   // Priority 2
+		sf.CreateBacktrackingSolver("backtracking-solver"), // Priority 1 - lowest
 	}
 }
 

@@ -253,30 +253,37 @@ func TestSolverFactory_Integration(t *testing.T) {
 
 	// Test creating a complete solver set
 	solvers := factory.CreateSolverSet()
-	if len(solvers) != 3 {
-		t.Errorf("expected 3 solvers, got %d", len(solvers))
+	if len(solvers) != 4 {
+		t.Errorf("expected 4 solvers, got %d", len(solvers))
 	}
 
-	// Verify solver ordering by priority (hybrid > propagation > backtracking)
-	if solvers[0].ID() != "hybrid-solver" {
-		t.Errorf("expected first solver to be 'hybrid-solver', got '%s'", solvers[0].ID())
+	// Verify solver ordering by priority (fd > hybrid > propagation > backtracking)
+	if solvers[0].ID() != "fd-solver" {
+		t.Errorf("expected first solver to be 'fd-solver', got '%s'", solvers[0].ID())
 	}
-	if solvers[0].Priority() != 3 {
-		t.Errorf("expected first solver priority 3, got %d", solvers[0].Priority())
-	}
-
-	if solvers[1].ID() != "propagation-solver" {
-		t.Errorf("expected second solver to be 'propagation-solver', got '%s'", solvers[1].ID())
-	}
-	if solvers[1].Priority() != 2 {
-		t.Errorf("expected second solver priority 2, got %d", solvers[1].Priority())
+	if solvers[0].Priority() != 5 {
+		t.Errorf("expected first solver priority 5, got %d", solvers[0].Priority())
 	}
 
-	if solvers[2].ID() != "backtracking-solver" {
-		t.Errorf("expected third solver to be 'backtracking-solver', got '%s'", solvers[2].ID())
+	if solvers[1].ID() != "hybrid-solver" {
+		t.Errorf("expected second solver to be 'hybrid-solver', got '%s'", solvers[1].ID())
 	}
-	if solvers[2].Priority() != 1 {
-		t.Errorf("expected third solver priority 1, got %d", solvers[2].Priority())
+	if solvers[1].Priority() != 3 {
+		t.Errorf("expected second solver priority 3, got %d", solvers[1].Priority())
+	}
+
+	if solvers[2].ID() != "propagation-solver" {
+		t.Errorf("expected third solver to be 'propagation-solver', got '%s'", solvers[2].ID())
+	}
+	if solvers[2].Priority() != 2 {
+		t.Errorf("expected third solver priority 2, got %d", solvers[2].Priority())
+	}
+
+	if solvers[3].ID() != "backtracking-solver" {
+		t.Errorf("expected fourth solver to be 'backtracking-solver', got '%s'", solvers[3].ID())
+	}
+	if solvers[3].Priority() != 1 {
+		t.Errorf("expected fourth solver priority 1, got %d", solvers[3].Priority())
 	}
 }
 
@@ -314,17 +321,20 @@ func TestSolverComparator_Integration(t *testing.T) {
 	}
 
 	typeRanked := comparator.RankSolvers(solvers, "TypeConstraint")
-	if len(typeRanked) != 3 { // all solvers can handle type constraints
-		t.Errorf("expected 3 solvers for type, got %d", len(typeRanked))
+	if len(typeRanked) != 4 { // all solvers can handle type constraints
+		t.Errorf("expected 4 solvers for type, got %d", len(typeRanked))
 	}
-	if typeRanked[0].ID() != "hybrid-solver" { // highest priority
-		t.Errorf("expected first type solver to be 'hybrid-solver', got '%s'", typeRanked[0].ID())
+	if typeRanked[0].ID() != "fd-solver" { // highest priority
+		t.Errorf("expected first type solver to be 'fd-solver', got '%s'", typeRanked[0].ID())
 	}
-	if typeRanked[1].ID() != "propagation-solver" { // medium priority
-		t.Errorf("expected second type solver to be 'propagation-solver', got '%s'", typeRanked[1].ID())
+	if typeRanked[1].ID() != "hybrid-solver" { // high priority
+		t.Errorf("expected second type solver to be 'hybrid-solver', got '%s'", typeRanked[1].ID())
 	}
-	if typeRanked[2].ID() != "backtracking-solver" { // lowest priority
-		t.Errorf("expected third type solver to be 'backtracking-solver', got '%s'", typeRanked[2].ID())
+	if typeRanked[2].ID() != "propagation-solver" { // medium priority
+		t.Errorf("expected third type solver to be 'propagation-solver', got '%s'", typeRanked[2].ID())
+	}
+	if typeRanked[3].ID() != "backtracking-solver" { // lowest priority
+		t.Errorf("expected fourth type solver to be 'backtracking-solver', got '%s'", typeRanked[3].ID())
 	}
 
 	// Test getting best solver
@@ -348,8 +358,8 @@ func TestSolverComparator_Integration(t *testing.T) {
 	if !found {
 		t.Error("expected to find best solver for type")
 	}
-	if bestType.ID() != "hybrid-solver" {
-		t.Errorf("expected best type solver to be 'hybrid-solver', got '%s'", bestType.ID())
+	if bestType.ID() != "fd-solver" {
+		t.Errorf("expected best type solver to be 'fd-solver', got '%s'", bestType.ID())
 	}
 
 	// Test with unsupported constraint type

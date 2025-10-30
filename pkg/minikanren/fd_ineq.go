@@ -13,6 +13,24 @@ const (
 	IneqNotEqual                           // X != Y
 )
 
+// String returns a human-readable representation of the inequality type.
+func (it InequalityType) String() string {
+	switch it {
+	case IneqLessThan:
+		return "<"
+	case IneqLessEqual:
+		return "<="
+	case IneqGreaterThan:
+		return ">"
+	case IneqGreaterEqual:
+		return ">="
+	case IneqNotEqual:
+		return "!="
+	default:
+		return "unknown"
+	}
+}
+
 // ineqLink represents an inequality constraint between two variables
 type ineqLink struct {
 	other *FDVar

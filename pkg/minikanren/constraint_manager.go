@@ -429,3 +429,46 @@ func (cm *ConstraintManager) IsShutdown() bool {
 	defer cm.mu.RUnlock()
 	return cm.shutdown
 }
+
+// NewConstraintManagerWithFDSolver creates a new constraint manager pre-configured
+// with all available solvers including the FD solver for finite domain constraints.
+//
+// This provides a convenient way to set up a complete constraint solving environment
+// that can handle both general constraints and specialized FD constraints.
+func NewConstraintManagerWithFDSolver(domainSize int) *ConstraintManager {
+	cm := NewConstraintManager()
+
+	// Create solver factory
+	factory := NewSolverFactory()
+
+	// Register all solvers
+	solvers := factory.CreateSolverSet()
+	for _, solver := range solvers {
+		if err := cm.RegisterSolver(solver); err != nil {
+			// In a real implementation, this should be handled properly
+			// For now, we'll ignore registration errors in this convenience function
+			continue
+		}
+	}
+
+	// Register constraint types for each solver
+	for _, solver := range solvers {
+		capabilities := solver.Capabilities()
+		for _, capability := range capabilities {
+			// Register the solver for this constraint type
+			solverIDs := []string{solver.ID()}
+			if err := cm.RegisterConstraintType(capability, solverIDs); err != nil {
+				// In a real implementation, this should be handled properly
+				continue
+			}
+		}
+	}
+
+	// Set up fallback solvers (backtracking solver as fallback)
+	if backtrackingSolver := factory.CreateBacktrackingSolver("fallback-backtracking"); backtrackingSolver != nil {
+		cm.RegisterSolver(backtrackingSolver)
+		cm.SetFallbackSolvers([]Solver{backtrackingSolver})
+	}
+
+	return cm
+}
