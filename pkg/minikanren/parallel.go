@@ -217,6 +217,18 @@ func ParallelRunWithConfig(n int, goalFunc func(*Var) Goal, config *ParallelConf
 
 // ParallelRunWithContext executes a goal in parallel with context and configuration.
 func ParallelRunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal, config *ParallelConfig) []Term {
+	// Validate context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check for immediate cancellation
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+
 	executor := NewParallelExecutor(config)
 	defer executor.Shutdown()
 
@@ -224,9 +236,15 @@ func ParallelRunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal
 	goal := goalFunc(q)
 
 	initialStore := NewLocalConstraintStore(NewGlobalConstraintBus())
+	defer initialStore.Shutdown() // Ensure cleanup
+
 	stream := goal(ctx, initialStore)
 
-	solutions, _, _ := stream.Take(ctx, n)
+	solutions, _, err := stream.Take(ctx, n)
+	if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+		// Re-panic for unexpected errors
+		panic(err)
+	}
 
 	var results []Term
 	for _, store := range solutions {

@@ -341,14 +341,32 @@ func Run(n int, goalFunc func(*Var) Goal) []Term {
 //	    return someLongRunningGoal(q)
 //	})
 func RunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term {
+	// Validate context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check for immediate cancellation
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+
 	q := Fresh("q")
 	goal := goalFunc(q)
 
 	// Use shared global bus for better performance
 	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
+	defer initialStore.Shutdown() // Ensure cleanup
+
 	stream := goal(ctx, initialStore)
 
-	solutions, _, _ := stream.Take(ctx, n)
+	solutions, _, err := stream.Take(ctx, n)
+	if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+		// Re-panic for unexpected errors
+		panic(err)
+	}
 
 	var results []Term
 	for _, store := range solutions {
@@ -375,11 +393,25 @@ func RunStar(goalFunc func(*Var) Goal) []Term {
 
 // RunStarWithContext executes a goal and returns all solutions with context support.
 func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term {
+	// Validate context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check for immediate cancellation
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+
 	q := Fresh("q")
 	goal := goalFunc(q)
 
 	// Use shared global bus for better performance
 	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
+	defer initialStore.Shutdown() // Ensure cleanup
+
 	stream := goal(ctx, initialStore)
 
 	var results []Term
@@ -393,7 +425,11 @@ func RunStarWithContext(ctx context.Context, goalFunc func(*Var) Goal) []Term {
 
 		solutions, hasMore, err := stream.Take(ctx, 10) // Take in batches
 		if err != nil {
-			return results
+			if err == context.Canceled || err == context.DeadlineExceeded {
+				return results
+			}
+			// Re-panic for unexpected errors
+			panic(err)
 		}
 
 		for _, store := range solutions {
@@ -418,6 +454,18 @@ func RunWithIsolation(n int, goalFunc func(*Var) Goal) []Term {
 
 // RunWithIsolationContext is like RunWithContext but uses an isolated constraint bus.
 func RunWithIsolationContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term {
+	// Validate context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check for immediate cancellation
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+
 	q := Fresh("q")
 	goal := goalFunc(q)
 
@@ -429,7 +477,11 @@ func RunWithIsolationContext(ctx context.Context, n int, goalFunc func(*Var) Goa
 	defer initialStore.Shutdown() // Ensure proper cleanup
 
 	stream := goal(ctx, initialStore)
-	solutions, _, _ := stream.Take(ctx, n)
+	solutions, _, err := stream.Take(ctx, n)
+	if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+		// Re-panic for unexpected errors
+		panic(err)
+	}
 
 	var results []Term
 	for _, store := range solutions {
