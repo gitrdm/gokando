@@ -164,10 +164,10 @@ func TestContextMonitor(t *testing.T) {
 	default:
 	}
 
-	// Add a cleanup function
-	cleanupCalled := false
+	// Add a cleanup function with proper synchronization
+	cleanupCalled := make(chan bool, 1)
 	monitor.AddCleanup(func() {
-		cleanupCalled = true
+		cleanupCalled <- true
 	})
 
 	// Start an operation
@@ -178,10 +178,11 @@ func TestContextMonitor(t *testing.T) {
 	// Cancel the monitored context
 	cancel()
 
-	// Wait for cleanup
-	time.Sleep(5 * time.Millisecond)
-
-	if !cleanupCalled {
+	// Wait for cleanup to be called
+	select {
+	case <-cleanupCalled:
+		// Good, cleanup was called
+	case <-time.After(100 * time.Millisecond):
 		t.Error("Expected cleanup function to be called")
 	}
 
