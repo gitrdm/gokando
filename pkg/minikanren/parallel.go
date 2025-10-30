@@ -4,6 +4,7 @@ import (
 	"context"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/gitrdm/gokando/internal/parallel"
 )
@@ -13,6 +14,10 @@ type ParallelConfig struct {
 	// MaxWorkers is the maximum number of concurrent workers.
 	// If 0, defaults to runtime.NumCPU().
 	MaxWorkers int
+
+	// MinWorkers is the minimum number of workers to maintain.
+	// If 0, defaults to 1. Only used when EnableDynamicScaling is true.
+	MinWorkers int
 
 	// MaxQueueSize is the maximum number of pending tasks.
 	// If 0, defaults to MaxWorkers * 10.
@@ -25,22 +30,54 @@ type ParallelConfig struct {
 	// RateLimit sets the maximum operations per second.
 	// If 0, no rate limiting is applied.
 	RateLimit int
+
+	// EnableDynamicScaling enables automatic worker scaling based on workload.
+	// When enabled, workers will scale between MinWorkers and MaxWorkers
+	// based on queue depth and CPU utilization.
+	EnableDynamicScaling bool
+
+	// EnableWorkStealing enables work-stealing scheduler for better load balancing.
+	// When enabled, uses per-worker deques with work stealing instead of a global queue.
+	EnableWorkStealing bool
+
+	// ScaleUpThreshold is the queue depth that triggers scaling up.
+	// If 0, defaults to MaxWorkers * 2.
+	ScaleUpThreshold int
+
+	// ScaleDownThreshold is the queue depth that triggers scaling down.
+	// If 0, defaults to MaxWorkers / 2.
+	ScaleDownThreshold int
+
+	// ScaleCheckInterval is how often to check for scaling opportunities.
+	// If 0, defaults to 100ms.
+	ScaleCheckInterval time.Duration
+
+	// ScaleCooldown is the minimum time between scaling operations.
+	// If 0, defaults to 500ms.
+	ScaleCooldown time.Duration
 }
 
 // DefaultParallelConfig returns a default configuration for parallel execution.
 func DefaultParallelConfig() *ParallelConfig {
 	return &ParallelConfig{
-		MaxWorkers:         runtime.NumCPU(),
-		MaxQueueSize:       runtime.NumCPU() * 10,
-		EnableBackpressure: true,
-		RateLimit:          0, // No rate limiting by default
+		MaxWorkers:           runtime.NumCPU(),
+		MinWorkers:           1,
+		MaxQueueSize:         runtime.NumCPU() * 10,
+		EnableBackpressure:   true,
+		RateLimit:            0,    // No rate limiting by default
+		EnableDynamicScaling: true, // Enable dynamic scaling by default
+		EnableWorkStealing:   true, // Enable work stealing by default
+		ScaleUpThreshold:     0,    // Will be set to MaxWorkers * 2
+		ScaleDownThreshold:   0,    // Will be set to MaxWorkers / 2
+		ScaleCheckInterval:   100 * time.Millisecond,
+		ScaleCooldown:        500 * time.Millisecond,
 	}
 }
 
 // ParallelExecutor manages parallel execution of miniKanren goals.
 type ParallelExecutor struct {
 	config           *ParallelConfig
-	workerPool       *parallel.WorkerPool
+	workerPool       parallel.WorkerPoolInterface
 	backpressureCtrl *parallel.BackpressureController
 	rateLimiter      *parallel.RateLimiter
 	mu               sync.RWMutex
@@ -57,13 +94,62 @@ func NewParallelExecutor(config *ParallelConfig) *ParallelExecutor {
 		config.MaxWorkers = runtime.NumCPU()
 	}
 
+	if config.MinWorkers <= 0 {
+		config.MinWorkers = 1
+	}
+
+	if config.MinWorkers > config.MaxWorkers {
+		config.MinWorkers = config.MaxWorkers
+	}
+
 	if config.MaxQueueSize <= 0 {
 		config.MaxQueueSize = config.MaxWorkers * 10
 	}
 
+	// Set default scaling thresholds if not specified
+	if config.ScaleUpThreshold <= 0 {
+		config.ScaleUpThreshold = config.MaxWorkers * 2
+	}
+
+	if config.ScaleDownThreshold <= 0 {
+		config.ScaleDownThreshold = config.MaxWorkers / 2
+		if config.ScaleDownThreshold <= 0 {
+			config.ScaleDownThreshold = 1
+		}
+	}
+
+	if config.ScaleCheckInterval <= 0 {
+		config.ScaleCheckInterval = 100 * time.Millisecond
+	}
+
+	if config.ScaleCooldown <= 0 {
+		config.ScaleCooldown = 500 * time.Millisecond
+	}
+
 	pe := &ParallelExecutor{
-		config:     config,
-		workerPool: parallel.NewWorkerPool(config.MaxWorkers),
+		config: config,
+	}
+
+	// Create worker pool based on configuration
+	dynamicConfig := parallel.DynamicConfig{
+		ScaleUpThreshold:   config.ScaleUpThreshold,
+		ScaleDownThreshold: config.ScaleDownThreshold,
+		ScaleCheckInterval: config.ScaleCheckInterval,
+		ScaleCooldown:      config.ScaleCooldown,
+	}
+
+	if config.EnableWorkStealing {
+		if config.EnableDynamicScaling {
+			pe.workerPool = parallel.NewWorkStealingWorkerPoolWithConfig(config.MaxWorkers, config.MinWorkers, dynamicConfig)
+		} else {
+			pe.workerPool = parallel.NewWorkStealingWorkerPool(config.MaxWorkers, config.MaxWorkers) // Fixed size
+		}
+	} else {
+		if config.EnableDynamicScaling {
+			pe.workerPool = parallel.NewDynamicWorkerPoolWithConfig(config.MaxWorkers, config.MinWorkers, dynamicConfig)
+		} else {
+			pe.workerPool = parallel.NewStaticWorkerPool(config.MaxWorkers)
+		}
 	}
 
 	if config.EnableBackpressure {
@@ -373,4 +459,51 @@ func (ps *ParallelStream) Collect() []ConstraintStore {
 	}
 
 	return results
+}
+
+// GetWorkerCount returns the current number of active workers.
+func (pe *ParallelExecutor) GetWorkerCount() int {
+	return pe.workerPool.GetWorkerCount()
+}
+
+// GetQueueDepth returns the current number of queued tasks.
+func (pe *ParallelExecutor) GetQueueDepth() int {
+	return pe.workerPool.GetQueueDepth()
+}
+
+// GetMaxWorkers returns the maximum number of workers.
+func (pe *ParallelExecutor) GetMaxWorkers() int {
+	return pe.workerPool.GetMaxWorkers()
+}
+
+// GetScalingStats returns current scaling statistics if dynamic scaling is enabled.
+func (pe *ParallelExecutor) GetScalingStats() (currentWorkers, queueDepth, maxWorkers int) {
+	currentWorkers = pe.GetWorkerCount()
+	queueDepth = pe.GetQueueDepth()
+	maxWorkers = pe.GetMaxWorkers()
+	return
+}
+
+// GetExecutionStats returns the current execution statistics.
+func (pe *ParallelExecutor) GetExecutionStats() *parallel.ExecutionStats {
+	if pe.workerPool == nil {
+		return nil
+	}
+	return pe.workerPool.GetStats()
+}
+
+// GetDeadlockDetector returns the deadlock detector.
+func (pe *ParallelExecutor) GetDeadlockDetector() *parallel.DeadlockDetector {
+	if pe.workerPool == nil {
+		return nil
+	}
+	return pe.workerPool.GetDeadlockDetector()
+}
+
+// GetDeadlockAlerts returns a channel for receiving deadlock alerts.
+func (pe *ParallelExecutor) GetDeadlockAlerts() <-chan parallel.DeadlockAlert {
+	if dd := pe.GetDeadlockDetector(); dd != nil {
+		return dd.GetAlerts()
+	}
+	return nil
 }
