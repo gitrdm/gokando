@@ -358,3 +358,95 @@ func TestAddMinusConstraintBidirectional(t *testing.T) {
 		}
 	}
 }
+
+func TestAddQuotientConstraintBasic(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddQuotientConstraint(x, y, z); err != nil {
+		t.Fatalf("AddQuotientConstraint failed: %v", err)
+	}
+
+	// Test x / y = z with x=8, y=2, should give z=4
+	if err := s.Assign(x, 8); err != nil {
+		t.Fatalf("failed to assign x=8: %v", err)
+	}
+	if err := s.Assign(y, 2); err != nil {
+		t.Fatalf("failed to assign y=2: %v", err)
+	}
+
+	if !z.domain.IsSingleton() || z.domain.SingletonValue() != 4 {
+		t.Fatalf("expected z=4, got domain %v", z.domain)
+	}
+}
+
+func TestAddQuotientConstraintPropagation(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddQuotientConstraint(x, y, z); err != nil {
+		t.Fatalf("AddQuotientConstraint failed: %v", err)
+	}
+
+	// Assign z=3, should restrict x and y domains appropriately
+	if err := s.Assign(z, 3); err != nil {
+		t.Fatalf("failed to assign z=3: %v", err)
+	}
+
+	// x should be in {3,6,9} (y * 3 where y in 1..3, but domain is 1..9)
+	// Actually, x = y * z, so with z=3, x should be {3,6,9}
+	expectedX := map[int]bool{3: true, 6: true, 9: true}
+	for v := 1; v <= 9; v++ {
+		has := x.domain.Has(v)
+		if expectedX[v] && !has {
+			t.Fatalf("expected x to have %d", v)
+		}
+		if !expectedX[v] && has {
+			t.Fatalf("unexpected value %d in x domain", v)
+		}
+	}
+
+	// y should be in {1,2,3} (x / 3 where x in 3..9, so y in 1..3)
+	expectedY := map[int]bool{1: true, 2: true, 3: true}
+	for v := 1; v <= 9; v++ {
+		has := y.domain.Has(v)
+		if expectedY[v] && !has {
+			t.Fatalf("expected y to have %d", v)
+		}
+		if !expectedY[v] && has {
+			t.Fatalf("unexpected value %d in y domain", v)
+		}
+	}
+}
+
+func TestAddQuotientConstraintBidirectional(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddQuotientConstraint(x, y, z); err != nil {
+		t.Fatalf("AddQuotientConstraint failed: %v", err)
+	}
+
+	// Assign x=9, should restrict z domain
+	if err := s.Assign(x, 9); err != nil {
+		t.Fatalf("failed to assign x=9: %v", err)
+	}
+
+	// z should be in {1,3,9} (9 / y where y divides 9, so y in {1,3,9}, z in {9,3,1})
+	expectedZ := map[int]bool{1: true, 3: true, 9: true}
+	for v := 1; v <= 9; v++ {
+		has := z.domain.Has(v)
+		if expectedZ[v] && !has {
+			t.Fatalf("expected z to have %d", v)
+		}
+		if !expectedZ[v] && has {
+			t.Fatalf("unexpected value %d in z domain", v)
+		}
+	}
+}
