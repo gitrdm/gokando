@@ -287,7 +287,7 @@ store = store.WithConstraint(constraint)
 
 GoKanDo has achieved significant progress with the completion of **Phase 6 (Rich Arithmetic Operators)** and **Phase 7 (Arithmetic Relations)**, implementing all core arithmetic constraints (fd/+, fd/-, fd/*, fd/quotient, fd/mod, fd/=) as **true relational constraints** without projection. This closes a major expressiveness gap with core.logic and enables more declarative constraint programming.
 
-The remaining gaps focus on **Phase 8+ (Advanced CLP Features)** including domain operations, enhanced search strategies, and other advanced features. With the recent completion of **Phase 10 (Constraint Store Operations)**, GoKanDo now provides direct constraint store manipulation primitives (`empty-s`, `make-s`, store union/intersection) that match core.logic's capabilities. This further closes the expressiveness gap with core.logic while leveraging Go's performance and concurrency advantages.
+The remaining gaps focus on **Phase 11 (Ecosystem and Tooling)**. With the completion of **Phase 10 (Constraint Store Operations)**, GoKanDo now provides direct constraint store manipulation primitives (`empty-s`, `make-s`, store union/intersection/difference) and comprehensive inspection utilities that match core.logic's capabilities. This further closes the expressiveness gap with core.logic while leveraging Go's performance and concurrency advantages.
 
 ## References
 

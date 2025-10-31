@@ -446,3 +446,104 @@ func TestStoreOperationsEdgeCases(t *testing.T) {
 		t.Errorf("StoreSummary(nil) should return 'Store: <nil>', got '%s'", StoreSummary(nil))
 	}
 }
+
+// ExampleEmptyStore demonstrates creating and using an empty constraint store.
+// Empty stores serve as the starting point for building constraint stores programmatically.
+func ExampleEmptyStore() {
+	store := EmptyStore()
+
+	// Empty stores have no constraints
+	constraints := store.GetConstraints()
+	fmt.Printf("Empty store has %d constraints\n", len(constraints))
+
+	// Empty stores have no variable bindings
+	sub := store.GetSubstitution()
+	fmt.Printf("Empty store has %d bindings\n", sub.Size())
+
+	// Output:
+	// Empty store has 0 constraints
+	// Empty store has 0 bindings
+}
+
+// ExampleStoreWithConstraint demonstrates adding constraints to stores immutably.
+// Store operations follow functional programming principles - they return new stores.
+func ExampleStoreWithConstraint() {
+	// Start with an empty store
+	store := EmptyStore()
+
+	// Create a variable and constraint
+	x := Fresh("x")
+	constraint := NewDisequalityConstraint(x, NewAtom("forbidden"))
+
+	// Add constraint immutably - original store unchanged
+	newStore, err := StoreWithConstraint(store, constraint)
+	if err != nil {
+		fmt.Printf("Error: %v\n", err)
+		return
+	}
+
+	// Original store still empty
+	fmt.Printf("Original store constraints: %d\n", len(store.GetConstraints()))
+
+	// New store has the constraint
+	fmt.Printf("New store constraints: %d\n", len(newStore.GetConstraints()))
+
+	// Output:
+	// Original store constraints: 0
+	// New store constraints: 1
+}
+
+// ExampleStoreVariables demonstrates extracting variables from constraint stores.
+// This is useful for debugging and understanding store contents.
+func ExampleStoreVariables() {
+	store := EmptyStore()
+
+	// Add constraints with variables
+	x := Fresh("x")
+	y := Fresh("y")
+	z := Fresh("z")
+
+	store, _ = StoreWithConstraint(store, NewDisequalityConstraint(x, y))
+	store, _ = StoreWithConstraint(store, NewTypeConstraint(z, NumberType))
+
+	// Extract all variables
+	variables := StoreVariables(store)
+	fmt.Printf("Store contains %d variables\n", len(variables))
+
+	// Variables are sorted by ID, so we can check names
+	names := make([]string, len(variables))
+	for i, variable := range variables {
+		names[i] = variable.name
+	}
+	fmt.Printf("Variable names: %v\n", names)
+
+	// Output:
+	// Store contains 3 variables
+	// Variable names: [x y z]
+}
+
+// ExampleStoreToString demonstrates generating human-readable store representations.
+// This is essential for debugging complex constraint programs.
+func ExampleStoreToString() {
+	store := EmptyStore()
+
+	// Add some constraints
+	x := Fresh("x")
+	y := Fresh("y")
+
+	store, _ = StoreWithConstraint(store, NewDisequalityConstraint(x, NewAtom("bad")))
+	store, _ = StoreWithConstraint(store, NewTypeConstraint(y, SymbolType))
+
+	// Generate detailed string representation
+	description := StoreToString(store)
+
+	// Check that it contains expected elements
+	fmt.Println("Contains store header:", strings.Contains(description, "Constraint Store"))
+	fmt.Println("Contains disequality constraint:", strings.Contains(description, "neq") || strings.Contains(description, "≠"))
+	fmt.Println("Contains type constraint:", strings.Contains(description, "numbero") || strings.Contains(description, "symbolo"))
+
+	// Output:
+	// Contains store header: true
+	// Contains disequality constraint: true
+	// Contains type constraint: true
+}
