@@ -528,6 +528,11 @@ func (s *FDStore) propagateLocked() error {
 							return err
 						}
 					}
+					if l.op == ArithmeticModulo {
+						if err := s.propagateModuloConstraint(l.x, l.y, l.z); err != nil {
+							return err
+						}
+					}
 					// Add other arithmetic operations here as they are implemented
 				}
 			}

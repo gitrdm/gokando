@@ -450,3 +450,112 @@ func TestAddQuotientConstraintBidirectional(t *testing.T) {
 		}
 	}
 }
+
+func TestAddModuloConstraintBasic(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddModuloConstraint(x, y, z); err != nil {
+		t.Fatalf("AddModuloConstraint failed: %v", err)
+	}
+
+	// Test x % y = z with x=7, y=3, should give z=1 (7 % 3 = 1)
+	if err := s.Assign(x, 7); err != nil {
+		t.Fatalf("failed to assign x=7: %v", err)
+	}
+	if err := s.Assign(y, 3); err != nil {
+		t.Fatalf("failed to assign y=3: %v", err)
+	}
+
+	if !z.domain.IsSingleton() || z.domain.SingletonValue() != 1 {
+		t.Fatalf("expected z=1, got domain %v", z.domain)
+	}
+}
+
+func TestAddModuloConstraintPropagation(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddModuloConstraint(x, y, z); err != nil {
+		t.Fatalf("AddModuloConstraint failed: %v", err)
+	}
+
+	// Assign z=2, should restrict x and y domains appropriately
+	if err := s.Assign(z, 2); err != nil {
+		t.Fatalf("failed to assign z=2: %v", err)
+	}
+
+	// x should be in values where x % y = 2 for some y > 2
+	// For y=3: x ≡ 2 mod 3 -> {2,5,8}
+	// For y=4: x ≡ 2 mod 4 -> {2,6}
+	// For y=5: x ≡ 2 mod 5 -> {2,7}
+	// For y=6: x ≡ 2 mod 6 -> {2,8}
+	// For y=7: x ≡ 2 mod 7 -> {2,9}
+	// For y=8: x ≡ 2 mod 8 -> {2}
+	// For y=9: x ≡ 2 mod 9 -> {2}
+	// Union: {2,5,6,7,8,9}
+	expectedX := map[int]bool{2: true, 5: true, 6: true, 7: true, 8: true, 9: true}
+	for v := 1; v <= 9; v++ {
+		has := x.domain.Has(v)
+		if expectedX[v] && !has {
+			t.Fatalf("expected x to have %d", v)
+		}
+		if !expectedX[v] && has {
+			t.Fatalf("unexpected value %d in x domain", v)
+		}
+	}
+
+	// y should be in {3,4,5,6,7,8,9} (y > z = 2)
+	expectedY := map[int]bool{3: true, 4: true, 5: true, 6: true, 7: true, 8: true, 9: true}
+	for v := 1; v <= 9; v++ {
+		has := y.domain.Has(v)
+		if expectedY[v] && !has {
+			t.Fatalf("expected y to have %d", v)
+		}
+		if !expectedY[v] && has {
+			t.Fatalf("unexpected value %d in y domain", v)
+		}
+	}
+}
+
+func TestAddModuloConstraintBidirectional(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddModuloConstraint(x, y, z); err != nil {
+		t.Fatalf("AddModuloConstraint failed: %v", err)
+	}
+
+	// Assign x=8, should restrict z domain
+	if err := s.Assign(x, 8); err != nil {
+		t.Fatalf("failed to assign x=8: %v", err)
+	}
+
+	// z should be in possible values of 8 % y for y in 1..9
+	// y=1: 8%1=0 (invalid)
+	// y=2: 8%2=0 (invalid)
+	// y=3: 8%3=2
+	// y=4: 8%4=0 (invalid)
+	// y=5: 8%5=3
+	// y=6: 8%6=2
+	// y=7: 8%7=1
+	// y=8: 8%8=0 (invalid)
+	// y=9: 8%9=8
+	// So z can be {1,2,3,8}
+	expectedZ := map[int]bool{1: true, 2: true, 3: true, 8: true}
+	for v := 1; v <= 9; v++ {
+		has := z.domain.Has(v)
+		if expectedZ[v] && !has {
+			t.Fatalf("expected z to have %d", v)
+		}
+		if !expectedZ[v] && has {
+			t.Fatalf("unexpected value %d in z domain", v)
+		}
+	}
+}
