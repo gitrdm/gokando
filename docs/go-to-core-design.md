@@ -35,7 +35,8 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 #### Finite Domain (FD) Solver
 - **Domain representation**: Efficient BitSet-based domains (1-based indexing)
 - **All-different constraints**: Basic pairwise and advanced Regin filtering
-- **Arithmetic constraints**: Offset constraints (var1 + offset = var2)
+- **Arithmetic constraints**: Rich arithmetic operators (fd/+, fd/-, fd/*, fd/quotient, fd/mod, fd/=)
+- **Offset constraints**: Variable offset relationships (var1 + offset = var2)
 - **Inequality constraints**: <, <=, >, >=, != operators
 - **Custom constraints**: Extensible framework with SumConstraint example
 - **Search heuristics**: Dom/Deg, Domain, Degree, Lexicographic, Random
@@ -64,18 +65,12 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 
 #### Enhanced Finite Domain Arithmetic
 
-4. **Rich Arithmetic Operators**
-   - **core.logic**: `fd/+`, `fd/-`, `fd/*`, `fd/quot`, `fd/mod`, `fd/=`, `fd/==`
-   - **Current**: Only offset constraints (addition with constants)
-   - **Gap**: No multiplication, division, modulo, or variable arithmetic
-   - **Impact**: Cannot solve cryptarithms or complex mathematical puzzles efficiently
-
-5. **Arithmetic Relations**
+3. **Arithmetic Relations**
    - **core.logic**: `fd/eq` (=), `fd/+` (+), `fd/-` (-), etc. as relations
-   - **Gap**: Arithmetic is not relational - must use projection
+   - **Gap**: Arithmetic still requires projection instead of true relations
    - **Impact**: Less declarative programming style
 
-6. **Domain Operations**
+4. **Domain Operations**
    - **core.logic**: `fd/in`, `fd/dom`, `fd/interval` for domain specification
    - **Gap**: Limited domain specification (only full domains 1..n)
    - **Impact**: Cannot constrain variables to specific value sets
@@ -113,14 +108,14 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 - **Compilation**: Ahead-of-time compilation for better startup performance
 
 ### GoKanDo Weaknesses
-- **Arithmetic Propagation**: Basic sum constraints vs core.logic's rich arithmetic
+- **Arithmetic Relations**: Still requires projection instead of true relations (Phase 7)
 - **Search Space**: No tabling leads to redundant computation
-- **Expressiveness**: Less declarative for complex arithmetic constraints
+- **Expressiveness**: Limited domain operations and search strategies
 
 ### Benchmark Results
 - **Sudoku**: GoKanDo excels (Regin algorithm + parallel execution)
-- **Magic Square**: Struggles due to weak arithmetic propagation
-- **Cryptarithms**: Requires projection instead of declarative arithmetic
+- **Magic Square**: Improved with rich arithmetic constraints, but still needs relational arithmetic (Phase 7)
+- **Cryptarithms**: Partially supported with arithmetic constraints, full declarative support requires Phase 7
 
 ## Enhancement Roadmap
 
@@ -128,11 +123,13 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 
 #### 1.1 Rich Arithmetic Constraints
 ```go
-// Add support for:
+// ✅ COMPLETED: All arithmetic constraints implemented
 fd.AddPlusConstraint(a, b, c)        // a + b = c
 fd.AddMultiplyConstraint(a, b, c)    // a * b = c
-fd.AddEqualityConstraint(a, b)       // a = b (relational)
-fd.AddInequalityConstraint(a, b)     // a ≠ b (already exists)
+fd.AddEqualityConstraint(a, b, c)    // a = b = c
+fd.AddMinusConstraint(a, b, c)       // a - b = c
+fd.AddQuotientConstraint(a, b, c)    // a / b = c (integer division)
+fd.AddModuloConstraint(a, b, c)      // a % b = c
 ```
 
 #### 1.2 Domain Specification
@@ -147,7 +144,10 @@ var := fd.NewVarWithInterval(10, 20)          // Range 10-20
 // Declarative arithmetic goals
 goal := FDPlus(a, b, c)     // a + b = c
 goal := FDMultiply(a, b, c) // a * b = c
-goal := FDEqual(a, b)       // a = b
+goal := FDEqual(a, b, c)    // a = b = c
+goal := FDMinus(a, b, c)    // a - b = c
+goal := FDQuotient(a, b, c) // a / b = c
+goal := FDModulo(a, b, c)   // a % b = c
 ```
 
 ### Phase 2: Advanced CLP Features (Medium Priority)
@@ -253,7 +253,9 @@ store = store.WithConstraint(constraint)
 
 ## Conclusion
 
-GoKanDo has a solid foundation with excellent thread safety and FD solving capabilities, but needs significant enhancement to match core.logic's feature set. The focus should be on rich arithmetic constraints first, followed by tabling and advanced CLP features. With these enhancements, GoKanDo can become a competitive alternative to core.logic while leveraging Go's performance and concurrency advantages.
+GoKanDo has achieved significant progress with the completion of **Phase 6 (Rich Arithmetic Operators)**, implementing all core arithmetic constraints (fd/+, fd/-, fd/*, fd/quotient, fd/mod, fd/=) as declarative relations. This closes a major expressiveness gap with core.logic and enables more declarative constraint programming.
+
+The remaining gaps focus on **Phase 7 (Arithmetic Relations)** for true relational arithmetic without projection, followed by domain operations, enhanced search strategies, and constraint store manipulation. With these enhancements, GoKanDo can become a competitive alternative to core.logic while leveraging Go's performance and concurrency advantages.
 
 ## References
 
