@@ -247,6 +247,8 @@ type FDStore struct {
 	offsetLinks map[int][]offsetLink
 	// ineqLinks maps a variable id to inequality links used for inequality propagation
 	ineqLinks map[int][]ineqLink
+	// arithmeticLinks maps a variable id to arithmetic links used for rich arithmetic propagation
+	arithmeticLinks map[int][]ArithmeticLink
 	// customConstraints holds user-defined constraints
 	customConstraints []CustomConstraint
 	// strategy holds solver strategy configuration (replaces old config)
@@ -493,6 +495,30 @@ func (s *FDStore) propagateLocked() error {
 					if err := s.propagateInequalityLocked(v, l.other, InequalityType(l.typ)); err != nil {
 						return err
 					}
+				}
+			}
+		}
+		// propagate arithmetic links
+		if s.arithmeticLinks != nil {
+			if links, ok := s.arithmeticLinks[vid]; ok {
+				for _, l := range links {
+					// Only propagate if this variable is involved in the constraint
+					if l.op == ArithmeticPlus {
+						if err := s.propagatePlusConstraint(l.x, l.y, l.z); err != nil {
+							return err
+						}
+					}
+					if l.op == ArithmeticMultiply {
+						if err := s.propagateMultiplyConstraint(l.x, l.y, l.z); err != nil {
+							return err
+						}
+					}
+					if l.op == ArithmeticEquality {
+						if err := s.propagateEqualityConstraint(l.x, l.y, l.z); err != nil {
+							return err
+						}
+					}
+					// Add other arithmetic operations here as they are implemented
 				}
 			}
 		}
@@ -864,6 +890,11 @@ func (s *FDStore) variableDegree(v *FDVar) int {
 	}
 	if s.ineqLinks != nil {
 		if links, ok := s.ineqLinks[v.ID]; ok {
+			degree += len(links)
+		}
+	}
+	if s.arithmeticLinks != nil {
+		if links, ok := s.arithmeticLinks[v.ID]; ok {
 			degree += len(links)
 		}
 	}
