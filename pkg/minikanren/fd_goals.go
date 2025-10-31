@@ -328,3 +328,157 @@ func FDCustomGoal(vars []*Var, constraint CustomConstraint) Goal {
 		return stream
 	}
 }
+
+// FDDomainGoal creates a Goal that constrains a variable to a specific domain.
+// This corresponds to core.logic's fd/dom, allowing declarative domain specification.
+// The variable will be constrained to have values only from the specified BitSet domain.
+func FDDomainGoal(variable *Var, domain BitSet) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Check if domain is empty
+			if domain.Count() == 0 {
+				return // No solutions
+			}
+
+			// Apply current bindings from the constraint store
+			sub := store.GetSubstitution()
+			walked := sub.DeepWalk(variable)
+			if !walked.IsVar() {
+				if atom, ok := walked.(*Atom); ok {
+					if val, ok2 := atom.Value().(int); ok2 {
+						// Check if the bound value is in the domain
+						if domain.Has(val) {
+							// Value is valid, return the current store
+							stream.Put(ctx, store)
+						}
+						// If not in domain, no solutions
+						return
+					} else {
+						// Non-integer binding - cannot satisfy
+						return
+					}
+				} else {
+					// Bound to complex term - not supported
+					return
+				}
+			}
+
+			// Variable is unbound - enumerate all values in the domain
+			domain.IterateValues(func(val int) {
+				cloned := store.Clone()
+				if err := cloned.AddBinding(variable.id, NewAtom(val)); err == nil {
+					stream.Put(ctx, cloned)
+				}
+			})
+		}()
+
+		return stream
+	}
+}
+
+// FDInGoal creates a Goal that constrains a variable to be a member of a set of values.
+// This corresponds to core.logic's fd/in, allowing variables to have custom value sets.
+// The variable will be constrained to have values only from the specified values slice.
+func FDInGoal(variable *Var, values []int) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			if len(values) == 0 {
+				// Empty domain - no solutions
+				return
+			}
+
+			// Apply current bindings from the constraint store
+			sub := store.GetSubstitution()
+			walked := sub.DeepWalk(variable)
+			if !walked.IsVar() {
+				if atom, ok := walked.(*Atom); ok {
+					if val, ok2 := atom.Value().(int); ok2 {
+						// Check if the bound value is in the values list
+						for _, allowedVal := range values {
+							if val == allowedVal {
+								stream.Put(ctx, store)
+								return
+							}
+						}
+						// Value not in allowed list - no solutions
+						return
+					} else {
+						// Non-integer binding - cannot satisfy
+						return
+					}
+				} else {
+					// Bound to complex term - not supported
+					return
+				}
+			}
+
+			// Variable is unbound - enumerate all values in the list
+			for _, val := range values {
+				cloned := store.Clone()
+				if err := cloned.AddBinding(variable.id, NewAtom(val)); err == nil {
+					stream.Put(ctx, cloned)
+				}
+			}
+		}()
+
+		return stream
+	}
+}
+
+// FDIntervalGoal creates a Goal that constrains a variable to a range of values.
+// This corresponds to core.logic's fd/interval, allowing variables to have interval domains.
+// The variable will be constrained to have values in the range [min, max] inclusive.
+func FDIntervalGoal(variable *Var, min, max int) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			if min > max || min < 1 {
+				// Invalid interval - no solutions
+				return
+			}
+
+			// Apply current bindings from the constraint store
+			sub := store.GetSubstitution()
+			walked := sub.DeepWalk(variable)
+			if !walked.IsVar() {
+				if atom, ok := walked.(*Atom); ok {
+					if val, ok2 := atom.Value().(int); ok2 {
+						// Check if the bound value is in the interval
+						if val >= min && val <= max {
+							stream.Put(ctx, store)
+						}
+						// If not in interval, no solutions
+						return
+					} else {
+						// Non-integer binding - cannot satisfy
+						return
+					}
+				} else {
+					// Bound to complex term - not supported
+					return
+				}
+			}
+
+			// Variable is unbound - enumerate all values in the interval
+			for val := min; val <= max; val++ {
+				cloned := store.Clone()
+				if err := cloned.AddBinding(variable.id, NewAtom(val)); err == nil {
+					stream.Put(ctx, cloned)
+				}
+			}
+		}()
+
+		return stream
+	}
+}

@@ -332,6 +332,33 @@ func (s *FDStore) NewVar() *FDVar {
 	return v
 }
 
+// NewVarWithDomain creates a new FD variable with a custom domain.
+// The domain is specified as a BitSet containing the allowed values.
+// This allows variables to have arbitrary value sets rather than just 1..n.
+func (s *FDStore) NewVarWithDomain(domain BitSet) *FDVar {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	id := len(s.vars)
+	v := &FDVar{ID: id, domain: domain.Clone(), peers: nil}
+	s.vars = append(s.vars, v)
+	s.idToVar[id] = v
+	return v
+}
+
+// NewVarWithValues creates a new FD variable with domain containing only the specified values.
+// Values must be positive integers. The variable's domain will contain exactly these values.
+func (s *FDStore) NewVarWithValues(values []int) *FDVar {
+	domain := NewBitSetFromValues(values)
+	return s.NewVarWithDomain(domain)
+}
+
+// NewVarWithInterval creates a new FD variable with domain containing values from min to max inclusive.
+// Both min and max must be positive integers with min <= max.
+func (s *FDStore) NewVarWithInterval(min, max int) *FDVar {
+	domain := NewBitSetFromInterval(min, max)
+	return s.NewVarWithDomain(domain)
+}
+
 // AddAllDifferent registers pairwise peers and enqueues initial propagation
 func (s *FDStore) AddAllDifferent(vars []*FDVar) {
 	s.mu.Lock()
@@ -1308,4 +1335,56 @@ func (pcp *ParallelConstraintPropagator) coordinator() {
 	// This could be enhanced to handle dependency ordering more sophisticatedly
 	// For now, we rely on the priority system and let workers handle conflicts
 	// through the store's mutex
+}
+
+// NewBitSetFromValues creates a BitSet with only the specified values set.
+// Values must be positive integers. The resulting BitSet will have size
+// equal to the maximum value in the slice.
+func NewBitSetFromValues(values []int) BitSet {
+	if len(values) == 0 {
+		return BitSet{n: 0, words: []uint64{}}
+	}
+
+	// Find the maximum value to determine domain size
+	maxVal := 0
+	for _, v := range values {
+		if v > maxVal {
+			maxVal = v
+		}
+	}
+
+	if maxVal <= 0 {
+		return BitSet{n: 0, words: []uint64{}}
+	}
+
+	bs := NewBitSet(maxVal)
+	// Clear all bits first
+	for i := range bs.words {
+		bs.words[i] = 0
+	}
+
+	// Set only the specified values
+	for _, v := range values {
+		if v > 0 && v <= maxVal {
+			idx := (v - 1) / 64
+			off := uint((v - 1) % 64)
+			bs.words[idx] |= 1 << off
+		}
+	}
+
+	return bs
+}
+
+// NewBitSetFromInterval creates a BitSet with values from min to max inclusive.
+// Both min and max must be positive integers, and min <= max.
+func NewBitSetFromInterval(min, max int) BitSet {
+	if min < 1 || max < min {
+		return BitSet{n: 0, words: []uint64{}}
+	}
+
+	values := make([]int, 0, max-min+1)
+	for i := min; i <= max; i++ {
+		values = append(values, i)
+	}
+	return NewBitSetFromValues(values)
 }
