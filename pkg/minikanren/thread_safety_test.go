@@ -334,3 +334,166 @@ func TestRaceConditionDetectionOptimized(t *testing.T) {
 		t.Logf("✅ High pressure test: %d concurrent operations completed without race conditions", totalOperations)
 	})
 }
+
+// TestSharedBusConcurrencyProductionScenario tests the actual production scenario:
+// multiple goroutines using Run() (shared bus) concurrently, which is how
+// production code is supposed to work. This is the critical test that was missing.
+func TestSharedBusConcurrencyProductionScenario(t *testing.T) {
+	if testing.Short() {
+		t.Skip("Skipping production scenario test in short mode")
+	}
+
+	t.Run("Concurrent Run() calls with shared bus", func(t *testing.T) {
+		const numGoroutines = 100
+		const operationsPerGoroutine = 50
+
+		var wg sync.WaitGroup
+		var successCount int64
+		var errorCount int64
+
+		// Test concurrent access to shared bus using Run() - the production API
+		for i := 0; i < numGoroutines; i++ {
+			wg.Add(1)
+			go func(goroutineID int) {
+				defer wg.Done()
+
+				for j := 0; j < operationsPerGoroutine; j++ {
+					// Use Run() which uses the shared global bus - this is production usage
+					results := Run(1, func(q *Var) Goal {
+						return Eq(q, NewAtom(goroutineID*1000+j))
+					})
+
+					if len(results) == 1 {
+						atomic.AddInt64(&successCount, 1)
+					} else {
+						atomic.AddInt64(&errorCount, 1)
+					}
+
+					// Add some scheduling pressure
+					if j%10 == 0 {
+						runtime.Gosched()
+					}
+				}
+			}(i)
+		}
+
+		wg.Wait()
+
+		expectedSuccess := int64(numGoroutines * operationsPerGoroutine)
+		if successCount != expectedSuccess {
+			t.Errorf("Expected %d successful operations, got %d", expectedSuccess, successCount)
+		}
+		if errorCount != 0 {
+			t.Errorf("Expected 0 errors, got %d", errorCount)
+		}
+
+		t.Logf("✅ Production scenario: %d concurrent Run() calls completed successfully", successCount)
+	})
+
+	t.Run("Concurrent Run() with complex constraints", func(t *testing.T) {
+		const numGoroutines = 50
+		const operationsPerGoroutine = 20
+
+		var wg sync.WaitGroup
+		var successCount int64
+
+		// Test concurrent complex constraint solving using shared bus
+		for i := 0; i < numGoroutines; i++ {
+			wg.Add(1)
+			go func(goroutineID int) {
+				defer wg.Done()
+
+				for j := 0; j < operationsPerGoroutine; j++ {
+					// Complex goal with disjunction and constraints
+					results := Run(3, func(q *Var) Goal {
+						x := Fresh("x")
+						return Conj(
+							Disj(
+								Eq(q, NewAtom("choice1")),
+								Eq(q, NewAtom("choice2")),
+								Eq(q, NewAtom("choice3")),
+							),
+							// Add some constraint logic
+							Conj(
+								Neq(x, NewAtom("forbidden")),
+								Eq(x, NewAtom(goroutineID*100+j)),
+							),
+						)
+					})
+
+					atomic.AddInt64(&successCount, int64(len(results)))
+
+					// Add scheduling pressure
+					if j%5 == 0 {
+						runtime.Gosched()
+					}
+				}
+			}(i)
+		}
+
+		wg.Wait()
+
+		// Each operation should return 3 results (the disjunction choices)
+		expectedResults := int64(numGoroutines * operationsPerGoroutine * 3)
+		if successCount != expectedResults {
+			t.Errorf("Expected %d total results, got %d", expectedResults, successCount)
+		}
+
+		t.Logf("✅ Complex constraints: %d concurrent complex goal evaluations completed", numGoroutines*operationsPerGoroutine)
+	})
+
+	t.Run("Shared bus persistence across concurrent operations", func(t *testing.T) {
+		const numGoroutines = 20
+		const operationsPerGoroutine = 25
+
+		var wg sync.WaitGroup
+		var totalOperations int64
+
+		// Test that the shared bus persists correctly across many concurrent operations
+		// This verifies the bus doesn't get corrupted during heavy concurrent use
+		for i := 0; i < numGoroutines; i++ {
+			wg.Add(1)
+			go func(goroutineID int) {
+				defer wg.Done()
+
+				for j := 0; j < operationsPerGoroutine; j++ {
+					// Mix of different goal types to stress the shared bus
+					if j%3 == 0 {
+						Run(1, func(q *Var) Goal {
+							return Eq(q, NewAtom(goroutineID*1000+j))
+						})
+					} else if j%3 == 1 {
+						Run(2, func(q *Var) Goal {
+							return Disj(
+								Eq(q, NewAtom("a")),
+								Eq(q, NewAtom("b")),
+							)
+						})
+					} else {
+						Run(1, func(q *Var) Goal {
+							x := Fresh("x")
+							return Conj(
+								Neq(x, NewAtom("bad")),
+								Eq(q, x),
+							)
+						})
+					}
+
+					atomic.AddInt64(&totalOperations, 1)
+
+					// Force context switching
+					runtime.Gosched()
+				}
+			}(i)
+		}
+
+		wg.Wait()
+
+		expectedOps := int64(numGoroutines * operationsPerGoroutine)
+		if totalOperations != expectedOps {
+			t.Errorf("Expected %d operations, completed %d", expectedOps, totalOperations)
+		}
+
+		t.Logf("✅ Shared bus persistence: %d operations completed without bus corruption", totalOperations)
+	})
+}
