@@ -6,6 +6,11 @@ import (
 	"sync/atomic"
 )
 
+// Context key for passing search strategy through context
+type contextKey string
+
+const searchStrategyKey contextKey = "searchStrategy"
+
 // Variable counter for generating unique variable IDs
 var varCounter int64
 
@@ -547,4 +552,114 @@ func Appendo(l1, l2, l3 Term) Goal {
 			)(ctx, store)
 		},
 	)
+}
+
+// RunDB executes a goal using database-style search optimized for fact-based queries.
+// This uses breadth-first search with constraint-first variable ordering,
+// making it suitable for database-like queries and rule-based systems.
+// Returns up to n solutions, or all solutions if n <= 0.
+//
+// Example:
+//
+//	solutions := RunDB(10, func(q *Var) Goal {
+//	    return QueryFacts(q) // Database-style fact querying
+//	})
+func RunDB(n int, goalFunc func(*Var) Goal) []Term {
+	return RunDBWithContext(context.Background(), n, goalFunc)
+}
+
+// RunDBWithContext executes a goal using database-style search with context support.
+func RunDBWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term {
+	// Validate context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check for immediate cancellation
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+
+	// Add database search strategy to context
+	ctx = context.WithValue(ctx, searchStrategyKey, NewDatabaseSearch())
+
+	q := Fresh("q")
+	goal := goalFunc(q)
+
+	// Use shared global bus for better performance
+	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
+	defer initialStore.Shutdown() // Ensure cleanup
+
+	stream := goal(ctx, initialStore)
+
+	solutions, _, err := stream.Take(ctx, n)
+	if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+		// Re-panic for unexpected errors
+		panic(err)
+	}
+
+	var results []Term
+	for _, store := range solutions {
+		value := store.GetSubstitution().DeepWalk(q)
+		results = append(results, value)
+	}
+
+	return results
+}
+
+// RunNC executes a goal using non-chronological search for constraint optimization.
+// This uses iterative deepening to provide anytime behavior and avoid memory issues
+// of pure depth-first search. Useful for constraint optimization problems.
+// Returns up to n solutions, or all solutions if n <= 0.
+//
+// Example:
+//
+//	solutions := RunNC(10, func(q *Var) Goal {
+//	    return OptimizeConstraints(q) // Constraint optimization
+//	})
+func RunNC(n int, goalFunc func(*Var) Goal) []Term {
+	return RunNCWithContext(context.Background(), n, goalFunc)
+}
+
+// RunNCWithContext executes a goal using non-chronological search with context support.
+func RunNCWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term {
+	// Validate context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// Check for immediate cancellation
+	select {
+	case <-ctx.Done():
+		return nil
+	default:
+	}
+
+	// Add non-chronological search strategy to context
+	ctx = context.WithValue(ctx, searchStrategyKey, NewNonChronologicalSearch(100, 1))
+
+	q := Fresh("q")
+	goal := goalFunc(q)
+
+	// Use shared global bus for better performance
+	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
+	defer initialStore.Shutdown() // Ensure cleanup
+
+	stream := goal(ctx, initialStore)
+
+	solutions, _, err := stream.Take(ctx, n)
+	if err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+		// Re-panic for unexpected errors
+		panic(err)
+	}
+
+	var results []Term
+	for _, store := range solutions {
+		value := store.GetSubstitution().DeepWalk(q)
+		results = append(results, value)
+	}
+
+	return results
 }

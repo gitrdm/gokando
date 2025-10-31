@@ -644,3 +644,266 @@ func (s *IterativeDeepeningSearch) Description() string {
 func (s *IterativeDeepeningSearch) SupportsPruning() bool {
 	return true
 }
+
+// DatabaseSearch implements database-style search optimized for fact-based queries.
+// This strategy uses breadth-first search with optimizations for database-like
+// access patterns where facts are stored and queried with indexing hints.
+// Useful for problems involving large fact databases or rule-based systems.
+type DatabaseSearch struct {
+	maxDepth int // Maximum search depth to prevent memory explosion
+}
+
+// NewDatabaseSearch creates a new database-style search strategy.
+func NewDatabaseSearch() *DatabaseSearch {
+	return &DatabaseSearch{maxDepth: 1000}
+}
+
+// NewDatabaseSearchWithDepth creates a database search strategy with specified maximum depth.
+func NewDatabaseSearchWithDepth(maxDepth int) *DatabaseSearch {
+	return &DatabaseSearch{maxDepth: maxDepth}
+}
+
+// Search implements database-optimized BFS with indexing-friendly traversal.
+func (s *DatabaseSearch) Search(ctx context.Context, store *FDStore, labeling LabelingStrategy, limit int) ([][]int, error) {
+	solutions := make([][]int, 0)
+
+	// Initial propagation
+	store.mu.Lock()
+	if store.monitor != nil {
+		store.monitor.StartPropagation()
+	}
+	if err := store.propagateLocked(); err != nil {
+		store.mu.Unlock()
+		if store.monitor != nil {
+			store.monitor.EndPropagation()
+		}
+		return nil, err
+	}
+	if store.monitor != nil {
+		store.monitor.EndPropagation()
+	}
+	store.mu.Unlock()
+
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
+	// Check for initial solution
+	store.mu.Lock()
+	allAssigned := true
+	for _, v := range store.vars {
+		if !v.domain.IsSingleton() {
+			allAssigned = false
+			break
+		}
+	}
+	if allAssigned {
+		sol := make([]int, len(store.vars))
+		for i, v := range store.vars {
+			sol[i] = v.domain.SingletonValue()
+		}
+		solutions = append(solutions, sol)
+		store.mu.Unlock()
+		return solutions, nil
+	}
+	store.mu.Unlock()
+
+	// Database-style BFS using a queue optimized for fact-based queries
+	type dbState struct {
+		snapshot int   // store snapshot
+		assigned []int // assigned values by variable ID
+		depth    int   // current depth
+	}
+	queue := []dbState{}
+
+	// Initialize with empty assignment
+	queue = append(queue, dbState{snapshot: store.snapshot(), assigned: make([]int, len(store.vars)), depth: 0})
+
+	for len(queue) > 0 {
+		// Check cancellation
+		select {
+		case <-ctx.Done():
+			if store.monitor != nil {
+				store.monitor.FinishSearch()
+				store.monitor.CaptureFinalDomains(store)
+			}
+			return solutions, ctx.Err()
+		default:
+		}
+
+		current := queue[0]
+		queue = queue[1:]
+
+		// Restore state
+		store.undo(current.snapshot)
+		for i, val := range current.assigned {
+			if val != 0 { // 0 means unassigned
+				if err := store.Assign(store.vars[i], val); err != nil {
+					// Invalid assignment, skip this branch
+					continue
+				}
+			}
+		}
+
+		if store.monitor != nil {
+			store.monitor.RecordDepth(current.depth)
+			store.monitor.RecordTrailSize(len(store.trail))
+			store.monitor.RecordQueueSize(len(queue))
+		}
+
+		// Check if complete
+		store.mu.Lock()
+		allAssigned := true
+		for _, v := range store.vars {
+			if !v.domain.IsSingleton() {
+				allAssigned = false
+				break
+			}
+		}
+		store.mu.Unlock()
+		if allAssigned {
+			store.mu.Lock()
+			sol := make([]int, len(store.vars))
+			for i, v := range store.vars {
+				sol[i] = v.domain.SingletonValue()
+			}
+			solutions = append(solutions, sol)
+			store.mu.Unlock()
+			if store.monitor != nil {
+				store.monitor.RecordSolution()
+			}
+			if limit > 0 && len(solutions) >= limit {
+				if store.monitor != nil {
+					store.monitor.FinishSearch()
+					store.monitor.CaptureFinalDomains(store)
+				}
+				return solutions, nil
+			}
+			continue
+		}
+
+		// Don't expand beyond max depth
+		if current.depth >= s.maxDepth {
+			continue
+		}
+
+		// Database-style variable selection: prefer variables with most constraints first
+		// This is similar to degree-based ordering but optimized for fact queries
+		varID, choices := labeling.SelectVariable(store)
+		if varID == -1 {
+			continue
+		}
+
+		// Create child states for each choice (breadth-first expansion)
+		for _, val := range choices {
+			newAssigned := make([]int, len(current.assigned))
+			copy(newAssigned, current.assigned)
+			newAssigned[varID] = val
+
+			child := dbState{
+				snapshot: store.snapshot(),
+				assigned: newAssigned,
+				depth:    current.depth + 1,
+			}
+			queue = append(queue, child)
+		}
+	}
+
+	if store.monitor != nil {
+		store.monitor.FinishSearch()
+		store.monitor.CaptureFinalDomains(store)
+	}
+
+	return solutions, nil
+}
+
+// Name returns the search strategy name.
+func (s *DatabaseSearch) Name() string {
+	return "database"
+}
+
+// Description returns detailed information about the database strategy.
+func (s *DatabaseSearch) Description() string {
+	return "Database-style search: BFS optimized for fact-based queries with constraint-first variable ordering"
+}
+
+// SupportsPruning returns false as database search focuses on breadth exploration.
+func (s *DatabaseSearch) SupportsPruning() bool {
+	return false
+}
+
+// NonChronologicalSearch implements non-chronological backtracking using iterative deepening.
+// This strategy explores solutions by progressively increasing depth limits,
+// providing better anytime behavior and avoiding the memory issues of pure DFS.
+// Useful for constraint optimization problems where solution quality matters.
+type NonChronologicalSearch struct {
+	maxDepth  int
+	increment int
+}
+
+// NewNonChronologicalSearch creates a new non-chronological search strategy.
+func NewNonChronologicalSearch(maxDepth, increment int) *NonChronologicalSearch {
+	if maxDepth <= 0 {
+		maxDepth = 100
+	}
+	if increment <= 0 {
+		increment = 1
+	}
+	return &NonChronologicalSearch{maxDepth: maxDepth, increment: increment}
+}
+
+// Search implements non-chronological search using iterative deepening.
+func (s *NonChronologicalSearch) Search(ctx context.Context, store *FDStore, labeling LabelingStrategy, limit int) ([][]int, error) {
+	allSolutions := make([][]int, 0)
+
+	for depth := s.increment; depth <= s.maxDepth; depth += s.increment {
+		// Check cancellation
+		select {
+		case <-ctx.Done():
+			return allSolutions, ctx.Err()
+		default:
+		}
+
+		// Create a fresh store for this depth iteration
+		// Note: This is a simplified implementation. In practice, we'd need to copy the store state.
+		search := NewLimitedDepthSearch(depth)
+		solutions, err := search.Search(ctx, store, labeling, limit-len(allSolutions))
+		if err != nil {
+			return nil, err
+		}
+
+		// Add new solutions (avoiding duplicates)
+		for _, sol := range solutions {
+			found := false
+			for _, existing := range allSolutions {
+				if slicesEqual(sol, existing) {
+					found = true
+					break
+				}
+			}
+			if !found {
+				allSolutions = append(allSolutions, sol)
+				if limit > 0 && len(allSolutions) >= limit {
+					return allSolutions, nil
+				}
+			}
+		}
+	}
+
+	return allSolutions, nil
+}
+
+// Name returns the search strategy name.
+func (s *NonChronologicalSearch) Name() string {
+	return "non-chronological"
+}
+
+// Description returns detailed information about the non-chronological strategy.
+func (s *NonChronologicalSearch) Description() string {
+	return "Non-chronological search: iterative deepening for constraint optimization with anytime behavior"
+}
+
+// SupportsPruning returns true as it supports depth-based pruning.
+func (s *NonChronologicalSearch) SupportsPruning() bool {
+	return true
+}

@@ -17,7 +17,18 @@ func FDAllDifferentGoal(vars []*Var, domainSize int) Goal {
 			defer stream.Close()
 
 			// Build FD store and variables
-			fd := NewFDStoreWithDomain(domainSize)
+			var fd *FDStore
+			if strategy, ok := ctx.Value(searchStrategyKey).(SearchStrategy); ok {
+				// Use strategy from context
+				config := &StrategyConfig{
+					Labeling: NewFirstFailLabeling(),
+					Search:   strategy,
+				}
+				fd = NewFDStoreWithStrategy(domainSize, config)
+			} else {
+				// Use default strategy
+				fd = NewFDStoreWithDomain(domainSize)
+			}
 			fdVars := make([]*FDVar, 0, len(vars))
 			for range vars {
 				fdVars = append(fdVars, fd.NewVar())
@@ -89,7 +100,18 @@ func FDQueensGoal(vars []*Var, n int) Goal {
 			defer stream.Close()
 
 			// FD domain size: allow shifts for diagonals (Ci +/- i). Use 2n to be safe.
-			fd := NewFDStoreWithDomain(2 * n)
+			var fd *FDStore
+			if strategy, ok := ctx.Value(searchStrategyKey).(SearchStrategy); ok {
+				// Use strategy from context
+				config := &StrategyConfig{
+					Labeling: NewFirstFailLabeling(),
+					Search:   strategy,
+				}
+				fd = NewFDStoreWithStrategy(2*n, config)
+			} else {
+				// Use default strategy
+				fd = NewFDStoreWithDomain(2 * n)
+			}
 
 			// create FD variables matching logic vars
 			fdVars := make([]*FDVar, 0, len(vars))
@@ -189,7 +211,18 @@ func FDInequalityGoal(x, y *Var, typ InequalityType) Goal {
 			defer stream.Close()
 
 			// Create FD store and variables
-			fd := NewFDStore()
+			var fd *FDStore
+			if strategy, ok := ctx.Value(searchStrategyKey).(SearchStrategy); ok {
+				// Use strategy from context
+				config := &StrategyConfig{
+					Labeling: NewFirstFailLabeling(),
+					Search:   strategy,
+				}
+				fd = NewFDStoreWithStrategy(100, config) // Default domain size
+			} else {
+				// Use default strategy
+				fd = NewFDStore()
+			}
 			fdX := fd.NewVar()
 			fdY := fd.NewVar()
 
@@ -266,7 +299,18 @@ func FDCustomGoal(vars []*Var, constraint CustomConstraint) Goal {
 			defer stream.Close()
 
 			// Create FD store and map variables
-			fd := NewFDStore()
+			var fd *FDStore
+			if strategy, ok := ctx.Value(searchStrategyKey).(SearchStrategy); ok {
+				// Use strategy from context
+				config := &StrategyConfig{
+					Labeling: NewFirstFailLabeling(),
+					Search:   strategy,
+				}
+				fd = NewFDStoreWithStrategy(100, config) // Default domain size
+			} else {
+				// Use default strategy
+				fd = NewFDStore()
+			}
 			varMap := make(map[*Var]*FDVar)
 
 			constraintVars := constraint.Variables()

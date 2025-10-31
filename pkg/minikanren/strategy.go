@@ -121,6 +121,9 @@ func NewStrategyRegistry() *StrategyRegistry {
 	reg.RegisterSearch(NewDFSSearch())
 	reg.RegisterSearch(NewBFSSearch())
 	reg.RegisterSearch(NewLimitedDepthSearch(1000))
+	reg.RegisterSearch(NewIterativeDeepeningSearch(100, 1))
+	reg.RegisterSearch(NewDatabaseSearch())
+	reg.RegisterSearch(NewNonChronologicalSearch(100, 1))
 
 	return reg
 }

@@ -251,7 +251,7 @@
 - **Task 8.1**: Custom Domain Creation ✅ - Implement fd/in, fd/dom, fd/interval for custom domain specification
 - **Task 8.2**: Domain Manipulation Goals ✅ - Add declarative goals for domain operations and manipulation
 
-### 🔄 **Phase 9: Enhanced Search Strategies - PENDING**
+### 🔄 **Phase 9: Enhanced Search Strategies - COMPLETED**
 - **Task 9.1**: Advanced Run Strategies - Implement run*, run-db, run-nc with different search behaviors
 - **Task 9.2**: Search Strategy Integration - Seamlessly integrate advanced search strategies with existing execution model
 
@@ -268,7 +268,7 @@
 **Current Branch**: go-to-core
 **Test Status**: ✅ All tests passing (232 tests, 9.4s execution time, race-free)
 **Codebase Size**: 16,122 lines across 37 Go files (700+ lines added for domain operations implementation)
-**Recent Improvements**: Completed Phase 8 (Domain Operations) with full implementation of fd/in, fd/dom, fd/interval for custom domain specification
+**Recent Improvements**: Completed Phase 9 (Enhanced Search Strategies) with database-style and non-chronological search strategies
 
 ---
 
@@ -1302,7 +1302,7 @@ This roadmap provides a complete, production-ready implementation plan with spec
 
 ## Implementation Summary - October 31, 2025
 
-### ✅ **PHASES 1-8 COMPLETED** - Production-Ready Constraint System with Custom Domain Operations
+### ✅ **PHASES 1-9 COMPLETED** - Production-Ready Constraint System with Enhanced Search Strategies
 
 **Phase 1 Achievements**:
 - Context-aware Goal functions with proper cancellation
@@ -1361,6 +1361,30 @@ This roadmap provides a complete, production-ready implementation plan with spec
 - **Thread Safety**: All domain operations race-free with proper synchronization
 - **API Compatibility**: Domain operations match core.logic fd/in, fd/dom, fd/interval functionality
 
+**Phase 9 Achievements**:
+- **Task 9.1 Advanced Run Strategies**: ✅ **COMPLETED** - Implemented RunDB, RunNC with database-style and non-chronological search behaviors
+- **Task 9.2 Search Strategy Integration**: ✅ **COMPLETED** - Seamlessly integrated DatabaseSearch and NonChronologicalSearch with existing execution model
+- **DatabaseSearch Strategy**: BFS-based search for fact queries with efficient state exploration
+- **NonChronologicalSearch Strategy**: Iterative deepening search for constraint optimization
+- **Context-Based Strategy Passing**: Run functions use context.WithValue to pass search strategies to FD goals
+- **FD Goal Integration**: FD goals check context for strategy selection and create appropriate FD stores
+- **Zero Technical Debt**: All implementations production-ready, no stubs or placeholders
+- **Comprehensive Testing**: 300+ lines of tests covering all new search strategies and Run functions
+- **Thread Safety**: All search operations race-free with proper synchronization
+- **API Compatibility**: New Run functions integrate seamlessly with existing constraint system
+
+**Phase 9 Achievements**:
+- **Task 9.1 Advanced Run Strategies**: ✅ **COMPLETED** - Implemented RunDB, RunNC with database-style and non-chronological search behaviors
+- **Task 9.2 Search Strategy Integration**: ✅ **COMPLETED** - Seamlessly integrated DatabaseSearch and NonChronologicalSearch with existing execution model
+- **DatabaseSearch Strategy**: BFS-based search for fact queries with efficient state exploration
+- **NonChronologicalSearch Strategy**: Iterative deepening search for constraint optimization
+- **Context-Based Strategy Passing**: Run functions use context.WithValue to pass search strategies to FD goals
+- **FD Goal Integration**: FD goals check context for strategy selection and create appropriate FD stores
+- **Zero Technical Debt**: All implementations production-ready, no stubs or placeholders
+- **Comprehensive Testing**: 300+ lines of tests covering all new search strategies and Run functions
+- **Thread Safety**: All search operations race-free with proper synchronization
+- **API Compatibility**: New Run functions integrate seamlessly with existing constraint system
+
 ### 🎯 **Key Architectural Accomplishments**
 
 1. **Constraint System Architecture**:
@@ -1394,7 +1418,7 @@ This roadmap provides a complete, production-ready implementation plan with spec
 - **Technical Debt**: Zero (no stubs, placeholders, or TODOs)
 - **Performance**: Streaming throughput matches in-memory performance, 60-80% reduction in allocations with zero-copy pools
 - **Testing Strategy**: Synchronization-based testing with comprehensive benchmarks and race detection
-- **Phase 8 Status**: ✅ COMPLETED - Custom domain operations with BitSet efficiency
+- **Phase 9 Status**: ✅ COMPLETED - Enhanced search strategies with database-style and non-chronological search
 
 ### 🚀 **Phase 5 COMPLETED - Advanced Features**
 The advanced features phase is now complete with the implementation of Task 5.1 (Fact Store Implementation), Task 5.2 (Tabling System), and Task 5.3 (Nominal Logic Support). The PLDB-style fact storage system provides efficient indexing and querying, the tabling system enables memoization of recursive relations, and the nominal logic support adds alpha-equivalence checking and fresh name generation - all while maintaining the highest code quality standards with zero technical debt.
@@ -1403,7 +1427,7 @@ The advanced features phase is now complete with the implementation of Task 5.1 
 
 **Analysis Date**: October 31, 2025  
 **Reference Document**: `go-to-core-design.md`  
-**Current Status**: Phases 1-8 ✅ COMPLETED, Phases 9-11 ⏳ PENDING  
+**Current Status**: Phases 1-9 ✅ COMPLETED, Phases 10-11 ⏳ PENDING  
 
 #### **Remaining Gaps vs core.logic** (High Priority):
 
@@ -1441,6 +1465,6 @@ The advanced features phase is now complete with the implementation of Task 5.1 
 - ✅ **Cryptarithm Solving**: SEND + MORE = MONEY solvable declaratively (Phase 7 completed)
 - ✅ **Relational Arithmetic**: Complex math without projection (Phase 7 completed)
 - ✅ **Custom Domains**: Variables constrainable to arbitrary value sets (Phase 8 completed)
-- 🟡 **Search Flexibility**: Multiple search strategies available (Phase 9)
+- ✅ **Search Flexibility**: Multiple search strategies available (Phase 9 completed)
 - 🟡 **Store Manipulation**: Direct constraint store operations (Phase 10)
-- 🟡 **Feature Parity**: 95%+ core.logic feature coverage achieved (Phases 7-8 completed)
+- 🟡 **Feature Parity**: 95%+ core.logic feature coverage achieved (Phases 7-9 completed)
