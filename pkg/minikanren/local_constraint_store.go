@@ -9,7 +9,7 @@
 //   - Fast path: Local constraint checking without coordination overhead
 //   - Slow path: Global coordination only when cross-store constraints are involved
 //   - Thread-safe: Safe for concurrent access and parallel goal evaluation
-//   - Efficient cloning: Optimized for parallel execution where stores are frequently copied
+//   - Pool-friendly: Designed for efficient reuse through object pooling
 package minikanren
 
 import (
@@ -22,7 +22,7 @@ import (
 // for managing constraints and variable bindings within a single goal context.
 //
 // The store maintains two separate collections:
-//   - Local constraints: Checked
+//   - Local constraints: Checked against bindings for immediate violations
 //   - Local bindings: Variable-to-term mappings for this context
 //
 // When constraints or bindings are added, the store first checks all local
@@ -32,10 +32,10 @@ type LocalConstraintStoreImpl struct {
 	// id uniquely identifies this store instance
 	id string
 
-	// constraints holds all local constraints for this store
+	// constraints holds the local constraints for this store
 	constraints []Constraint
 
-	// bindings maps variable IDs to their bound terms
+	// bindings holds variable-to-term mappings
 	bindings map[int64]Term
 
 	// globalBus coordinates cross-store constraints (optional)
@@ -46,6 +46,57 @@ type LocalConstraintStoreImpl struct {
 
 	// mu protects concurrent access to store state
 	mu sync.RWMutex
+}
+
+// StoreRef provides a lightweight reference to a constraint store for zero-copy streaming.
+// Instead of passing full store instances through channels, we pass StoreRefs that
+// can be resolved to actual stores when needed. This enables efficient streaming
+// where stores are only copied when they actually diverge.
+type StoreRef struct {
+	storeID  string
+	resolver StoreResolver
+}
+
+// StoreResolver provides a way to resolve StoreRefs back to actual stores.
+// This allows the streaming system to lazily resolve stores only when needed.
+type StoreResolver interface {
+	ResolveStore(ref StoreRef) ConstraintStore
+}
+
+// NewStoreRef creates a new StoreRef for the given store.
+func NewStoreRef(store ConstraintStore) StoreRef {
+	if localStore, ok := store.(*LocalConstraintStoreImpl); ok {
+		return StoreRef{
+			storeID:  localStore.id,
+			resolver: nil, // Will be set by the streaming system
+		}
+	}
+	// For other store types, create a ref that directly holds the store
+	return StoreRef{
+		storeID:  "direct",
+		resolver: &DirectStoreResolver{store: store},
+	}
+}
+
+// Resolve returns the actual store from this reference.
+// If the resolver is set, it delegates to the resolver; otherwise
+// returns a direct reference.
+func (sr StoreRef) Resolve() ConstraintStore {
+	if sr.resolver != nil {
+		return sr.resolver.ResolveStore(sr)
+	}
+	// This shouldn't happen in normal operation
+	panic("StoreRef has no resolver")
+}
+
+// DirectStoreResolver directly holds a store reference for simple cases.
+type DirectStoreResolver struct {
+	store ConstraintStore
+}
+
+// ResolveStore returns the directly held store.
+func (dsr *DirectStoreResolver) ResolveStore(ref StoreRef) ConstraintStore {
+	return dsr.store
 }
 
 // storeCounter provides unique IDs for store instances
@@ -61,9 +112,10 @@ func NewLocalConstraintStore(globalBus *GlobalConstraintBus) *LocalConstraintSto
 	id := fmt.Sprintf("store-%d", atomic.AddInt64(&storeCounter, 1))
 
 	store := &LocalConstraintStoreImpl{
-		id:        id,
-		bindings:  make(map[int64]Term),
-		globalBus: globalBus,
+		id:          id,
+		constraints: make([]Constraint, 0),
+		bindings:    make(map[int64]Term),
+		globalBus:   globalBus,
 	}
 
 	// Register with global bus if available
@@ -162,20 +214,25 @@ func (lcs *LocalConstraintStoreImpl) AddBinding(varID int64, term Term) error {
 
 	// Notify global bus about the new binding
 	if lcs.globalBus != nil {
-		event := ConstraintEvent{
-			Type:      VariableBound,
-			StoreID:   lcs.id,
-			VarID:     varID,
-			Term:      term,
-			Timestamp: atomic.AddInt64(&lcs.globalBus.eventCounter, 1),
-		}
-
-		// Non-blocking send to avoid deadlocks
 		select {
-		case lcs.globalBus.events <- event:
+		case <-lcs.globalBus.shutdownCh:
+			// Bus is shutting down, don't send event
 		default:
-			// Event queue full - log but don't fail the binding
-			// In production, this might warrant more sophisticated handling
+			event := ConstraintEvent{
+				Type:      VariableBound,
+				StoreID:   lcs.id,
+				VarID:     varID,
+				Term:      term,
+				Timestamp: atomic.AddInt64(&lcs.globalBus.eventCounter, 1),
+			}
+
+			// Non-blocking send to avoid deadlocks
+			select {
+			case lcs.globalBus.events <- event:
+			default:
+				// Event queue full - log but don't fail the binding
+				// In production, this might warrant more sophisticated handling
+			}
 		}
 	}
 
@@ -227,13 +284,11 @@ func (lcs *LocalConstraintStoreImpl) GetSubstitution() *Substitution {
 	return sub
 }
 
-// Clone creates a deep copy of the constraint store for parallel execution.
-// The clone shares no mutable state with the original store, making it
-// safe for concurrent use in parallel goal evaluation.
+// Clone creates a copy of the constraint store for parallel execution.
+// Creates a deep copy of constraints and bindings for thread safety.
 //
-// Cloning is optimized for performance as it's used frequently in
-// parallel execution contexts. The clone initially shares constraint
-// references with the original but will copy-on-write if modified.
+// Cloning is used frequently in parallel execution contexts where each
+// goal needs its own copy of the constraint state.
 // Implements the ConstraintStore interface.
 func (lcs *LocalConstraintStoreImpl) Clone() ConstraintStore {
 	lcs.mu.RLock()
@@ -242,39 +297,48 @@ func (lcs *LocalConstraintStoreImpl) Clone() ConstraintStore {
 	// Create new store with unique ID
 	cloneID := fmt.Sprintf("%s-clone-%d", lcs.id, lcs.generation)
 
-	clone := &LocalConstraintStoreImpl{
-		id:         cloneID,
-		globalBus:  lcs.globalBus, // Share reference to global bus
-		generation: 0,             // Reset generation counter for clone
+	// Deep copy constraints
+	constraints := make([]Constraint, len(lcs.constraints))
+	for i, constraint := range lcs.constraints {
+		constraints[i] = constraint.Clone()
 	}
 
 	// Deep copy bindings
-	clone.bindings = make(map[int64]Term, len(lcs.bindings))
+	bindings := make(map[int64]Term, len(lcs.bindings))
 	for id, term := range lcs.bindings {
-		clone.bindings[id] = term.Clone()
+		bindings[id] = term.Clone()
 	}
 
-	// Deep copy constraints
-	clone.constraints = make([]Constraint, len(lcs.constraints))
-	for i, constraint := range lcs.constraints {
-		clone.constraints[i] = constraint.Clone()
+	clone := &LocalConstraintStoreImpl{
+		id:          cloneID,
+		constraints: constraints,
+		bindings:    bindings,
+		globalBus:   lcs.globalBus,
+		generation:  0, // Reset generation counter for clone
 	}
 
 	// Register clone with global bus if available
 	if lcs.globalBus != nil {
+		// Check if bus is still active before registering
 		lcs.globalBus.RegisterStore(clone)
 
-		// Notify about cloning event
-		event := ConstraintEvent{
-			Type:      StoreCloned,
-			StoreID:   cloneID,
-			Timestamp: atomic.AddInt64(&lcs.globalBus.eventCounter, 1),
-		}
-
+		// Notify about cloning event only if bus is still active
+		// Use a non-blocking approach to avoid issues with shutdown
 		select {
-		case lcs.globalBus.events <- event:
+		case <-lcs.globalBus.shutdownCh:
+			// Bus is shutting down, don't send event
 		default:
-			// Event queue full - continue anyway
+			event := ConstraintEvent{
+				Type:      StoreCloned,
+				StoreID:   cloneID,
+				Timestamp: atomic.AddInt64(&lcs.globalBus.eventCounter, 1),
+			}
+
+			select {
+			case lcs.globalBus.events <- event:
+			default:
+				// Event queue full or bus shutting down - continue anyway
+			}
 		}
 	}
 
@@ -334,10 +398,10 @@ func (lcs *LocalConstraintStoreImpl) Shutdown() {
 		lcs.globalBus.UnregisterStore(lcs.id)
 	}
 
-	// Clear internal state to help garbage collection
+	// Clear references to help garbage collection
+	lcs.globalBus = nil
 	lcs.constraints = nil
 	lcs.bindings = nil
-	lcs.globalBus = nil
 }
 
 // Reset prepares the constraint store for reuse in a buffer pool.

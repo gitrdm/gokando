@@ -115,33 +115,37 @@ func unify(term1, term2 Term, sub *Substitution) *Substitution {
 // Returns a new constraint store if unification succeeds, and a boolean
 // indicating success. This replaces the old unify function to work with
 // the order-independent constraint system.
+//
+// OPTIMIZATION: For simple variable bindings, avoid cloning when possible.
 func unifyWithConstraints(term1, term2 Term, store ConstraintStore) (ConstraintStore, bool) {
-	// Clone the store to avoid modifying the original
-	newStore := store.Clone()
-
 	// Get current substitution for walking terms
-	currentSub := newStore.GetSubstitution()
+	currentSub := store.GetSubstitution()
 
 	// Walk both terms to their final values
 	t1 := currentSub.Walk(term1)
 	t2 := currentSub.Walk(term2)
 
-	// If they're the same object, unification succeeds
+	// If they're the same object, unification succeeds - return original store
 	if t1.Equal(t2) {
-		return newStore, true
+		return store, true
 	}
 
 	// If t1 is a variable, bind it to t2
 	if t1.IsVar() {
+		// Clone the store and add the binding
+		newStore := store.Clone()
 		err := newStore.AddBinding(t1.(*Var).id, t2)
 		return newStore, err == nil
 	}
 
 	// If t2 is a variable, bind it to t1
 	if t2.IsVar() {
+		// Clone the store and add the binding
+		newStore := store.Clone()
 		err := newStore.AddBinding(t2.(*Var).id, t1)
 		return newStore, err == nil
-	}
+	} // For complex unification (pairs, etc.), clone the store
+	newStore := store.Clone()
 
 	// If both are pairs, unify recursively
 	if p1, ok := t1.(*Pair); ok {

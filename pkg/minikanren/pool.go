@@ -8,6 +8,9 @@ import (
 	"time"
 )
 
+// pooledStoreCounter provides unique IDs for pooled stores
+var pooledStoreCounter int64
+
 // ConstraintStorePool provides zero-copy buffer pooling for ConstraintStore instances.
 // This enables efficient reuse of constraint stores in high-throughput streaming scenarios,
 // reducing garbage collection pressure and memory allocations.
@@ -225,109 +228,198 @@ func (csp *ConstraintStorePool) HitRate() float64 {
 }
 
 // PooledResultStream extends ChannelResultStream with buffer pool integration
-// for zero-copy streaming. This implementation reuses constraint stores
-// from a pool to minimize allocations in high-throughput scenarios.
+// for zero-copy streaming. This implementation uses StoreRefs to pass lightweight
+// references through channels, enabling true zero-copy streaming where stores
+// are only copied when they actually diverge.
 type PooledResultStream struct {
-	*ChannelResultStream
+	refCh     chan StoreRef // Channel for StoreRefs instead of full stores
 	pool      *ConstraintStorePool
-	useGlobal bool // Whether to use global bus stores
+	useGlobal bool                 // Whether to use global bus stores
+	resolver  *PooledStoreResolver // Resolver for StoreRefs
+	count     int64                // Atomic counter for results
+	closed    int32                // Atomic flag for closed state
+	mu        sync.Mutex
+}
+
+// PooledStoreResolver resolves StoreRefs for pooled streaming.
+// It maintains a registry of stores and provides lazy resolution.
+type PooledStoreResolver struct {
+	stores    map[string]ConstraintStore
+	mu        sync.RWMutex
+	pool      *ConstraintStorePool
+	useGlobal bool
+}
+
+// NewPooledStoreResolver creates a new resolver for pooled stores.
+func NewPooledStoreResolver(pool *ConstraintStorePool, useGlobal bool) *PooledStoreResolver {
+	return &PooledStoreResolver{
+		stores:    make(map[string]ConstraintStore),
+		pool:      pool,
+		useGlobal: useGlobal,
+	}
+}
+
+// RegisterStore registers a store with the resolver for later retrieval.
+func (psr *PooledStoreResolver) RegisterStore(store ConstraintStore) StoreRef {
+	psr.mu.Lock()
+	defer psr.mu.Unlock()
+
+	// Generate a unique ID for this store
+	storeID := fmt.Sprintf("pooled-%d", atomic.AddInt64(&pooledStoreCounter, 1))
+	psr.stores[storeID] = store
+
+	return StoreRef{
+		storeID:  storeID,
+		resolver: psr,
+	}
+}
+
+// ResolveStore resolves a StoreRef back to a ConstraintStore.
+// Implements the StoreResolver interface.
+func (psr *PooledStoreResolver) ResolveStore(ref StoreRef) ConstraintStore {
+	psr.mu.RLock()
+	store, exists := psr.stores[ref.storeID]
+	psr.mu.RUnlock()
+
+	if exists {
+		return store
+	}
+
+	// Store not found - this shouldn't happen in normal operation
+	// Return a fresh store as fallback
+	if psr.pool != nil {
+		if psr.useGlobal {
+			return psr.pool.GetGlobal()
+		} else {
+			return psr.pool.GetLocal()
+		}
+	}
+
+	if psr.useGlobal {
+		return NewLocalConstraintStore(NewGlobalConstraintBus())
+	}
+	return NewLocalConstraintStore(nil)
+}
+
+// Cleanup removes a store from the resolver when it's no longer needed.
+func (psr *PooledStoreResolver) Cleanup(storeID string) {
+	psr.mu.Lock()
+	defer psr.mu.Unlock()
+
+	if store, exists := psr.stores[storeID]; exists {
+		delete(psr.stores, storeID)
+		// Return store to pool
+		if psr.pool != nil {
+			if psr.useGlobal {
+				psr.pool.PutGlobal(store)
+			} else {
+				psr.pool.PutLocal(store)
+			}
+		}
+	}
 }
 
 // NewPooledResultStream creates a new pooled result stream with the specified buffer size.
 // The pool parameter controls store reuse, and useGlobal determines whether
 // stores should have global constraint bus integration.
 func NewPooledResultStream(pool *ConstraintStorePool, bufferSize int, useGlobal bool) ResultStream {
+	resolver := NewPooledStoreResolver(pool, useGlobal)
+
 	return &PooledResultStream{
-		ChannelResultStream: &ChannelResultStream{
-			ch: make(chan ConstraintStore, bufferSize),
-		},
+		refCh:     make(chan StoreRef, bufferSize),
 		pool:      pool,
 		useGlobal: useGlobal,
+		resolver:  resolver,
 	}
 }
 
-// Put implements ResultStream.Put with pooled store allocation.
+// Put implements ResultStream.Put with zero-copy StoreRef streaming.
 func (prs *PooledResultStream) Put(ctx context.Context, store ConstraintStore) error {
-	// First put the incoming store back to the pool if it's poolable
-	if prs.pool != nil {
-		if prs.useGlobal {
-			prs.pool.PutGlobal(store)
-		} else {
-			prs.pool.PutLocal(store)
-		}
+	// Check if stream is closed
+	if atomic.LoadInt32(&prs.closed) == 1 {
+		return nil // Silently ignore puts to closed stream
 	}
 
-	// Get a fresh store from the pool for the channel
-	var pooledStore ConstraintStore
-	if prs.pool != nil {
-		if prs.useGlobal {
-			pooledStore = prs.pool.GetGlobal()
-		} else {
-			pooledStore = prs.pool.GetLocal()
-		}
-	} else {
-		// Fallback to new store creation if no pool
-		if prs.useGlobal {
-			pooledStore = NewLocalConstraintStore(NewGlobalConstraintBus())
-		} else {
-			pooledStore = NewLocalConstraintStore(nil)
-		}
-	}
+	// Register the store with the resolver and get a reference
+	storeRef := prs.resolver.RegisterStore(store)
 
-	// Copy the original store's state to the pooled store
-	if err := prs.copyStoreState(store, pooledStore); err != nil {
-		// Return pooled store back to pool on error
-		if prs.pool != nil {
-			if prs.useGlobal {
-				prs.pool.PutGlobal(pooledStore)
-			} else {
-				prs.pool.PutLocal(pooledStore)
-			}
-		}
-		return fmt.Errorf("failed to copy store state: %w", err)
+	select {
+	case prs.refCh <- storeRef:
+		atomic.AddInt64(&prs.count, 1)
+		return nil
+	case <-ctx.Done():
+		// Context cancelled, clean up the registered store
+		prs.resolver.Cleanup(storeRef.storeID)
+		return ctx.Err()
 	}
-
-	// Put the pooled store into the channel
-	return prs.ChannelResultStream.Put(ctx, pooledStore)
 }
 
-// copyStoreState copies the state from source to destination store.
-// This enables zero-copy streaming by reusing store instances.
-func (prs *PooledResultStream) copyStoreState(src, dst ConstraintStore) error {
-	// Copy bindings
-	srcBindings := src.GetSubstitution()
-	if srcBindings != nil {
-		for varID, term := range srcBindings.bindings {
-			if err := dst.AddBinding(varID, term); err != nil {
-				return err
+// Take implements ResultStream.Take with lazy store resolution.
+func (prs *PooledResultStream) Take(ctx context.Context, n int) ([]ConstraintStore, bool, error) {
+	var results []ConstraintStore
+
+	for i := 0; i < n; i++ {
+		select {
+		case storeRef, ok := <-prs.refCh:
+			if !ok {
+				// Channel is closed, no more items
+				return results, false, nil
 			}
+
+			// Resolve the StoreRef to get the actual store
+			store := storeRef.Resolve()
+
+			// Clean up the reference from resolver after use
+			defer prs.resolver.Cleanup(storeRef.storeID)
+
+			results = append(results, store)
+
+		case <-ctx.Done():
+			// Context cancelled, return what we have so far
+			return results, len(results) > 0, ctx.Err()
 		}
 	}
 
-	// Copy constraints
-	srcConstraints := src.GetConstraints()
-	for _, constraint := range srcConstraints {
-		if err := dst.AddConstraint(constraint); err != nil {
-			return err
+	// We took exactly n items, check if there are more or if channel is closed
+	select {
+	case _, ok := <-prs.refCh:
+		if ok {
+			// There are more items, but we can't put it back
+			return results, true, nil
 		}
+		// Channel is closed
+		return results, false, nil
+	default:
+		// No more items immediately available, but channel might not be closed
+		return results, true, nil
+	}
+}
+
+// Close implements ResultStream.Close.
+func (prs *PooledResultStream) Close() error {
+	prs.mu.Lock()
+	defer prs.mu.Unlock()
+
+	if atomic.LoadInt32(&prs.closed) == 1 {
+		return nil // Already closed
 	}
 
+	atomic.StoreInt32(&prs.closed, 1)
+	close(prs.refCh)
 	return nil
 }
 
-// Close implements ResultStream.Close with proper pool cleanup.
-func (prs *PooledResultStream) Close() error {
-	err := prs.ChannelResultStream.Close()
-
-	// Note: Stores in the channel will be returned to pool by consumers
-	// or cleaned up by garbage collection if the stream is abandoned
-
-	return err
+// Count implements ResultStream.Count.
+func (prs *PooledResultStream) Count() int64 {
+	return atomic.LoadInt64(&prs.count)
 }
 
 // String returns a string representation of the pooled stream for debugging.
 func (prs *PooledResultStream) String() string {
-	stats := prs.pool.GetStats()
-	return fmt.Sprintf("PooledResultStream{useGlobal: %v, poolStats: %+v}",
-		prs.useGlobal, stats)
+	if prs.pool != nil {
+		stats := prs.pool.GetStats()
+		return fmt.Sprintf("PooledResultStream{useGlobal: %v, poolStats: %+v}",
+			prs.useGlobal, stats)
+	}
+	return fmt.Sprintf("PooledResultStream{useGlobal: %v, no pool}", prs.useGlobal)
 }

@@ -17,8 +17,11 @@ func TestMemoryProfiling(t *testing.T) {
 		t.Skip("Skipping memory profiling test in short mode")
 	}
 
-	// Create a memory profile file
-	f, err := os.Create("gokando_memory.prof")
+	// Create a unique memory profile file for this test run
+	// Use test name and timestamp to avoid conflicts between parallel runs
+	timestamp := time.Now().UnixNano()
+	profileName := fmt.Sprintf("gokando_memory_%d.prof", timestamp)
+	f, err := os.Create(profileName)
 	if err != nil {
 		t.Fatalf("Could not create memory profile: %v", err)
 	}
@@ -100,7 +103,7 @@ func TestMemoryProfiling(t *testing.T) {
 	}
 
 	t.Logf("Memory profiling complete. Analyze with:")
-	t.Logf("  go tool pprof gokando_memory.prof")
+	t.Logf("  go tool pprof %s", profileName)
 	t.Logf("  (pprof) top10")
 	t.Logf("  (pprof) list <function_name>")
 	t.Logf("  (pprof) web")
@@ -113,18 +116,21 @@ func TestCPUProfiling(t *testing.T) {
 		t.Skip("Skipping CPU profiling test in short mode")
 	}
 
-	// Create a CPU profile file
-	f, err := os.Create("gokando_cpu.prof")
-	if err != nil {
-		t.Fatalf("Could not create CPU profile: %v", err)
+	// Try to start manual CPU profiling - if it fails, profiling is already active from -cpuprofile flag
+	profileName := "cpu.prof" // Default name when using -cpuprofile flag
+	f, err := os.Create(fmt.Sprintf("gokando_cpu_%d.prof", time.Now().UnixNano()))
+	if err == nil {
+		// Try to start CPU profiling
+		if err := pprof.StartCPUProfile(f); err == nil {
+			defer f.Close()
+			defer pprof.StopCPUProfile()
+			profileName = f.Name()
+		} else {
+			// CPU profiling already active, close the unused file
+			f.Close()
+			os.Remove(f.Name())
+		}
 	}
-	defer f.Close()
-
-	// Start CPU profiling
-	if err := pprof.StartCPUProfile(f); err != nil {
-		t.Fatalf("Could not start CPU profile: %v", err)
-	}
-	defer pprof.StopCPUProfile()
 
 	// Perform CPU-intensive operations
 	start := time.Now()
@@ -163,7 +169,7 @@ func TestCPUProfiling(t *testing.T) {
 	t.Logf("  Processed %d results in %v", len(results), duration)
 	t.Logf("  Rate: %.2f results/second", float64(len(results))/duration.Seconds())
 	t.Logf("Analyze with:")
-	t.Logf("  go tool pprof gokando_cpu.prof")
+	t.Logf("  go tool pprof %s", profileName)
 	t.Logf("  (pprof) top10")
 	t.Logf("  (pprof) list <function_name>")
 	t.Logf("  (pprof) web")
