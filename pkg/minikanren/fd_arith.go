@@ -1,5 +1,7 @@
 package minikanren
 
+import "log"
+
 // fd_arith.go: rich arithmetic constraint support for FDStore
 
 // AddOffsetConstraint enforces dst = src + offset (integer constant). Domains are 1..domainSize.
@@ -100,6 +102,26 @@ const (
 	ArithmeticModulo
 )
 
+// String returns a human-readable representation of the arithmetic operation
+func (act ArithmeticConstraintType) String() string {
+	switch act {
+	case ArithmeticPlus:
+		return "+"
+	case ArithmeticMultiply:
+		return "*"
+	case ArithmeticEquality:
+		return "="
+	case ArithmeticMinus:
+		return "-"
+	case ArithmeticQuotient:
+		return "/"
+	case ArithmeticModulo:
+		return "%"
+	default:
+		return "unknown"
+	}
+}
+
 // ArithmeticLink represents a relationship between three variables: x op y = z
 type ArithmeticLink struct {
 	x, y, z *FDVar
@@ -108,7 +130,9 @@ type ArithmeticLink struct {
 
 // AddPlusConstraint enforces x + y = z with bidirectional propagation.
 // All variables must be from the same FDStore.
+// DEPRECATED: Use FDPlus goal with ArithmeticRelationConstraint for true relational arithmetic.
 func (s *FDStore) AddPlusConstraint(x, y, z *FDVar) error {
+	log.Println("WARNING: FDStore.AddPlusConstraint is deprecated. Use FDPlus goal with ArithmeticRelationConstraint for true relational arithmetic.")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -294,7 +318,9 @@ func (s *FDStore) propagatePlusGeneral(x, y, z *FDVar) error {
 
 // AddMultiplyConstraint enforces x * y = z with bidirectional propagation.
 // All variables must be from the same FDStore.
+// DEPRECATED: Use FDMultiply goal with ArithmeticRelationConstraint for true relational arithmetic.
 func (s *FDStore) AddMultiplyConstraint(x, y, z *FDVar) error {
+	log.Println("WARNING: FDStore.AddMultiplyConstraint is deprecated. Use FDMultiply goal with ArithmeticRelationConstraint for true relational arithmetic.")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -496,7 +522,9 @@ func (s *FDStore) propagateMultiplyGeneral(x, y, z *FDVar) error {
 
 // AddEqualityConstraint enforces x = y = z with bidirectional propagation.
 // All variables must be from the same FDStore.
+// DEPRECATED: Use FDEqual goal with ArithmeticRelationConstraint for true relational arithmetic.
 func (s *FDStore) AddEqualityConstraint(x, y, z *FDVar) error {
+	log.Println("WARNING: FDStore.AddEqualityConstraint is deprecated. Use FDEqual goal with ArithmeticRelationConstraint for true relational arithmetic.")
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

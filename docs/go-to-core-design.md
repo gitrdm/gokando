@@ -65,10 +65,10 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 
 #### Enhanced Finite Domain Arithmetic
 
-3. **Arithmetic Relations**
-   - **core.logic**: `fd/eq` (=), `fd/+` (+), `fd/-` (-), etc. as relations
-   - **Gap**: Arithmetic still requires projection instead of true relations
-   - **Impact**: Less declarative programming style
+3. **Arithmetic Relations** ✅ COMPLETED
+   - **Phase 7 Complete**: `FDPlus`, `FDMultiply`, etc. are now true relations
+   - **No projection needed**: Arithmetic constraints work declaratively
+   - **Order-independent**: Constraints validate regardless of variable binding order
 
 4. **Domain Operations**
    - **core.logic**: `fd/in`, `fd/dom`, `fd/interval` for domain specification
@@ -108,28 +108,59 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 - **Compilation**: Ahead-of-time compilation for better startup performance
 
 ### GoKanDo Weaknesses
-- **Arithmetic Relations**: Still requires projection instead of true relations (Phase 7)
 - **Search Space**: No tabling leads to redundant computation
 - **Expressiveness**: Limited domain operations and search strategies
 
 ### Benchmark Results
 - **Sudoku**: GoKanDo excels (Regin algorithm + parallel execution)
-- **Magic Square**: Improved with rich arithmetic constraints, but still needs relational arithmetic (Phase 7)
-- **Cryptarithms**: Partially supported with arithmetic constraints, full declarative support requires Phase 7
+- **Magic Square**: Improved with **true relational arithmetic constraints** (Phase 7) - no more projection needed
+- **Cryptarithms**: Now supported with **declarative relational arithmetic** (Phase 7) - SEND + MORE = MONEY can be expressed relationally
 
 ## Enhancement Roadmap
 
 ### Phase 1: Core Arithmetic Extensions (High Priority) ✅ COMPLETED
 
-#### 1.1 Rich Arithmetic Constraints
+#### 1.1 Rich Arithmetic Constraints ✅ COMPLETED
+
+GoKanDo now supports **true relational arithmetic** without projection, enabling declarative arithmetic programming:
+
 ```go
-// ✅ COMPLETED: All arithmetic constraints implemented
-fd.AddPlusConstraint(a, b, c)        // a + b = c
-fd.AddMultiplyConstraint(a, b, c)    // a * b = c
-fd.AddEqualityConstraint(a, b, c)    // a = b = c
-fd.AddMinusConstraint(a, b, c)       // a - b = c
-fd.AddQuotientConstraint(a, b, c)    // a / b = c (integer division)
-fd.AddModuloConstraint(a, b, c)      // a % b = c
+// ✅ COMPLETED: True relational arithmetic constraints
+FDPlus(a, b, c)        // a + b = c (relational, not projection-based)
+FDMultiply(a, b, c)    // a * b = c (relational)
+FDEqual(a, b, c)       // a = b = c (relational)
+FDMinus(a, b, c)       // a - b = c (relational)
+FDQuotient(a, b, c)    // a / b = c (relational, integer division)
+FDModulo(a, b, c)      // a % b = c (relational)
+
+// Legacy projection-based approach (still supported but deprecated)
+Project([]Term{a, b, c}, func(vals) {
+    // Manual arithmetic verification - no longer needed!
+})
+```
+
+#### Key Achievement: Phase 7 (Arithmetic Relations) ✅ COMPLETED
+
+GoKanDo now implements **true relational arithmetic constraints** that work without projection:
+
+- **Order-independent**: Arithmetic constraints work regardless of binding order
+- **Automatic validation**: No manual `Project` verification needed
+- **Backward compatible**: Legacy projection code still works
+- **Performance**: Direct constraint checking without host-language extraction
+
+**Before Phase 7:**
+```go
+// Required manual projection for arithmetic
+FDPlus(a, b, c), Project([]Term{a,b,c}, func(vals) {
+    if vals[0]+vals[1] == vals[2] { return Success }
+    return Failure
+})
+```
+
+**After Phase 7:**
+```go
+// Pure relational arithmetic - no projection needed!
+FDPlus(a, b, c)  // Automatically validates a + b = c
 ```
 
 #### 1.2 Domain Specification
@@ -236,8 +267,9 @@ store = store.WithConstraint(constraint)
 
 ### Feature Parity
 - [x] Rich arithmetic constraints (fd/+, fd/*, fd/=, etc.)
-- [ ] Domain specification (fd/in, fd/dom)
+- [x] **True relational arithmetic (Phase 7)**
 - [x] Tabling support
+- [ ] Domain specification (fd/in, fd/dom)
 - [ ] Tree constraints
 - [ ] Enhanced search strategies
 
@@ -253,9 +285,9 @@ store = store.WithConstraint(constraint)
 
 ## Conclusion
 
-GoKanDo has achieved significant progress with the completion of **Phase 6 (Rich Arithmetic Operators)**, implementing all core arithmetic constraints (fd/+, fd/-, fd/*, fd/quotient, fd/mod, fd/=) as declarative relations. This closes a major expressiveness gap with core.logic and enables more declarative constraint programming.
+GoKanDo has achieved significant progress with the completion of **Phase 6 (Rich Arithmetic Operators)** and **Phase 7 (Arithmetic Relations)**, implementing all core arithmetic constraints (fd/+, fd/-, fd/*, fd/quotient, fd/mod, fd/=) as **true relational constraints** without projection. This closes a major expressiveness gap with core.logic and enables more declarative constraint programming.
 
-The remaining gaps focus on **Phase 7 (Arithmetic Relations)** for true relational arithmetic without projection, followed by domain operations, enhanced search strategies, and constraint store manipulation. With these enhancements, GoKanDo can become a competitive alternative to core.logic while leveraging Go's performance and concurrency advantages.
+The remaining gaps focus on **Phase 8+ (Advanced CLP Features)** including domain operations, enhanced search strategies, and constraint store manipulation. With these enhancements, GoKanDo can become a competitive alternative to core.logic while leveraging Go's performance and concurrency advantages.
 
 ## References
 

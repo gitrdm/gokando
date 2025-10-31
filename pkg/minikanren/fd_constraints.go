@@ -1,6 +1,9 @@
 package minikanren
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 // Package minikanren provides FD constraint wrappers for the generic constraint system.
 // These wrappers allow finite domain constraints to be used with the pluggable
@@ -264,5 +267,149 @@ func (fccw *FDCustomConstraintWrapper) Clone() Constraint {
 		variables:        vars,
 		customConstraint: fccw.customConstraint, // Assume CustomConstraint is immutable
 		isLocal:          fccw.isLocal,
+	}
+}
+
+// FDPlus creates a goal that enforces x + y = z using true relational arithmetic
+func FDPlus(x, y, z Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Create arithmetic relation constraint
+			constraint := NewArithmeticRelationConstraint(x, y, z, ArithmeticPlus)
+
+			// Add constraint to store
+			if err := store.AddConstraint(constraint); err != nil {
+				return
+			}
+
+			// Return the updated store
+			stream.Put(ctx, store)
+		}()
+
+		return stream
+	}
+}
+
+// FDMinus creates a goal that enforces x - y = z using true relational arithmetic
+func FDMinus(x, y, z Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Create arithmetic relation constraint
+			constraint := NewArithmeticRelationConstraint(x, y, z, ArithmeticMinus)
+
+			// Add constraint to store
+			if err := store.AddConstraint(constraint); err != nil {
+				return
+			}
+
+			// Return the updated store
+			stream.Put(ctx, store)
+		}()
+
+		return stream
+	}
+}
+
+// FDMultiply creates a goal that enforces x * y = z using true relational arithmetic
+func FDMultiply(x, y, z Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Create arithmetic relation constraint
+			constraint := NewArithmeticRelationConstraint(x, y, z, ArithmeticMultiply)
+
+			// Add constraint to store
+			if err := store.AddConstraint(constraint); err != nil {
+				return
+			}
+
+			// Return the updated store
+			stream.Put(ctx, store)
+		}()
+
+		return stream
+	}
+}
+
+// FDQuotient creates a goal that enforces x / y = z using true relational arithmetic
+func FDQuotient(x, y, z Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Create arithmetic relation constraint
+			constraint := NewArithmeticRelationConstraint(x, y, z, ArithmeticQuotient)
+
+			// Add constraint to store
+			if err := store.AddConstraint(constraint); err != nil {
+				return
+			}
+
+			// Return the updated store
+			stream.Put(ctx, store)
+		}()
+
+		return stream
+	}
+}
+
+// FDModulo creates a goal that enforces x % y = z using true relational arithmetic
+func FDModulo(x, y, z Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Create arithmetic relation constraint
+			constraint := NewArithmeticRelationConstraint(x, y, z, ArithmeticModulo)
+
+			// Add constraint to store
+			if err := store.AddConstraint(constraint); err != nil {
+				return
+			}
+
+			// Return the updated store
+			stream.Put(ctx, store)
+		}()
+
+		return stream
+	}
+}
+
+// FDEqual creates a goal that enforces x = y = z using true relational arithmetic
+func FDEqual(x, y, z Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Create arithmetic relation constraint
+			constraint := NewArithmeticRelationConstraint(x, y, z, ArithmeticEquality)
+
+			// Add constraint to store
+			if err := store.AddConstraint(constraint); err != nil {
+				return
+			}
+
+			// Return the updated store
+			stream.Put(ctx, store)
+		}()
+
+		return stream
 	}
 }
