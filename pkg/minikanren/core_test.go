@@ -2,6 +2,7 @@ package minikanren
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -740,4 +741,205 @@ func BenchmarkDisjunction(b *testing.B) {
 		stream := goal(ctx, store)
 		stream.Take(ctx, 10)
 	}
+}
+
+// ExampleFresh demonstrates creating fresh logic variables.
+func ExampleFresh() {
+	// Create a fresh variable with a name for debugging
+	x := Fresh("x")
+	fmt.Printf("Variable created with name: %t\n", x.String() != "")
+
+	// Create another fresh variable - it will have a unique ID
+	y := Fresh("y")
+	fmt.Printf("Different variable created: %t\n", y.String() != "")
+
+	// Variables with the same name are still unique
+	z := Fresh("x")
+	fmt.Printf("Same name, different ID: %t\n", x.ID() != z.ID())
+
+	// Output:
+	// Variable created with name: true
+	// Different variable created: true
+	// Same name, different ID: true
+}
+
+// ExampleEq demonstrates the equality goal.
+func ExampleEq() {
+	// Find values that equal 42
+	results := Run(1, func(q *Var) Goal {
+		return Eq(q, NewAtom(42))
+	})
+	fmt.Printf("q = %v\n", results[0])
+
+	// Unify two variables
+	results = Run(1, func(q *Var) Goal {
+		x := Fresh("x")
+		return Conj(
+			Eq(x, NewAtom("hello")),
+			Eq(q, x),
+		)
+	})
+	fmt.Printf("q = %v\n", results[0])
+
+	// Output:
+	// q = 42
+	// q = hello
+}
+
+// ExampleConj demonstrates conjunction of goals.
+func ExampleConj() {
+	// Find pairs where first element is 1 and second is 2
+	results := Run(1, func(q *Var) Goal {
+		a := Fresh("a")
+		b := Fresh("b")
+		return Conj(
+			Eq(a, NewAtom(1)),
+			Eq(b, NewAtom(2)),
+			Eq(q, List(a, b)),
+		)
+	})
+	fmt.Printf("Found pair: %v\n", results[0])
+
+	// Output:
+	// Found pair: (1 . (2 . <nil>))
+}
+
+// ExampleDisj demonstrates disjunction of goals.
+func ExampleDisj() {
+	// Find either 1 or 2
+	results := Run(2, func(q *Var) Goal {
+		return Disj(
+			Eq(q, NewAtom(1)),
+			Eq(q, NewAtom(2)),
+		)
+	})
+	fmt.Printf("Found %d solutions\n", len(results))
+
+	// Output:
+	// Found 2 solutions
+}
+
+// ExampleConde demonstrates the conde macro (conditional disjunction).
+func ExampleConde() {
+	// Find pairs where either both are 1, or both are 2
+	results := Run(2, func(q *Var) Goal {
+		a := Fresh("a")
+		b := Fresh("b")
+		return Conj(
+			Conde(
+				Conj(Eq(a, NewAtom(1)), Eq(b, NewAtom(1))),
+				Conj(Eq(a, NewAtom(2)), Eq(b, NewAtom(2))),
+			),
+			Eq(q, List(a, b)),
+		)
+	})
+	fmt.Printf("Found %d matching pairs\n", len(results))
+
+	// Output:
+	// Found 2 matching pairs
+}
+
+// ExampleRun demonstrates basic query execution.
+func ExampleRun() {
+	// Simple unification
+	results := Run(1, func(q *Var) Goal {
+		return Eq(q, NewAtom("hello"))
+	})
+	fmt.Printf("Simple result: %v\n", results[0])
+
+	// Multiple solutions
+	results = Run(3, func(q *Var) Goal {
+		return Disj(
+			Eq(q, NewAtom(1)),
+			Eq(q, NewAtom(2)),
+			Eq(q, NewAtom(3)),
+		)
+	})
+	fmt.Printf("Found %d solutions\n", len(results))
+
+	// Output:
+	// Simple result: hello
+	// Found 3 solutions
+}
+
+// ExampleRunStar demonstrates finding all solutions.
+func ExampleRunStar() {
+	// Find all values that satisfy the disjunction
+	results := RunStar(func(q *Var) Goal {
+		return Disj(
+			Eq(q, NewAtom("a")),
+			Eq(q, NewAtom("b")),
+			Eq(q, NewAtom("c")),
+		)
+	})
+	fmt.Printf("Found %d solutions\n", len(results))
+
+	// Output:
+	// Found 3 solutions
+}
+
+// ExampleList demonstrates creating lists.
+func ExampleList() {
+	// Empty list
+	empty := List()
+	fmt.Printf("Empty list: %v\n", empty)
+
+	// Single element
+	single := List(NewAtom(1))
+	fmt.Printf("Single element: %v\n", single)
+
+	// Multiple elements
+	multi := List(NewAtom(1), NewAtom(2), NewAtom(3))
+	fmt.Printf("Multiple elements: %v\n", multi)
+
+	// Output:
+	// Empty list: <nil>
+	// Single element: (1 . <nil>)
+	// Multiple elements: (1 . (2 . (3 . <nil>)))
+}
+
+// ExampleAppendo demonstrates list append.
+func ExampleAppendo() {
+	// Append (1 2) and (3 4) to get (1 2 3 4)
+	results := Run(1, func(q *Var) Goal {
+		return Appendo(
+			List(NewAtom(1), NewAtom(2)),
+			List(NewAtom(3), NewAtom(4)),
+			q,
+		)
+	})
+	fmt.Printf("Appended list: %v\n", results[0])
+
+	// Output:
+	// Appended list: (1 . (2 . (3 . (4 . <nil>))))
+}
+
+// ExampleSuccess demonstrates the success goal.
+func ExampleSuccess() {
+	// Success always succeeds
+	results := Run(1, func(q *Var) Goal {
+		return Conj(
+			Success,
+			Eq(q, NewAtom("done")),
+		)
+	})
+	fmt.Printf("Success: %v\n", results[0])
+
+	// Output:
+	// Success: done
+}
+
+// ExampleFailure demonstrates the failure goal.
+func ExampleFailure() {
+	// Failure always fails
+	results := Run(1, func(q *Var) Goal {
+		return Disj(
+			Failure,
+			Eq(q, NewAtom("fallback")),
+		)
+	})
+	fmt.Printf("Fallback: %v\n", results[0])
+
+	// Output:
+	// Fallback: fallback
 }

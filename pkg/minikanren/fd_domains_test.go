@@ -1,6 +1,7 @@
 package minikanren
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -406,4 +407,97 @@ func TestEmptyDomainGoals(t *testing.T) {
 	if len(results) != 0 {
 		t.Errorf("Expected 0 results for invalid interval, got %d", len(results))
 	}
+}
+
+// ExampleFDDomainGoal demonstrates constraining a variable to a custom domain.
+func ExampleFDDomainGoal() {
+	// Create a custom domain with values 2, 4, 6
+	domain := NewBitSetFromValues([]int{2, 4, 6})
+
+	results := Run(5, func(q *Var) Goal {
+		x := Fresh("x")
+		return Conj(
+			FDDomainGoal(x, domain),
+			Eq(q, x),
+		)
+	})
+
+	fmt.Printf("Values in domain: %v\n", results)
+
+	// Output:
+	// Values in domain: [2 4 6]
+}
+
+// ExampleFDInGoal demonstrates constraining a variable to specific values.
+func ExampleFDInGoal() {
+	// Constrain variable to values 1, 3, 5, 7, 9
+	values := []int{1, 3, 5, 7, 9}
+
+	results := Run(10, func(q *Var) Goal {
+		x := Fresh("x")
+		return Conj(
+			FDInGoal(x, values),
+			Eq(q, x),
+		)
+	})
+
+	fmt.Printf("Allowed values: %v\n", results)
+
+	// Output:
+	// Allowed values: [1 3 5 7 9]
+}
+
+// ExampleFDIntervalGoal demonstrates constraining a variable to an interval.
+func ExampleFDIntervalGoal() {
+	// Constrain variable to range [3, 7]
+	results := Run(10, func(q *Var) Goal {
+		x := Fresh("x")
+		return Conj(
+			FDIntervalGoal(x, 3, 7),
+			Eq(q, x),
+		)
+	})
+
+	fmt.Printf("Values in interval: %v\n", results)
+
+	// Output:
+	// Values in interval: [3 4 5 6 7]
+}
+
+// ExampleFDAllDifferentGoal demonstrates the all-different constraint.
+func ExampleFDAllDifferentGoal() {
+	// Find 3 different values from domain 1-5
+	results := Run(10, func(q *Var) Goal {
+		x := Fresh("x")
+		y := Fresh("y")
+		z := Fresh("z")
+		return Conj(
+			FDAllDifferentGoal([]*Var{x, y, z}, 5),
+			Eq(q, List(x, y, z)),
+		)
+	})
+
+	fmt.Printf("Found %d solutions\n", len(results))
+
+	// Output:
+	// Found 3 solutions
+}
+
+// ExampleFDInequalityGoal demonstrates inequality constraints.
+func ExampleFDInequalityGoal() {
+	// Find x < y where both are in 1-5
+	results := Run(10, func(q *Var) Goal {
+		x := Fresh("x")
+		y := Fresh("y")
+		return Conj(
+			FDAllDifferentGoal([]*Var{x, y}, 5),
+			FDInequalityGoal(x, y, IneqLessThan),
+			Eq(q, List(x, y)),
+		)
+	})
+
+	fmt.Printf("Found %d solutions where x < y\n", len(results))
+
+	// Output:
+	// Found 4 solutions where x < y
 }
