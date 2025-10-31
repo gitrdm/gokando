@@ -239,10 +239,30 @@
 - **Task 5.2**: Tabling System ✅ **COMPLETED** - Memoization for recursive relations with LRU caching, thread-safe operations, and streaming integration
 - **Task 5.3**: Nominal Logic Support ✅ **COMPLETED** - Nominal unification with alpha-equivalence, fresh names, and constraint integration
 
-### 🔄 **Phase 6: Ecosystem and Tooling - PENDING**
-- **Task 6.1**: API Stabilization - Finalize and document public API
-- **Task 6.2**: Performance Optimization - Optimize across all components
-- **Task 6.3**: Documentation and Examples - Comprehensive documentation
+### 🔄 **Phase 6: Rich Arithmetic Operators - PENDING**
+- **Task 6.1**: Arithmetic Constraint Extensions - Implement fd/+, fd/-, fd/*, fd/quot, fd/mod, fd/== as declarative relations
+- **Task 6.2**: Arithmetic Goal Integration - Integrate arithmetic constraints with the goal system for seamless declarative programming
+
+### 🔄 **Phase 7: Arithmetic Relations - PENDING**
+- **Task 7.1**: Projection Elimination - Replace projection-based arithmetic with true relational arithmetic
+- **Task 7.2**: Complex Arithmetic Expressions - Support complex arithmetic expressions and constraint composition
+
+### 🔄 **Phase 8: Domain Operations - PENDING**
+- **Task 8.1**: Custom Domain Creation - Implement fd/in, fd/dom, fd/interval for custom domain specification
+- **Task 8.2**: Domain Manipulation Goals - Add declarative goals for domain operations and manipulation
+
+### 🔄 **Phase 9: Enhanced Search Strategies - PENDING**
+- **Task 9.1**: Advanced Run Strategies - Implement run*, run-db, run-nc with different search behaviors
+- **Task 9.2**: Search Strategy Integration - Seamlessly integrate advanced search strategies with existing execution model
+
+### 🔄 **Phase 10: Constraint Store Operations - PENDING**
+- **Task 10.1**: Store Manipulation Primitives - Implement empty-s, make-s, and constraint store manipulation operations
+- **Task 10.2**: Store Inspection and Debugging - Add constraint store inspection capabilities for debugging and analysis
+
+### 🔄 **Phase 11: Ecosystem and Tooling - PENDING**
+- **Task 11.1**: API Stabilization - Finalize and document the public API
+- **Task 11.2**: Performance Optimization - Optimize performance across all components
+- **Task 11.3**: Documentation and Examples - Comprehensive documentation
 
 **Last Updated**: October 30, 2025
 **Current Branch**: go-to-core
@@ -802,9 +822,254 @@
 - **Concurrency**: Thread-safe operations with minimal lock contention
 - **Scalability**: Supports complex nominal logic problems with proper scoping
 
-## Phase 6: Ecosystem and Tooling
+## Phase 6: Rich Arithmetic Operators
 
-### Task 6.1: API Stabilization
+### Task 6.1: Arithmetic Constraint Extensions
+
+**Objective**: Implement rich arithmetic operators (fd/+, fd/-, fd/*, fd/quot, fd/mod, fd/==) as declarative relations.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/fd_arith.go`: Extend with new constraint types (AddPlusConstraint, AddMultiplyConstraint, AddEqualityConstraint, etc.)
+  - `pkg/minikanren/fd_constraints.go`: Add goal constructors (FDPlus, FDMultiply, FDEqual, FDMinus, FDQuot, FDMod)
+  - `pkg/minikanren/fd.go`: Extend FDStore with new constraint propagation logic
+- **Test Files**:
+  - `pkg/minikanren/fd_arith_test.go`: Comprehensive arithmetic constraint tests
+  - `pkg/minikanren/fd_test.go`: Update existing tests for new capabilities
+
+**Requirements**:
+- ✅ Implement AddPlusConstraint(a, b, c) for a + b = c relations
+- ✅ Implement AddMultiplyConstraint(a, b, c) for a * b = c relations
+- ✅ Implement AddEqualityConstraint(a, b) for a = b relations (distinct from inequality)
+- ✅ Implement AddMinusConstraint(a, b, c) for a - b = c relations
+- ✅ Implement AddQuotConstraint(a, b, c) for a / b = c relations (integer division)
+- ✅ Implement AddModConstraint(a, b, c) for a % b = c relations
+- ✅ Add goal constructors FDPlus, FDMultiply, FDEqual, FDMinus, FDQuot, FDMod
+- ✅ Implement efficient propagation algorithms for each constraint type
+- ✅ Add comprehensive tests covering all arithmetic operations
+- ✅ Ensure thread safety and context cancellation support
+
+**Success Criteria**:
+- ✅ Cryptarithms solvable using declarative arithmetic (e.g., SEND + MORE = MONEY)
+- ✅ Complex mathematical puzzles work without projection
+- ✅ Performance competitive with core.logic arithmetic constraints
+- ✅ All arithmetic operations properly propagate domain constraints
+
+### Task 6.2: Arithmetic Goal Integration
+
+**Objective**: Integrate arithmetic constraints with the goal system for seamless declarative programming.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/fd_goals.go`: Extend with arithmetic goal constructors
+  - `pkg/minikanren/core.go`: Ensure arithmetic goals work with existing combinators
+- **Test Files**:
+  - `pkg/minikanren/fd_goals_test.go`: Integration tests for arithmetic goals
+
+**Requirements**:
+- ✅ Arithmetic goals work seamlessly with Conj, Disj, and other combinators
+- ✅ Context cancellation supported in arithmetic constraint solving
+- ✅ Proper error handling for invalid arithmetic operations (division by zero, etc.)
+- ✅ Integration with streaming results for large solution spaces
+- ✅ Performance benchmarks showing arithmetic goal efficiency
+
+**Success Criteria**:
+- ✅ Declarative arithmetic programming style matches core.logic usability
+- ✅ No performance penalty for using goals vs direct constraints
+- ✅ Error handling provides clear feedback for constraint violations
+
+## Phase 7: Arithmetic Relations
+
+### Task 7.1: Projection Elimination
+
+**Objective**: Replace projection-based arithmetic with true relational arithmetic.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/fd_arith.go`: Enhance constraint implementations for relational use
+  - `pkg/minikanren/project.go`: Deprecate projection in favor of relational arithmetic
+- **Test Files**:
+  - `pkg/minikanren/fd_arith_test.go`: Tests demonstrating relational vs projection approaches
+
+**Requirements**:
+- ✅ All arithmetic operations work as relations without projection
+- ✅ Complex arithmetic expressions composable using existing combinators
+- ✅ Maintain backward compatibility with existing projection-based code
+- ✅ Add deprecation warnings for projection usage with migration guidance
+
+**Success Criteria**:
+- ✅ Arithmetic programming style is fully declarative and relational
+- ✅ No projection required for complex mathematical constraints
+- ✅ Migration path clear for existing projection-based code
+
+### Task 7.2: Complex Arithmetic Expressions
+
+**Objective**: Support complex arithmetic expressions and constraint composition.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/fd_arith.go`: Add support for complex expressions
+  - `pkg/minikanren/fd_constraints.go`: Expression building utilities
+- **Test Files**:
+  - `pkg/minikanren/fd_arith_test.go`: Complex expression tests
+
+**Requirements**:
+- ✅ Support for chained arithmetic operations (a + b = c, c * d = e)
+- ✅ Expression trees for complex mathematical relationships
+- ✅ Automatic constraint propagation through expression chains
+- ✅ Memory efficient representation of complex arithmetic constraints
+
+**Success Criteria**:
+- ✅ Complex mathematical puzzles solvable declaratively
+- ✅ Constraint propagation works efficiently through expression chains
+- ✅ Memory usage scales appropriately with expression complexity
+
+## Phase 8: Domain Operations
+
+### Task 8.1: Custom Domain Creation
+
+**Objective**: Implement fd/in, fd/dom, fd/interval for custom domain specification.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/fd.go`: Add NewVarWithDomain, NewVarWithInterval methods
+  - `pkg/minikanren/fd_domains.go`: Domain creation and manipulation utilities
+- **Test Files**:
+  - `pkg/minikanren/fd_domains_test.go`: Domain operation tests
+
+**Requirements**:
+- ✅ NewVarWithDomain([]int{1,3,5,7,9}) creates variables with custom domains
+- ✅ NewVarWithInterval(min, max) creates variables with range domains
+- ✅ fd/dom goal for domain inspection and manipulation
+- ✅ fd/in goal for domain membership testing
+- ✅ Efficient sparse domain representation for large custom domains
+
+**Success Criteria**:
+- ✅ Variables can be created with arbitrary value sets
+- ✅ Domain operations work efficiently with sparse representations
+- ✅ Integration with existing constraint propagation
+
+### Task 8.2: Domain Manipulation Goals
+
+**Objective**: Add declarative goals for domain operations and manipulation.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/fd_goals.go`: Add FDDomain, FDIn, FDInterval goals
+  - `pkg/minikanren/fd_domains.go`: Domain manipulation constraint implementations
+- **Test Files**:
+  - `pkg/minikanren/fd_domains_test.go`: Domain goal tests
+
+**Requirements**:
+- ✅ FDDomain(var, domain) constrains variable to specific domain
+- ✅ FDIn(var, values) constrains variable to be member of value set
+- ✅ FDInterval(var, min, max) constrains variable to range
+- ✅ Domain union, intersection, and complement operations
+- ✅ Declarative domain manipulation without projection
+
+**Success Criteria**:
+- ✅ Domain constraints work declaratively without manual domain manipulation
+- ✅ Complex domain specifications possible through goal composition
+- ✅ Performance efficient for sparse and dense domain representations
+
+## Phase 9: Enhanced Search Strategies
+
+### Task 9.1: Advanced Run Strategies
+
+**Objective**: Implement run*, run-db, run-nc with different search behaviors.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/search.go`: Extend with new search strategy implementations
+  - `pkg/minikanren/core.go`: Add RunStar, RunDB, RunNC functions
+- **Test Files**:
+  - `pkg/minikanren/search_test.go`: Advanced search strategy tests
+
+**Requirements**:
+- ✅ run* (RunStar): Find all solutions with different search behavior
+- ✅ run-db (RunDB): Database-style search with indexing hints
+- ✅ run-nc (RunNC): Non-chronological search for constraint optimization
+- ✅ Configurable search parameters (depth limits, timeout, etc.)
+- ✅ Integration with existing strategy system from Phase 3
+
+**Success Criteria**:
+- ✅ Different search behaviors available for different problem types
+- ✅ Performance optimizations through appropriate search strategy selection
+- ✅ Clear API for specifying search behavior preferences
+
+### Task 9.2: Search Strategy Integration
+
+**Objective**: Seamlessly integrate advanced search strategies with existing execution model.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/strategy.go`: Extend strategy interfaces for advanced search
+  - `pkg/minikanren/core.go`: Update Run functions to accept strategy parameters
+- **Test Files**:
+  - `pkg/minikanren/strategy_test.go`: Integration tests for advanced strategies
+
+**Requirements**:
+- ✅ Strategy selection integrated with Run function variants
+- ✅ Backward compatibility with existing Run calls
+- ✅ Strategy hints and recommendations based on problem analysis
+- ✅ Performance monitoring and strategy effectiveness metrics
+
+**Success Criteria**:
+- ✅ Advanced search strategies easily selectable by users
+- ✅ Strategy selection improves performance for appropriate problem types
+- ✅ API remains clean and intuitive for common use cases
+
+## Phase 10: Constraint Store Operations
+
+### Task 10.1: Store Manipulation Primitives
+
+**Objective**: Implement empty-s, make-s, and constraint store manipulation operations.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/constraint_store.go`: Add store manipulation methods
+  - `pkg/minikanren/store_ops.go`: Store operation implementations
+- **Test Files**:
+  - `pkg/minikanren/store_ops_test.go`: Store manipulation tests
+
+**Requirements**:
+- ✅ EmptyStore() creates empty constraint store
+- ✅ StoreWithConstraint(store, constraint) adds constraint to store
+- ✅ StoreWithoutConstraint(store, constraint) removes constraint from store
+- ✅ StoreUnion(s1, s2) merges constraint stores
+- ✅ Store operations maintain thread safety and consistency
+
+**Success Criteria**:
+- ✅ Direct constraint store manipulation available for advanced users
+- ✅ Store operations compose correctly with existing constraint system
+- ✅ Thread-safe store manipulation with proper synchronization
+
+### Task 10.2: Store Inspection and Debugging
+
+**Objective**: Add constraint store inspection capabilities for debugging and analysis.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/constraint_store.go`: Add inspection methods
+  - `pkg/minikanren/store_debug.go`: Debugging utilities
+- **Test Files**:
+  - `pkg/minikanren/store_debug_test.go`: Inspection and debugging tests
+
+**Requirements**:
+- ✅ StoreConstraints(store) returns all constraints in store
+- ✅ StoreVariables(store) returns all variables in store
+- ✅ StoreDomains(store) returns current variable domains
+- ✅ StoreToString(store) provides human-readable store representation
+- ✅ Store validation and consistency checking
+
+**Success Criteria**:
+- ✅ Constraint store state easily inspectable for debugging
+- ✅ Store validation helps catch constraint system errors
+- ✅ Debugging utilities aid in development and troubleshooting
+
+## Phase 11: Ecosystem and Tooling
+
+### Task 11.1: API Stabilization
 
 **Objective**: Finalize and document the public API.
 
@@ -830,7 +1095,7 @@
 - Third-party extensions work seamlessly with defined interfaces
 - API design follows Go best practices and conventions
 
-### Task 6.2: Performance Optimization
+### Task 11.2: Performance Optimization
 
 **Objective**: Optimize performance across all components.
 
@@ -857,7 +1122,7 @@
 - CPU utilization optimized for different workloads measured
 - Performance regressions caught automatically with alerts
 
-### Task 6.3: Documentation and Examples
+### Task 11.3: Documentation and Examples
 
 **Objective**: Create comprehensive documentation and examples.
 
@@ -1032,3 +1297,57 @@ This roadmap provides a complete, production-ready implementation plan with spec
 
 ### 🚀 **Phase 5 COMPLETED - Advanced Features**
 The advanced features phase is now complete with the implementation of Task 5.1 (Fact Store Implementation), Task 5.2 (Tabling System), and Task 5.3 (Nominal Logic Support). The PLDB-style fact storage system provides efficient indexing and querying, the tabling system enables memoization of recursive relations, and the nominal logic support adds alpha-equivalence checking and fresh name generation - all while maintaining the highest code quality standards with zero technical debt.
+
+### 📋 **Fresh Gap Analysis Results**
+
+**Analysis Date**: October 30, 2025  
+**Reference Document**: `go-to-core-design.md`  
+**Current Status**: Phases 1-5 ✅ COMPLETED, Phases 6-11 ⏳ PENDING  
+
+#### **Remaining Gaps vs core.logic** (High Priority):
+
+1. **🔴 Rich Arithmetic Operators** (Phase 6)
+   - **Gap**: Only offset constraints (X = Y + constant) implemented
+   - **Missing**: fd/+, fd/-, fd/*, fd/quot, fd/mod, fd/== as declarative relations
+   - **Impact**: Cannot solve cryptarithms or complex mathematical puzzles declaratively
+   - **Priority**: Critical for mathematical constraint solving
+
+2. **🟡 Arithmetic Relations** (Phase 7) 
+   - **Gap**: Arithmetic still requires projection instead of true relations
+   - **Missing**: Relational arithmetic without manual projection
+   - **Impact**: Less declarative programming style
+   - **Priority**: High for code clarity and expressiveness
+
+3. **🟡 Domain Operations** (Phase 8)
+   - **Gap**: Limited to full domains (1..n), no custom domain specification
+   - **Missing**: fd/in, fd/dom, fd/interval for arbitrary value sets
+   - **Impact**: Cannot constrain variables to specific value sets
+   - **Priority**: High for real-world constraint problems
+
+4. **🟢 Enhanced Search Strategies** (Phase 9)
+   - **Gap**: Limited to basic run and run*
+   - **Missing**: run*, run-db, run-nc with different search behaviors
+   - **Impact**: Less control over search space exploration
+   - **Priority**: Medium for advanced optimization
+
+5. **🟢 Constraint Store Operations** (Phase 10)
+   - **Gap**: No direct constraint store manipulation primitives
+   - **Missing**: empty-s, make-s, store inspection and debugging
+   - **Impact**: Less flexibility for advanced constraint programming
+   - **Priority**: Medium for debugging and advanced use cases
+
+#### **Implementation Priority**:
+1. **Phase 6**: Rich Arithmetic Operators (closes biggest expressiveness gap)
+2. **Phase 8**: Domain Operations (enables custom domains)
+3. **Phase 7**: Arithmetic Relations (improves declarative style)
+4. **Phase 9**: Enhanced Search Strategies (optimization)
+5. **Phase 10**: Constraint Store Operations (advanced features)
+6. **Phase 11**: Ecosystem and Tooling (polish)
+
+#### **Success Metrics for Gap Closure**:
+- ✅ **Cryptarithm Solving**: SEND + MORE = MONEY solvable declaratively
+- ✅ **Custom Domains**: Variables constrainable to arbitrary value sets
+- ✅ **Relational Arithmetic**: Complex math without projection
+- ✅ **Search Flexibility**: Multiple search strategies available
+- ✅ **Store Manipulation**: Direct constraint store operations
+- ✅ **Feature Parity**: 90%+ core.logic feature coverage achieved
