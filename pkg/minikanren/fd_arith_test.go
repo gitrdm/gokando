@@ -265,3 +265,96 @@ func TestAddEqualityConstraintPropagation(t *testing.T) {
 		}
 	}
 }
+
+func TestAddMinusConstraintBasic(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddMinusConstraint(x, y, z); err != nil {
+		t.Fatalf("AddMinusConstraint failed: %v", err)
+	}
+
+	// Test x - y = z with x=7, y=3, should give z=4
+	if err := s.Assign(x, 7); err != nil {
+		t.Fatalf("failed to assign x=7: %v", err)
+	}
+	if err := s.Assign(y, 3); err != nil {
+		t.Fatalf("failed to assign y=3: %v", err)
+	}
+
+	if !z.domain.IsSingleton() || z.domain.SingletonValue() != 4 {
+		t.Fatalf("expected z=4, got domain %v", z.domain)
+	}
+}
+
+func TestAddMinusConstraintPropagation(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddMinusConstraint(x, y, z); err != nil {
+		t.Fatalf("AddMinusConstraint failed: %v", err)
+	}
+
+	// Assign z=4, should restrict x and y domains appropriately
+	if err := s.Assign(z, 4); err != nil {
+		t.Fatalf("failed to assign z=4: %v", err)
+	}
+
+	// x should be in {5,6,7,8,9} (y + 4 where y in 1..5, but clipped appropriately)
+	// Actually, x = y + z, so with z=4, x should be {5,6,7,8,9}
+	expectedX := map[int]bool{5: true, 6: true, 7: true, 8: true, 9: true}
+	for v := 1; v <= 9; v++ {
+		has := x.domain.Has(v)
+		if expectedX[v] && !has {
+			t.Fatalf("expected x to have %d", v)
+		}
+		if !expectedX[v] && has {
+			t.Fatalf("unexpected value %d in x domain", v)
+		}
+	}
+
+	// y should be in {1,2,3,4,5} (x - 4 where x in 5..9, so y in 1..5)
+	expectedY := map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true}
+	for v := 1; v <= 9; v++ {
+		has := y.domain.Has(v)
+		if expectedY[v] && !has {
+			t.Fatalf("expected y to have %d", v)
+		}
+		if !expectedY[v] && has {
+			t.Fatalf("unexpected value %d in y domain", v)
+		}
+	}
+}
+
+func TestAddMinusConstraintBidirectional(t *testing.T) {
+	s := NewFDStoreWithDomain(9)
+	x := s.NewVar()
+	y := s.NewVar()
+	z := s.NewVar()
+
+	if err := s.AddMinusConstraint(x, y, z); err != nil {
+		t.Fatalf("AddMinusConstraint failed: %v", err)
+	}
+
+	// Assign x=7, should restrict z domain
+	if err := s.Assign(x, 7); err != nil {
+		t.Fatalf("failed to assign x=7: %v", err)
+	}
+
+	// z should be in {1,2,3,4,5,6} (7 - y where y in 1..6, but domain is 1..9)
+	// Actually, z = x - y, so with x=7, z should be {1,2,3,4,5,6}
+	expectedZ := map[int]bool{1: true, 2: true, 3: true, 4: true, 5: true, 6: true}
+	for v := 1; v <= 9; v++ {
+		has := z.domain.Has(v)
+		if expectedZ[v] && !has {
+			t.Fatalf("expected z to have %d", v)
+		}
+		if !expectedZ[v] && has {
+			t.Fatalf("unexpected value %d in z domain", v)
+		}
+	}
+}

@@ -660,3 +660,189 @@ func (s *FDStore) propagateEqualityConstraint(x, y, z *FDVar) error {
 
 	return nil
 }
+
+// AddMinusConstraint enforces x - y = z with bidirectional propagation.
+// All variables must be from the same FDStore.
+func (s *FDStore) AddMinusConstraint(x, y, z *FDVar) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if x == nil || y == nil || z == nil {
+		return ErrInvalidArgument
+	}
+
+	// Initialize arithmetic links map if needed
+	if s.arithmeticLinks == nil {
+		s.arithmeticLinks = make(map[int][]ArithmeticLink)
+	}
+
+	// Add links for bidirectional propagation
+	link := ArithmeticLink{x: x, y: y, z: z, op: ArithmeticMinus}
+	s.arithmeticLinks[x.ID] = append(s.arithmeticLinks[x.ID], link)
+	s.arithmeticLinks[y.ID] = append(s.arithmeticLinks[y.ID], link)
+	s.arithmeticLinks[z.ID] = append(s.arithmeticLinks[z.ID], link)
+
+	// Initial propagation
+	if err := s.propagateMinusConstraint(x, y, z); err != nil {
+		return err
+	}
+
+	// Enqueue all variables for further propagation
+	s.enqueue(x.ID)
+	s.enqueue(y.ID)
+	s.enqueue(z.ID)
+
+	if s.monitor != nil {
+		s.monitor.RecordConstraint()
+	}
+	return s.propagateLocked()
+}
+
+// propagateMinusConstraint performs the core propagation logic for x - y = z
+func (s *FDStore) propagateMinusConstraint(x, y, z *FDVar) error {
+	// For each pair of known domains, compute the possible values for the third
+
+	// If x and y are known, restrict z to x-y
+	if x.domain.IsSingleton() && y.domain.IsSingleton() {
+		diff := x.domain.SingletonValue() - y.domain.SingletonValue()
+		if diff >= 1 && diff <= s.domainSize {
+			newZ := BitSet{n: s.domainSize, words: make([]uint64, (s.domainSize+63)/64)}
+			idx := (diff - 1) / 64
+			off := uint((diff - 1) % 64)
+			newZ.words[idx] |= 1 << off
+
+			intersected := z.domain.Intersect(newZ)
+			if !bitSetEquals(intersected, z.domain) {
+				s.trail = append(s.trail, FDChange{vid: z.ID, domain: z.domain.Clone()})
+				z.domain = intersected
+				if z.domain.Count() == 0 {
+					return ErrDomainEmpty
+				}
+			}
+		} else {
+			// Difference is out of bounds, domain becomes empty
+			return ErrDomainEmpty
+		}
+	}
+
+	// If x and z are known, restrict y to x-z
+	if x.domain.IsSingleton() && z.domain.IsSingleton() {
+		diff := x.domain.SingletonValue() - z.domain.SingletonValue()
+		if diff >= 1 && diff <= s.domainSize {
+			newY := BitSet{n: s.domainSize, words: make([]uint64, (s.domainSize+63)/64)}
+			idx := (diff - 1) / 64
+			off := uint((diff - 1) % 64)
+			newY.words[idx] |= 1 << off
+
+			intersected := y.domain.Intersect(newY)
+			if !bitSetEquals(intersected, y.domain) {
+				s.trail = append(s.trail, FDChange{vid: y.ID, domain: y.domain.Clone()})
+				y.domain = intersected
+				if y.domain.Count() == 0 {
+					return ErrDomainEmpty
+				}
+			}
+		} else {
+			return ErrDomainEmpty
+		}
+	}
+
+	// If y and z are known, restrict x to y+z
+	if y.domain.IsSingleton() && z.domain.IsSingleton() {
+		sum := y.domain.SingletonValue() + z.domain.SingletonValue()
+		if sum >= 1 && sum <= s.domainSize {
+			newX := BitSet{n: s.domainSize, words: make([]uint64, (s.domainSize+63)/64)}
+			idx := (sum - 1) / 64
+			off := uint((sum - 1) % 64)
+			newX.words[idx] |= 1 << off
+
+			intersected := x.domain.Intersect(newX)
+			if !bitSetEquals(intersected, x.domain) {
+				s.trail = append(s.trail, FDChange{vid: x.ID, domain: x.domain.Clone()})
+				x.domain = intersected
+				if x.domain.Count() == 0 {
+					return ErrDomainEmpty
+				}
+			}
+		} else {
+			return ErrDomainEmpty
+		}
+	}
+
+	// General case: restrict domains based on possible combinations
+	return s.propagateMinusGeneral(x, y, z)
+}
+
+// propagateMinusGeneral handles the general case where not all variables are singleton
+func (s *FDStore) propagateMinusGeneral(x, y, z *FDVar) error {
+	// Compute possible values for z given x and y domains
+	possibleZ := BitSet{n: s.domainSize, words: make([]uint64, (s.domainSize+63)/64)}
+	x.domain.IterateValues(func(xv int) {
+		y.domain.IterateValues(func(yv int) {
+			diff := xv - yv
+			if diff >= 1 && diff <= s.domainSize {
+				idx := (diff - 1) / 64
+				off := uint((diff - 1) % 64)
+				possibleZ.words[idx] |= 1 << off
+			}
+		})
+	})
+
+	intersectedZ := z.domain.Intersect(possibleZ)
+	if !bitSetEquals(intersectedZ, z.domain) {
+		s.trail = append(s.trail, FDChange{vid: z.ID, domain: z.domain.Clone()})
+		z.domain = intersectedZ
+		if z.domain.Count() == 0 {
+			return ErrDomainEmpty
+		}
+		s.enqueue(z.ID)
+	}
+
+	// Compute possible values for x given y and z domains
+	possibleX := BitSet{n: s.domainSize, words: make([]uint64, (s.domainSize+63)/64)}
+	y.domain.IterateValues(func(yv int) {
+		z.domain.IterateValues(func(zv int) {
+			sum := yv + zv
+			if sum >= 1 && sum <= s.domainSize {
+				idx := (sum - 1) / 64
+				off := uint((sum - 1) % 64)
+				possibleX.words[idx] |= 1 << off
+			}
+		})
+	})
+
+	intersectedX := x.domain.Intersect(possibleX)
+	if !bitSetEquals(intersectedX, x.domain) {
+		s.trail = append(s.trail, FDChange{vid: x.ID, domain: x.domain.Clone()})
+		x.domain = intersectedX
+		if x.domain.Count() == 0 {
+			return ErrDomainEmpty
+		}
+		s.enqueue(x.ID)
+	}
+
+	// Compute possible values for y given x and z domains
+	possibleY := BitSet{n: s.domainSize, words: make([]uint64, (s.domainSize+63)/64)}
+	x.domain.IterateValues(func(xv int) {
+		z.domain.IterateValues(func(zv int) {
+			diff := xv - zv
+			if diff >= 1 && diff <= s.domainSize {
+				idx := (diff - 1) / 64
+				off := uint((diff - 1) % 64)
+				possibleY.words[idx] |= 1 << off
+			}
+		})
+	})
+
+	intersectedY := y.domain.Intersect(possibleY)
+	if !bitSetEquals(intersectedY, y.domain) {
+		s.trail = append(s.trail, FDChange{vid: y.ID, domain: y.domain.Clone()})
+		y.domain = intersectedY
+		if y.domain.Count() == 0 {
+			return ErrDomainEmpty
+		}
+		s.enqueue(y.ID)
+	}
+
+	return nil
+}

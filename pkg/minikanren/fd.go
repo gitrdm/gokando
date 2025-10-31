@@ -518,6 +518,11 @@ func (s *FDStore) propagateLocked() error {
 							return err
 						}
 					}
+					if l.op == ArithmeticMinus {
+						if err := s.propagateMinusConstraint(l.x, l.y, l.z); err != nil {
+							return err
+						}
+					}
 					// Add other arithmetic operations here as they are implemented
 				}
 			}
