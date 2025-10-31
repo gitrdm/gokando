@@ -14,17 +14,23 @@ const searchStrategyKey contextKey = "searchStrategy"
 // Variable counter for generating unique variable IDs
 var varCounter int64
 
-// Fresh creates a new logic variable with an optional name for debugging.
-// Each call to Fresh generates a variable with a globally unique ID,
-// ensuring no variable conflicts even in concurrent environments.
+// Fresh creates a new logic variable with the given name.
+// Logic variables represent unknown values that can be bound during unification.
+//
+// Fresh variables are the core of miniKanren's relational programming model.
+// They allow expressing relationships between unknowns without specifying
+// their concrete values.
 //
 // Example:
 //
 //	x := Fresh("x")  // Creates a variable named x
 //	y := Fresh("")   // Creates an anonymous variable
 func Fresh(name string) *Var {
-	id := atomic.AddInt64(&varCounter, 1)
-	return &Var{id: id, name: name}
+	pool := GetGlobalVariablePool()
+	v := pool.Get()
+	v.id = atomic.AddInt64(&varCounter, 1)
+	v.name = name
+	return v
 }
 
 // Eq creates a unification goal that constrains two terms to be equal.
@@ -56,14 +62,17 @@ func Eq(term1, term2 Term) Goal {
 		default:
 		}
 
+		// Clone the store for this goal's state
+		goalStore := store.Clone()
+
 		// Attempt unification through the constraint store
-		newStore, success := unifyWithConstraints(term1, term2, store)
+		_, success := unifyWithConstraints(term1, term2, goalStore)
 
 		stream := NewStream()
 		go func() {
 			defer stream.Close()
 			if success {
-				stream.Put(ctx, newStore)
+				stream.Put(ctx, goalStore)
 			}
 		}()
 
@@ -112,15 +121,11 @@ func unify(term1, term2 Term, sub *Substitution) *Substitution {
 }
 
 // unifyWithConstraints performs unification using the constraint store system.
-// Returns a new constraint store if unification succeeds, and a boolean
-// indicating success. This replaces the old unify function to work with
-// the order-independent constraint system.
+// Returns the same constraint store if unification succeeds, and a boolean
+// indicating success. This modifies the store in place for efficiency.
 func unifyWithConstraints(term1, term2 Term, store ConstraintStore) (ConstraintStore, bool) {
-	// Clone the store to avoid modifying the original
-	newStore := store.Clone()
-
 	// Get current substitution for walking terms
-	currentSub := newStore.GetSubstitution()
+	currentSub := store.GetSubstitution()
 
 	// Walk both terms to their final values
 	t1 := currentSub.Walk(term1)
@@ -128,26 +133,26 @@ func unifyWithConstraints(term1, term2 Term, store ConstraintStore) (ConstraintS
 
 	// If they're the same object, unification succeeds
 	if t1.Equal(t2) {
-		return newStore, true
+		return store, true
 	}
 
 	// If t1 is a variable, bind it to t2
 	if t1.IsVar() {
-		err := newStore.AddBinding(t1.(*Var).id, t2)
-		return newStore, err == nil
+		err := store.AddBinding(t1.(*Var).id, t2)
+		return store, err == nil
 	}
 
 	// If t2 is a variable, bind it to t1
 	if t2.IsVar() {
-		err := newStore.AddBinding(t2.(*Var).id, t1)
-		return newStore, err == nil
+		err := store.AddBinding(t2.(*Var).id, t1)
+		return store, err == nil
 	}
 
 	// If both are pairs, unify recursively
 	if p1, ok := t1.(*Pair); ok {
 		if p2, ok := t2.(*Pair); ok {
 			// Unify the cars
-			store1, success1 := unifyWithConstraints(p1.Car(), p2.Car(), newStore)
+			store1, success1 := unifyWithConstraints(p1.Car(), p2.Car(), store)
 			if !success1 {
 				return store, false
 			}
@@ -161,7 +166,7 @@ func unifyWithConstraints(term1, term2 Term, store ConstraintStore) (ConstraintS
 	// If both are atoms, check equality
 	if a1, ok := t1.(*Atom); ok {
 		if a2, ok := t2.(*Atom); ok {
-			return newStore, a1.Equal(a2)
+			return store, a1.Equal(a2)
 		}
 	}
 
