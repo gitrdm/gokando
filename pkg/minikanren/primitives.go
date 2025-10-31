@@ -324,6 +324,29 @@ func Conde(goals ...Goal) Goal {
 	return Disj(goals...)
 }
 
+// And creates a conjunction goal that requires all goals to succeed.
+// This is an alias for Conj, providing more readable Go-style naming.
+//
+// Example:
+//
+//	x := Fresh("x")
+//	y := Fresh("y")
+//	goal := And(Eq(x, NewAtom(1)), Eq(y, NewAtom(2)))
+func And(goals ...Goal) Goal {
+	return Conj(goals...)
+}
+
+// Or creates a disjunction goal that succeeds if any of the goals succeed.
+// This is an alias for Disj, providing more readable Go-style naming.
+//
+// Example:
+//
+//	x := Fresh("x")
+//	goal := Or(Eq(x, NewAtom(1)), Eq(x, NewAtom(2)))  // x can be 1 or 2
+func Or(goals ...Goal) Goal {
+	return Disj(goals...)
+}
+
 // Run executes a goal and returns up to n solutions.
 // This is the main entry point for executing miniKanren programs.
 // It takes a goal that introduces one or more fresh variables and

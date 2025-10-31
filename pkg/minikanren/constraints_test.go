@@ -1,6 +1,8 @@
 package minikanren
 
 import (
+	"context"
+	"fmt"
 	"testing"
 )
 
@@ -431,4 +433,402 @@ func TestComplexConstraints(t *testing.T) {
 			t.Error("Expected 'b', got", results[0])
 		}
 	})
+}
+
+// TestConstraintBuilder tests the fluent constraint builder API.
+func TestConstraintBuilder(t *testing.T) {
+	t.Run("Build empty store", func(t *testing.T) {
+		builder := NewConstraintBuilder()
+		store := builder.Build()
+
+		constraints := store.GetConstraints()
+		if len(constraints) != 0 {
+			t.Errorf("Expected 0 constraints, got %d", len(constraints))
+		}
+	})
+
+	t.Run("Build with multiple constraints", func(t *testing.T) {
+		x, y, z := Fresh("x"), Fresh("y"), Fresh("z")
+
+		builder := NewConstraintBuilder().
+			WithDisequality(x, y).
+			WithType(z, SymbolType).
+			WithAbsence(NewAtom("bad"), x)
+
+		store := builder.Build()
+		constraints := store.GetConstraints()
+
+		if len(constraints) != 3 {
+			t.Errorf("Expected 3 constraints, got %d", len(constraints))
+		}
+
+		// Test that constraints work
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				// Apply the built constraints
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					// Add constraints from builder to store
+					for _, constraint := range constraints {
+						if err := s.AddConstraint(constraint); err != nil {
+							stream := NewStream()
+							stream.Close() // Close immediately to indicate no solutions
+							return stream
+						}
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				// Bind variables to satisfy constraints
+				Eq(x, NewAtom("good")),
+				Eq(y, NewAtom("different")),
+				Eq(z, NewAtom("symbol")),
+			)
+		})
+
+		if len(results) != 1 {
+			t.Error("Constraints should allow valid bindings")
+		}
+	})
+
+	t.Run("BuildConstraints returns constraint list", func(t *testing.T) {
+		x, y := Fresh("x"), Fresh("y")
+
+		builder := NewConstraintBuilder().
+			WithDisequality(x, y).
+			WithMembership(x, List(NewAtom(1), NewAtom(2)))
+
+		constraints := builder.BuildConstraints()
+
+		if len(constraints) != 2 {
+			t.Errorf("Expected 2 constraints, got %d", len(constraints))
+		}
+
+		// Verify constraint types
+		foundDisequality := false
+		foundMembership := false
+
+		for _, constraint := range constraints {
+			switch constraint.(type) {
+			case *DisequalityConstraint:
+				foundDisequality = true
+			case *MembershipConstraint:
+				foundMembership = true
+			}
+		}
+
+		if !foundDisequality {
+			t.Error("Expected to find disequality constraint")
+		}
+		if !foundMembership {
+			t.Error("Expected to find membership constraint")
+		}
+	})
+}
+
+// TestDisequalityBuilder tests the disequality constraint builder.
+func TestDisequalityBuilder(t *testing.T) {
+	t.Run("NotEqualTo creates constraint", func(t *testing.T) {
+		x, y := Fresh("x"), Fresh("y")
+
+		constraint := Disequality(x).NotEqualTo(y)
+
+		if constraint == nil {
+			t.Fatal("Constraint should not be nil")
+		}
+
+		// Test the constraint works
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				Eq(x, NewAtom("a")),
+				Eq(y, NewAtom("b")),
+			)
+		})
+
+		if len(results) != 1 {
+			t.Error("Disequality constraint should allow different values")
+		}
+	})
+
+	t.Run("NotEqualTo constraint violation", func(t *testing.T) {
+		x := Fresh("x")
+
+		constraint := Disequality(x).NotEqualTo(x)
+
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				Eq(x, NewAtom("same")),
+			)
+		})
+
+		if len(results) != 0 {
+			t.Error("Disequality constraint should fail when values are equal")
+		}
+	})
+}
+
+// TestAbsenceBuilder tests the absence constraint builder.
+func TestAbsenceBuilder(t *testing.T) {
+	t.Run("NotIn creates constraint", func(t *testing.T) {
+		x := Fresh("x")
+
+		constraint := Absence(NewAtom("bad")).NotIn(x)
+
+		if constraint == nil {
+			t.Fatal("Constraint should not be nil")
+		}
+
+		// Test the constraint works
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				Eq(x, List(NewAtom("good"), NewAtom("ok"))),
+			)
+		})
+
+		if len(results) != 1 {
+			t.Error("Absence constraint should allow valid structures")
+		}
+	})
+
+	t.Run("NotIn constraint violation", func(t *testing.T) {
+		x := Fresh("x")
+
+		constraint := Absence(NewAtom("bad")).NotIn(x)
+
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				Eq(x, List(NewAtom("good"), NewAtom("bad"))),
+			)
+		})
+
+		if len(results) != 0 {
+			t.Error("Absence constraint should fail when forbidden term is present")
+		}
+	})
+}
+
+// TestTypeBuilder tests the type constraint builder.
+func TestTypeBuilder(t *testing.T) {
+	t.Run("MustBe SymbolType", func(t *testing.T) {
+		x := Fresh("x")
+
+		constraint := Type(x).MustBe(SymbolType)
+
+		if constraint == nil {
+			t.Fatal("Constraint should not be nil")
+		}
+
+		// Test the constraint works
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				Eq(x, NewAtom("symbol")),
+			)
+		})
+
+		if len(results) != 1 {
+			t.Error("Type constraint should allow correct type")
+		}
+	})
+
+	t.Run("MustBe SymbolType violation", func(t *testing.T) {
+		x := Fresh("x")
+
+		constraint := Type(x).MustBe(SymbolType)
+
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				Eq(x, NewAtom(42)), // Number, not symbol
+			)
+		})
+
+		if len(results) != 0 {
+			t.Error("Type constraint should fail with wrong type")
+		}
+	})
+
+	t.Run("MustBe NumberType", func(t *testing.T) {
+		x := Fresh("x")
+
+		constraint := Type(x).MustBe(NumberType)
+
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				Eq(x, NewAtom(42)),
+			)
+		})
+
+		if len(results) != 1 {
+			t.Error("Type constraint should allow numbers")
+		}
+	})
+}
+
+// TestMembershipBuilder tests the membership constraint builder.
+func TestMembershipBuilder(t *testing.T) {
+	t.Run("In creates constraint", func(t *testing.T) {
+		x := Fresh("x")
+		list := List(NewAtom("a"), NewAtom("b"), NewAtom("c"))
+
+		constraint := Membership(x).In(list)
+
+		if constraint == nil {
+			t.Fatal("Constraint should not be nil")
+		}
+
+		// Test the constraint works by binding x to a specific value
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+				Eq(x, NewAtom("b")), // Bind x to something in the list
+			)
+		})
+
+		if len(results) != 1 {
+			t.Error("Membership constraint should succeed when element is in list")
+		}
+	})
+
+	t.Run("In with specific element", func(t *testing.T) {
+		list := List(NewAtom("a"), NewAtom("b"), NewAtom("c"))
+
+		constraint := Membership(NewAtom("b")).In(list)
+
+		results := Run(1, func(q *Var) Goal {
+			return Conj(
+				func(ctx context.Context, s ConstraintStore) ResultStream {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close()
+						return stream
+					}
+					return Eq(q, NewAtom("success"))(ctx, s)
+				},
+			)
+		})
+
+		if len(results) != 1 {
+			t.Error("Membership constraint should succeed for existing element")
+		}
+	})
+
+	t.Run("In constraint violation", func(t *testing.T) {
+		list := List(NewAtom("a"), NewAtom("b"), NewAtom("c"))
+
+		constraint := Membership(NewAtom("d")).In(list)
+
+		results := Run(1, func(q *Var) Goal {
+			return func(ctx context.Context, s ConstraintStore) ResultStream {
+				if err := s.AddConstraint(constraint); err != nil {
+					stream := NewStream()
+					stream.Close() // Close immediately to indicate no solutions
+					return stream
+				}
+				return Eq(q, NewAtom("success"))(ctx, s)
+			}
+		})
+
+		if len(results) != 0 {
+			t.Error("Membership constraint should fail for non-existing element")
+		}
+	})
+}
+
+// ExampleNewConstraintBuilder demonstrates the fluent constraint builder API.
+func ExampleNewConstraintBuilder() {
+	x, y, z := Fresh("x"), Fresh("y"), Fresh("z")
+
+	// Build constraints using the fluent API
+	builder := NewConstraintBuilder().
+		WithDisequality(x, y).
+		WithType(z, SymbolType).
+		WithAbsence(NewAtom("bad"), x)
+
+	store := builder.Build()
+
+	// Use the constraints in a goal
+	results := Run(1, func(q *Var) Goal {
+		return Conj(
+			func(ctx context.Context, s ConstraintStore) ResultStream {
+				// Add constraints from builder to store
+				for _, constraint := range store.GetConstraints() {
+					if err := s.AddConstraint(constraint); err != nil {
+						stream := NewStream()
+						stream.Close() // Close immediately to indicate no solutions
+						return stream
+					}
+				}
+				return Eq(q, NewAtom("success"))(ctx, s)
+			},
+			// Bind variables to satisfy constraints
+			Eq(x, NewAtom("good")),
+			Eq(y, NewAtom("different")),
+			Eq(z, NewAtom("symbol")),
+		)
+	})
+
+	fmt.Printf("Constraints satisfied: %t\n", len(results) == 1)
+
+	// Output:
+	// Constraints satisfied: true
 }

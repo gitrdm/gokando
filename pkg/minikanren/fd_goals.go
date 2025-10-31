@@ -526,3 +526,234 @@ func FDIntervalGoal(variable *Var, min, max int) Goal {
 		return stream
 	}
 }
+
+// FDGoalOption represents a functional option for configuring FD goals
+type FDGoalOption func(*fdGoalConfig)
+
+type fdGoalConfig struct {
+	domainSize int
+	strategy   SearchStrategy
+	labeling   LabelingStrategy
+}
+
+// WithDomainSize sets the domain size for FD goals that need it
+func WithDomainSize(size int) FDGoalOption {
+	return func(c *fdGoalConfig) {
+		c.domainSize = size
+	}
+}
+
+// WithSearchStrategy sets the search strategy for FD goals
+func WithSearchStrategy(strategy SearchStrategy) FDGoalOption {
+	return func(c *fdGoalConfig) {
+		c.strategy = strategy
+	}
+}
+
+// WithLabelingStrategy sets the labeling strategy for FD goals
+func WithLabelingStrategy(labeling LabelingStrategy) FDGoalOption {
+	return func(c *fdGoalConfig) {
+		c.labeling = labeling
+	}
+}
+
+// FDAllDifferent creates a Goal that enforces an all-different constraint
+// over the provided logic variables using functional options for configuration.
+//
+// Example:
+//
+//	x, y, z := Fresh("x"), Fresh("y"), Fresh("z")
+//	goal := FDAllDifferent(x, y, z, WithDomainSize(9), WithSearchStrategy(NewFirstFailLabeling()))
+func FDAllDifferent(vars ...interface{}) Goal {
+	// Extract variables and options
+	var logicVars []*Var
+	var options []FDGoalOption
+
+	for _, arg := range vars {
+		switch v := arg.(type) {
+		case *Var:
+			logicVars = append(logicVars, v)
+		case FDGoalOption:
+			options = append(options, v)
+		}
+	}
+
+	// Apply default configuration
+	config := &fdGoalConfig{
+		domainSize: 100,            // Default domain size
+		strategy:   NewDFSSearch(), // Default search strategy
+		labeling:   NewFirstFailLabeling(),
+	}
+
+	// Apply options
+	for _, opt := range options {
+		opt(config)
+	}
+
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Build FD store with strategy
+			strategyConfig := &StrategyConfig{
+				Labeling: config.labeling,
+				Search:   config.strategy,
+			}
+			fd := NewFDStoreWithStrategy(config.domainSize, strategyConfig)
+
+			fdVars := make([]*FDVar, 0, len(logicVars))
+			for range logicVars {
+				fdVars = append(fdVars, fd.NewVar())
+			}
+
+			// Add Regin all-different filtering
+			if err := fd.AddAllDifferentRegin(fdVars); err != nil {
+				return
+			}
+
+			// Apply current bindings from the constraint store
+			sub := store.GetSubstitution()
+			for i, v := range logicVars {
+				walked := sub.DeepWalk(v)
+				if !walked.IsVar() {
+					if atom, ok := walked.(*Atom); ok {
+						if val, ok2 := atom.Value().(int); ok2 {
+							if err := fd.Assign(fdVars[i], val); err != nil {
+								return
+							}
+						} else {
+							return
+						}
+					} else {
+						return
+					}
+				}
+			}
+
+			// Solve all solutions
+			sols, err := fd.Solve(context.Background(), 0)
+			if err != nil {
+				return
+			}
+
+			for _, sol := range sols {
+				cloned := store.Clone()
+				ok := true
+				for i, v := range logicVars {
+					if err := cloned.AddBinding(v.id, NewAtom(sol[i])); err != nil {
+						ok = false
+						break
+					}
+				}
+				if ok {
+					stream.Put(ctx, cloned)
+				}
+			}
+		}()
+
+		return stream
+	}
+}
+
+// FDIn creates a Goal that constrains variables to be members of value sets
+// using functional options for configuration.
+//
+// Example:
+//
+//	x := Fresh("x")
+//	goal := FDIn(x, []int{1, 3, 5, 7, 9})
+func FDIn(variable *Var, values []int, options ...FDGoalOption) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			if len(values) == 0 {
+				return // Empty domain - no solutions
+			}
+
+			// Apply current bindings from the constraint store
+			sub := store.GetSubstitution()
+			walked := sub.DeepWalk(variable)
+			if !walked.IsVar() {
+				if atom, ok := walked.(*Atom); ok {
+					if val, ok2 := atom.Value().(int); ok2 {
+						for _, allowedVal := range values {
+							if val == allowedVal {
+								stream.Put(ctx, store)
+								return
+							}
+						}
+						return // Value not in allowed list
+					} else {
+						return // Non-integer binding
+					}
+				} else {
+					return // Bound to complex term
+				}
+			}
+
+			// Variable is unbound - enumerate all values in the list
+			for _, val := range values {
+				cloned := store.Clone()
+				if err := cloned.AddBinding(variable.id, NewAtom(val)); err == nil {
+					stream.Put(ctx, cloned)
+				}
+			}
+		}()
+
+		return stream
+	}
+}
+
+// FDInterval creates a Goal that constrains a variable to a range of values
+// using functional options for configuration.
+//
+// Example:
+//
+//	x := Fresh("x")
+//	goal := FDInterval(x, 1, 9)
+func FDInterval(variable *Var, min, max int, options ...FDGoalOption) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			if min > max || min < 1 {
+				return // Invalid interval
+			}
+
+			// Apply current bindings from the constraint store
+			sub := store.GetSubstitution()
+			walked := sub.DeepWalk(variable)
+			if !walked.IsVar() {
+				if atom, ok := walked.(*Atom); ok {
+					if val, ok2 := atom.Value().(int); ok2 {
+						if val >= min && val <= max {
+							stream.Put(ctx, store)
+						}
+						return
+					} else {
+						return
+					}
+				} else {
+					return
+				}
+			}
+
+			// Variable is unbound - enumerate all values in the interval
+			for val := min; val <= max; val++ {
+				cloned := store.Clone()
+				if err := cloned.AddBinding(variable.id, NewAtom(val)); err == nil {
+					stream.Put(ctx, cloned)
+				}
+			}
+		}()
+
+		return stream
+	}
+}

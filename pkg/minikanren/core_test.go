@@ -526,6 +526,186 @@ func TestDisjunction(t *testing.T) {
 	})
 }
 
+// TestAndAlias tests the And alias for Conj.
+func TestAndAlias(t *testing.T) {
+	t.Run("And with single goal", func(t *testing.T) {
+		ctx := context.Background()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
+		v := Fresh("x")
+		a := NewAtom("hello")
+
+		goal := And(Eq(v, a))
+		stream := goal(ctx, sub)
+		solutions, _, _ := stream.Take(ctx, 1)
+
+		if len(solutions) != 1 {
+			t.Fatal("And with single goal should succeed")
+		}
+
+		result := solutions[0].GetBinding(v.ID())
+		if result == nil || !result.Equal(a) {
+			t.Error("Variable should be bound correctly")
+		}
+	})
+
+	t.Run("And with multiple goals", func(t *testing.T) {
+		ctx := context.Background()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
+		x := Fresh("x")
+		y := Fresh("y")
+
+		goal := And(
+			Eq(x, NewAtom(1)),
+			Eq(y, NewAtom(2)),
+		)
+		stream := goal(ctx, sub)
+		solutions, _, _ := stream.Take(ctx, 1)
+
+		if len(solutions) != 1 {
+			t.Fatal("And with multiple goals should succeed")
+		}
+
+		sol := solutions[0]
+		if !sol.GetBinding(x.ID()).Equal(NewAtom(1)) {
+			t.Error("x should be bound to 1")
+		}
+		if !sol.GetBinding(y.ID()).Equal(NewAtom(2)) {
+			t.Error("y should be bound to 2")
+		}
+	})
+
+	t.Run("And equivalent to Conj", func(t *testing.T) {
+		ctx := context.Background()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
+		x := Fresh("x")
+		y := Fresh("y")
+
+		// Test that And produces same results as Conj
+		goalAnd := And(Eq(x, NewAtom(1)), Eq(y, NewAtom(2)))
+		goalConj := Conj(Eq(x, NewAtom(1)), Eq(y, NewAtom(2)))
+
+		streamAnd := goalAnd(ctx, sub)
+		streamConj := goalConj(ctx, sub)
+
+		solutionsAnd, _, _ := streamAnd.Take(ctx, 1)
+		solutionsConj, _, _ := streamConj.Take(ctx, 1)
+
+		if len(solutionsAnd) != len(solutionsConj) {
+			t.Error("And and Conj should produce same number of solutions")
+		}
+
+		if len(solutionsAnd) > 0 && len(solutionsConj) > 0 {
+			andSol := solutionsAnd[0]
+			conjSol := solutionsConj[0]
+
+			if !andSol.GetBinding(x.ID()).Equal(conjSol.GetBinding(x.ID())) ||
+				!andSol.GetBinding(y.ID()).Equal(conjSol.GetBinding(y.ID())) {
+				t.Error("And and Conj should produce identical bindings")
+			}
+		}
+	})
+}
+
+// TestOrAlias tests the Or alias for Disj.
+func TestOrAlias(t *testing.T) {
+	t.Run("Or with single goal", func(t *testing.T) {
+		ctx := context.Background()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
+		v := Fresh("x")
+		a := NewAtom("hello")
+
+		goal := Or(Eq(v, a))
+		stream := goal(ctx, sub)
+		solutions, _, _ := stream.Take(ctx, 1)
+
+		if len(solutions) != 1 {
+			t.Fatal("Or with single goal should succeed")
+		}
+
+		result := solutions[0].GetBinding(v.ID())
+		if result == nil || !result.Equal(a) {
+			t.Error("Variable should be bound correctly")
+		}
+	})
+
+	t.Run("Or with multiple goals", func(t *testing.T) {
+		ctx := context.Background()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
+		v := Fresh("x")
+		a1 := NewAtom("hello")
+		a2 := NewAtom("world")
+
+		goal := Or(Eq(v, a1), Eq(v, a2))
+		stream := goal(ctx, sub)
+		solutions, _, _ := stream.Take(ctx, 2)
+
+		if len(solutions) != 2 {
+			t.Fatalf("Or should return 2 solutions, got %d", len(solutions))
+		}
+
+		// Check that we get both bindings (order may vary due to concurrency)
+		values := make(map[string]bool)
+		for _, sol := range solutions {
+			val := sol.GetBinding(v.ID())
+			if atom, ok := val.(*Atom); ok {
+				if str, ok := atom.Value().(string); ok {
+					values[str] = true
+				}
+			}
+		}
+
+		if !values["hello"] || !values["world"] {
+			t.Error("Should get both 'hello' and 'world' as solutions")
+		}
+	})
+
+	t.Run("Or equivalent to Disj", func(t *testing.T) {
+		ctx := context.Background()
+		sub := NewLocalConstraintStore(NewGlobalConstraintBus())
+		v := Fresh("x")
+		a1 := NewAtom("hello")
+		a2 := NewAtom("world")
+
+		// Test that Or produces same results as Disj
+		goalOr := Or(Eq(v, a1), Eq(v, a2))
+		goalDisj := Disj(Eq(v, a1), Eq(v, a2))
+
+		streamOr := goalOr(ctx, sub)
+		streamDisj := goalDisj(ctx, sub)
+
+		solutionsOr, _, _ := streamOr.Take(ctx, 2)
+		solutionsDisj, _, _ := streamDisj.Take(ctx, 2)
+
+		if len(solutionsOr) != len(solutionsDisj) {
+			t.Error("Or and Disj should produce same number of solutions")
+		}
+
+		// Collect values from both results
+		valuesOr := make(map[string]bool)
+		valuesDisj := make(map[string]bool)
+
+		for _, sol := range solutionsOr {
+			if atom, ok := sol.GetBinding(v.ID()).(*Atom); ok {
+				if str, ok := atom.Value().(string); ok {
+					valuesOr[str] = true
+				}
+			}
+		}
+
+		for _, sol := range solutionsDisj {
+			if atom, ok := sol.GetBinding(v.ID()).(*Atom); ok {
+				if str, ok := atom.Value().(string); ok {
+					valuesDisj[str] = true
+				}
+			}
+		}
+
+		if valuesOr["hello"] != valuesDisj["hello"] || valuesOr["world"] != valuesDisj["world"] {
+			t.Error("Or and Disj should produce identical solution sets")
+		}
+	})
+}
+
 // TestRun tests the Run function.
 func TestRun(t *testing.T) {
 	t.Run("Simple run", func(t *testing.T) {
@@ -942,4 +1122,24 @@ func ExampleFailure() {
 
 	// Output:
 	// Fallback: fallback
+}
+
+// ExampleAnd demonstrates conjunction of goals using the And alias.
+func ExampleAnd() {
+	// Find pairs where first element is 1 and second is 2
+	results := Run(1, func(q *Var) Goal {
+		a := Fresh("a")
+		b := Fresh("b")
+		return Conj(
+			And(
+				Eq(a, NewAtom(1)),
+				Eq(b, NewAtom(2)),
+			),
+			Eq(q, List(a, b)),
+		)
+	})
+	fmt.Printf("Found pair: %v\n", results[0])
+
+	// Output:
+	// Found pair: (1 . (2 . <nil>))
 }

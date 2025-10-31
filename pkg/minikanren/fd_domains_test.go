@@ -501,3 +501,212 @@ func ExampleFDInequalityGoal() {
 	// Output:
 	// Found 4 solutions where x < y
 }
+
+// TestFDAllDifferentFunctionalOptions tests the FDAllDifferent function with options.
+func TestFDAllDifferentFunctionalOptions(t *testing.T) {
+	t.Run("Basic functionality", func(t *testing.T) {
+		x, y, z := Fresh("x"), Fresh("y"), Fresh("z")
+
+		results := Run(10, func(q *Var) Goal {
+			return Conj(
+				FDAllDifferent(x, y, z, WithDomainSize(5)),
+				Eq(q, List(x, y, z)),
+			)
+		})
+
+		if len(results) == 0 {
+			t.Error("Should find some solutions")
+		}
+
+		// Verify all values are different
+		for _, result := range results {
+			if pair, ok := result.(*Pair); ok {
+				xVal := extractIntValue(pair.Car())
+				cdr := pair.Cdr()
+				if cdrPair, ok := cdr.(*Pair); ok {
+					yVal := extractIntValue(cdrPair.Car())
+					cdr2 := cdrPair.Cdr()
+					if cdr2Pair, ok := cdr2.(*Pair); ok {
+						zVal := extractIntValue(cdr2Pair.Car())
+
+						if xVal == yVal || xVal == zVal || yVal == zVal {
+							t.Error("All values should be different")
+						}
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("With custom search strategy", func(t *testing.T) {
+		x, y := Fresh("x"), Fresh("y")
+
+		results := Run(5, func(q *Var) Goal {
+			return Conj(
+				FDAllDifferent(x, y, WithDomainSize(4), WithSearchStrategy(NewDFSSearch())),
+				Eq(q, List(x, y)),
+			)
+		})
+
+		if len(results) == 0 {
+			t.Error("Should find solutions with custom search strategy")
+		}
+	})
+
+	t.Run("With custom labeling strategy", func(t *testing.T) {
+		x, y := Fresh("x"), Fresh("y")
+
+		results := Run(5, func(q *Var) Goal {
+			return Conj(
+				FDAllDifferent(x, y, WithDomainSize(4), WithLabelingStrategy(NewFirstFailLabeling())),
+				Eq(q, List(x, y)),
+			)
+		})
+
+		if len(results) == 0 {
+			t.Error("Should find solutions with custom labeling strategy")
+		}
+	})
+}
+
+// TestFDInFunctionalOptions tests the FDIn function with options.
+func TestFDInFunctionalOptions(t *testing.T) {
+	t.Run("Basic functionality", func(t *testing.T) {
+		values := []int{2, 4, 6, 8}
+
+		results := Run(10, func(q *Var) Goal {
+			x := Fresh("x")
+			return Conj(
+				FDIn(x, values),
+				Eq(q, x),
+			)
+		})
+
+		if len(results) != len(values) {
+			t.Errorf("Expected %d results, got %d", len(values), len(results))
+		}
+
+		// Verify all results are in the allowed values
+		for _, result := range results {
+			val := extractIntValue(result)
+			found := false
+			for _, allowed := range values {
+				if val == allowed {
+					found = true
+					break
+				}
+			}
+			if !found {
+				t.Errorf("Value %d not in allowed values %v", val, values)
+			}
+		}
+	})
+
+	t.Run("Empty domain", func(t *testing.T) {
+		results := Run(10, func(q *Var) Goal {
+			x := Fresh("x")
+			return Conj(
+				FDIn(x, []int{}),
+				Eq(q, x),
+			)
+		})
+
+		if len(results) != 0 {
+			t.Error("Empty domain should produce no solutions")
+		}
+	})
+
+	t.Run("Single value domain", func(t *testing.T) {
+		results := Run(5, func(q *Var) Goal {
+			x := Fresh("x")
+			return Conj(
+				FDIn(x, []int{42}),
+				Eq(q, x),
+			)
+		})
+
+		if len(results) != 1 {
+			t.Errorf("Expected 1 result, got %d", len(results))
+		}
+
+		if len(results) > 0 {
+			val := extractIntValue(results[0])
+			if val != 42 {
+				t.Errorf("Expected 42, got %d", val)
+			}
+		}
+	})
+}
+
+// TestFDIntervalFunctionalOptions tests the FDInterval function with options.
+func TestFDIntervalFunctionalOptions(t *testing.T) {
+	t.Run("Basic functionality", func(t *testing.T) {
+		min, max := 3, 7
+
+		results := Run(10, func(q *Var) Goal {
+			x := Fresh("x")
+			return Conj(
+				FDInterval(x, min, max),
+				Eq(q, x),
+			)
+		})
+
+		expectedCount := max - min + 1
+		if len(results) != expectedCount {
+			t.Errorf("Expected %d results, got %d", expectedCount, len(results))
+		}
+
+		// Verify all results are in the interval
+		for _, result := range results {
+			val := extractIntValue(result)
+			if val < min || val > max {
+				t.Errorf("Value %d not in interval [%d, %d]", val, min, max)
+			}
+		}
+	})
+
+	t.Run("Invalid interval", func(t *testing.T) {
+		results := Run(10, func(q *Var) Goal {
+			x := Fresh("x")
+			return Conj(
+				FDInterval(x, 10, 5), // min > max
+				Eq(q, x),
+			)
+		})
+
+		if len(results) != 0 {
+			t.Error("Invalid interval should produce no solutions")
+		}
+	})
+
+	t.Run("Single value interval", func(t *testing.T) {
+		results := Run(5, func(q *Var) Goal {
+			x := Fresh("x")
+			return Conj(
+				FDInterval(x, 42, 42),
+				Eq(q, x),
+			)
+		})
+
+		if len(results) != 1 {
+			t.Errorf("Expected 1 result, got %d", len(results))
+		}
+
+		if len(results) > 0 {
+			val := extractIntValue(results[0])
+			if val != 42 {
+				t.Errorf("Expected 42, got %d", val)
+			}
+		}
+	})
+}
+
+// Helper function to extract int value from atom
+func extractIntValue(term Term) int {
+	if atom, ok := term.(*Atom); ok {
+		if val, ok := atom.Value().(int); ok {
+			return val
+		}
+	}
+	return -1 // Error value
+}

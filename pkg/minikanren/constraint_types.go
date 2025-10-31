@@ -550,3 +550,149 @@ func NewConstraintViolationError(constraint Constraint, bindings map[int64]Term,
 		Message:    message,
 	}
 }
+
+// ConstraintBuilder provides a fluent interface for building constraints.
+// It allows chaining constraint creation with a more declarative syntax.
+//
+// Example:
+//
+//	builder := NewConstraintBuilder().
+//		WithDisequality(x, y).
+//		WithType(z, SymbolType).
+//		WithAbsence(NewAtom("bad"), x)
+//	store := builder.Build()
+type ConstraintBuilder struct {
+	constraints []Constraint
+}
+
+// NewConstraintBuilder creates a new constraint builder.
+func NewConstraintBuilder() *ConstraintBuilder {
+	return &ConstraintBuilder{
+		constraints: make([]Constraint, 0),
+	}
+}
+
+// WithDisequality adds a disequality constraint between two terms.
+func (cb *ConstraintBuilder) WithDisequality(term1, term2 Term) *ConstraintBuilder {
+	cb.constraints = append(cb.constraints, NewDisequalityConstraint(term1, term2))
+	return cb
+}
+
+// WithAbsence adds an absence constraint ensuring absent term doesn't occur in container.
+func (cb *ConstraintBuilder) WithAbsence(absent, container Term) *ConstraintBuilder {
+	cb.constraints = append(cb.constraints, NewAbsenceConstraint(absent, container))
+	return cb
+}
+
+// WithType adds a type constraint ensuring a term has the specified type.
+func (cb *ConstraintBuilder) WithType(term Term, expectedType TypeConstraintKind) *ConstraintBuilder {
+	cb.constraints = append(cb.constraints, NewTypeConstraint(term, expectedType))
+	return cb
+}
+
+// WithMembership adds a membership constraint ensuring an element is in a list.
+func (cb *ConstraintBuilder) WithMembership(element, list Term) *ConstraintBuilder {
+	cb.constraints = append(cb.constraints, NewMembershipConstraint(element, list))
+	return cb
+}
+
+// Build creates a constraint store containing all the built constraints.
+func (cb *ConstraintBuilder) Build() ConstraintStore {
+	store := EmptyStore()
+	for _, constraint := range cb.constraints {
+		var err error
+		store, err = StoreWithConstraint(store, constraint)
+		if err != nil {
+			// In a real implementation, you might want to handle this error
+			// For now, we'll panic to indicate constraint building failure
+			panic(fmt.Sprintf("failed to add constraint %s: %v", constraint.String(), err))
+		}
+	}
+	return store
+}
+
+// BuildConstraints returns the list of constraints without building a store.
+func (cb *ConstraintBuilder) BuildConstraints() []Constraint {
+	constraints := make([]Constraint, len(cb.constraints))
+	copy(constraints, cb.constraints)
+	return constraints
+}
+
+// Declarative constraint constructors with builder patterns
+
+// Disequality creates a disequality constraint using a builder pattern.
+// This provides a more declarative way to create constraints.
+//
+// Example:
+//
+//	constraint := Disequality(x).NotEqualTo(y)
+func Disequality(term Term) *DisequalityBuilder {
+	return &DisequalityBuilder{term1: term}
+}
+
+// DisequalityBuilder provides a fluent interface for building disequality constraints.
+type DisequalityBuilder struct {
+	term1 Term
+}
+
+// NotEqualTo completes the disequality constraint.
+func (db *DisequalityBuilder) NotEqualTo(term2 Term) *DisequalityConstraint {
+	return NewDisequalityConstraint(db.term1, term2)
+}
+
+// Absence creates an absence constraint using a builder pattern.
+//
+// Example:
+//
+//	constraint := Absence(forbiddenTerm).NotIn(containerTerm)
+func Absence(absent Term) *AbsenceBuilder {
+	return &AbsenceBuilder{absent: absent}
+}
+
+// AbsenceBuilder provides a fluent interface for building absence constraints.
+type AbsenceBuilder struct {
+	absent Term
+}
+
+// NotIn completes the absence constraint.
+func (ab *AbsenceBuilder) NotIn(container Term) *AbsenceConstraint {
+	return NewAbsenceConstraint(ab.absent, container)
+}
+
+// Type creates a type constraint using a builder pattern.
+//
+// Example:
+//
+//	constraint := Type(variable).MustBe(SymbolType)
+func Type(term Term) *TypeBuilder {
+	return &TypeBuilder{term: term}
+}
+
+// TypeBuilder provides a fluent interface for building type constraints.
+type TypeBuilder struct {
+	term Term
+}
+
+// MustBe completes the type constraint.
+func (tb *TypeBuilder) MustBe(expectedType TypeConstraintKind) *TypeConstraint {
+	return NewTypeConstraint(tb.term, expectedType)
+}
+
+// Membership creates a membership constraint using a builder pattern.
+//
+// Example:
+//
+//	constraint := Membership(element).In(list)
+func Membership(element Term) *MembershipBuilder {
+	return &MembershipBuilder{element: element}
+}
+
+// MembershipBuilder provides a fluent interface for building membership constraints.
+type MembershipBuilder struct {
+	element Term
+}
+
+// In completes the membership constraint.
+func (mb *MembershipBuilder) In(list Term) *MembershipConstraint {
+	return NewMembershipConstraint(mb.element, list)
+}

@@ -263,6 +263,10 @@
 - **Task 11.1**: API Stabilization - Finalize and document the public API
 - **Task 11.2**: Performance Optimization - **✅ COMPLETED** - Optimize performance across all components (5.6x-8.1x gains, 45x-48x memory reduction through zero-copy streaming)
 - **Task 11.3**: Documentation and Examples - Option 1: Narrative docs referencing complete, tested example programs (Go Example Functions + cookbook examples)
+- **Task 11.4**: Declarative API Improvements - Add lightweight Go-idiomatic abstractions for better readability
+  - **Sub-task 11.4.1**: Add And/Or aliases for Conj/Disj combinators
+  - **Sub-task 11.4.2**: Implement functional options for FD goal constructors
+  - **Sub-task 11.4.3**: Create declarative constraint constructors with builder patterns
 
 **Last Updated**: October 31, 2025
 **Current Branch**: go-to-core
