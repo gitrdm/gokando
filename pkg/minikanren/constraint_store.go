@@ -89,6 +89,12 @@ type ConstraintStore interface {
 	// Returns an error if the constraint immediately violates existing bindings.
 	AddConstraint(constraint Constraint) error
 
+	// AddConstraintDeferred adds a constraint without immediate checking.
+	// Constraint validation is deferred until later in execution when more
+	// context is available about variable bindings. This prevents immediate
+	// failures that can cause infinite loops in goal compositions.
+	AddConstraintDeferred(constraint Constraint) error
+
 	// AddBinding attempts to bind a variable to a term.
 	// Returns an error if the binding would violate any constraints.
 	AddBinding(varID int64, term Term) error
@@ -245,7 +251,7 @@ func (gcb *GlobalConstraintBus) UnregisterStore(storeID string) {
 	if _, exists := gcb.storeRegistry[storeID]; exists {
 		delete(gcb.storeRegistry, storeID)
 		gcb.refCount--
-		
+
 		// Auto-shutdown when no stores remain
 		if gcb.refCount <= 0 && !gcb.shutdown {
 			gcb.shutdown = true

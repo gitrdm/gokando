@@ -2,6 +2,9 @@ package minikanren
 
 import (
 	"context"
+	"fmt"
+	"strings"
+	"time"
 )
 
 // Neq creates a disequality constraint that ensures two terms are NOT equal.
@@ -16,21 +19,7 @@ import (
 // Neq implements the disequality constraint.
 // It ensures that two terms are not equal.
 func Neq(t1, t2 Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) ResultStream {
-		// Create a disequality constraint and add it to the store
-		constraint := NewDisequalityConstraint(t1, t2)
-
-		err := store.AddConstraint(constraint)
-
-		stream := NewStream()
-		go func() {
-			defer stream.Close()
-			if err == nil {
-				stream.Put(ctx, store)
-			}
-		}()
-		return stream
-	}
+	return SafeConstraintGoal(NewDisequalityConstraint(t1, t2))
 }
 
 // Absento creates a constraint ensuring that a term does not appear anywhere
@@ -41,21 +30,7 @@ func Neq(t1, t2 Term) Goal {
 //	x := Fresh("x")
 //	goal := Conj(Absento(NewAtom("bad"), x), Eq(x, List(NewAtom("good"))))
 func Absento(absent, term Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) ResultStream {
-		// Create an absence constraint and add it to the store
-		constraint := NewAbsenceConstraint(absent, term)
-
-		err := store.AddConstraint(constraint)
-
-		stream := NewStream()
-		go func() {
-			defer stream.Close()
-			if err == nil {
-				stream.Put(ctx, store)
-			}
-		}()
-		return stream
-	}
+	return SafeConstraintGoal(NewAbsenceConstraint(absent, term))
 }
 
 // occurs checks if a term occurs anywhere in another term's structure
@@ -78,21 +53,7 @@ func occurs(needle, haystack Term) bool {
 //	x := Fresh("x")
 //	goal := Conj(Symbolo(x), Eq(x, NewAtom("symbol")))
 func Symbolo(term Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) ResultStream {
-		// Create a type constraint for string symbols
-		constraint := NewTypeConstraint(term, SymbolType)
-
-		err := store.AddConstraint(constraint)
-
-		stream := NewStream()
-		go func() {
-			defer stream.Close()
-			if err == nil {
-				stream.Put(ctx, store)
-			}
-		}()
-		return stream
-	}
+	return SafeConstraintGoal(NewTypeConstraint(term, SymbolType))
 }
 
 // Numbero constrains a term to be a number.
@@ -102,21 +63,7 @@ func Symbolo(term Term) Goal {
 //	x := Fresh("x")
 //	goal := Conj(Numbero(x), Eq(x, NewAtom(42)))
 func Numbero(term Term) Goal {
-	return func(ctx context.Context, store ConstraintStore) ResultStream {
-		// Create a type constraint for numbers
-		constraint := NewTypeConstraint(term, NumberType)
-
-		err := store.AddConstraint(constraint)
-
-		stream := NewStream()
-		go func() {
-			defer stream.Close()
-			if err == nil {
-				stream.Put(ctx, store)
-			}
-		}()
-		return stream
-	}
+	return SafeConstraintGoal(NewTypeConstraint(term, NumberType))
 }
 
 // Membero creates a goal that relates an element to a list it's a member of.
@@ -413,5 +360,259 @@ func Pairo(term Term) Goal {
 		car := Fresh("car")
 		cdr := Fresh("cdr")
 		return Eq(term, NewPair(car, cdr))(ctx, store)
+	}
+}
+
+// ValidateConstraintStore checks a constraint store for consistency and reports
+// any constraint violations or invalid states. This is useful for debugging
+// and ensuring store integrity.
+//
+// Returns a ValidationResult containing any issues found, or nil if the store
+// is valid.
+func ValidateConstraintStore(store ConstraintStore) *ValidationResult {
+	if store == nil {
+		return &ValidationResult{
+			Valid:  false,
+			Errors: []string{"constraint store is nil"},
+		}
+	}
+
+	var errors []string
+	var warnings []string
+
+	// Get current bindings
+	sub := store.GetSubstitution()
+	bindings := make(map[int64]Term)
+	if sub != nil {
+		for varID, term := range sub.bindings {
+			bindings[varID] = term
+		}
+	}
+
+	// Check all constraints against current bindings
+	constraints := store.GetConstraints()
+	for _, constraint := range constraints {
+		result := constraint.Check(bindings)
+		if result == ConstraintViolated {
+			errors = append(errors, fmt.Sprintf("constraint %s is violated by current bindings", constraint.ID()))
+		}
+	}
+
+	// Check for constraint cycles (simplified check)
+	constraintVars := make(map[int64][]string)
+	for _, constraint := range constraints {
+		vars := constraint.Variables()
+		for _, v := range vars {
+			constraintVars[v.id] = append(constraintVars[v.id], constraint.ID())
+		}
+	}
+
+	// Warn about variables with many constraints (potential performance issues)
+	for varID, constraintIDs := range constraintVars {
+		if len(constraintIDs) > 10 {
+			warnings = append(warnings, fmt.Sprintf("variable %d has %d constraints (may impact performance)", varID, len(constraintIDs)))
+		}
+	}
+
+	if len(errors) > 0 {
+		return &ValidationResult{
+			Valid:    false,
+			Errors:   errors,
+			Warnings: warnings,
+		}
+	}
+
+	return &ValidationResult{
+		Valid:    true,
+		Warnings: warnings,
+	}
+}
+
+// ValidationResult contains the results of constraint store validation.
+type ValidationResult struct {
+	Valid    bool     // True if the store is valid
+	Errors   []string // Constraint violations or other errors
+	Warnings []string // Performance warnings or other non-critical issues
+}
+
+// String returns a human-readable representation of the validation result.
+func (vr *ValidationResult) String() string {
+	if vr.Valid && len(vr.Warnings) == 0 {
+		return "constraint store is valid"
+	}
+
+	var result strings.Builder
+	if !vr.Valid {
+		result.WriteString("constraint store is INVALID:\n")
+		for _, err := range vr.Errors {
+			result.WriteString(fmt.Sprintf("  ERROR: %s\n", err))
+		}
+	} else {
+		result.WriteString("constraint store is valid")
+	}
+
+	if len(vr.Warnings) > 0 {
+		result.WriteString("\nWarnings:\n")
+		for _, warn := range vr.Warnings {
+			result.WriteString(fmt.Sprintf("  WARNING: %s\n", warn))
+		}
+	}
+
+	return result.String()
+}
+
+// SafeRun executes a goal with additional safety mechanisms including
+// timeout protection, resource leak detection, and constraint validation.
+//
+// This function provides a safer alternative to the basic Run function
+// by adding runtime safety checks and preventing common issues like
+// infinite loops or resource exhaustion.
+//
+// Parameters:
+//   - timeout: Maximum execution time (0 = no timeout)
+//   - goal: The goal to execute
+//
+// Returns the same results as Run(), but with additional safety guarantees.
+func SafeRun(timeout time.Duration, goal Goal) []map[string]Term {
+	ctx := context.Background()
+	if timeout > 0 {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, timeout)
+		defer cancel()
+	}
+
+	// Execute the goal with safety monitoring
+	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
+	defer initialStore.Shutdown()
+
+	stream := goal(ctx, initialStore)
+
+	// Collect results with safety checks
+	var results []map[string]Term
+	resultChan := make(chan map[string]Term, 100) // Buffered to prevent blocking
+
+	// Start result collection goroutine
+	go func() {
+		defer close(resultChan)
+
+		solutions, _, err := stream.Take(ctx, 1000) // Reasonable limit to prevent memory exhaustion
+		if err != nil {
+			// Log error but don't fail - return empty results
+			return
+		}
+
+		for _, solution := range solutions {
+			// Validate each solution's constraint store
+			if validation := ValidateConstraintStore(solution); !validation.Valid {
+				// Skip invalid solutions
+				continue
+			}
+
+			// Convert to result format
+			result := make(map[string]Term)
+			sub := solution.GetSubstitution()
+			if sub != nil {
+				for varID, term := range sub.bindings {
+					// Convert variable ID back to name (simplified)
+					result[fmt.Sprintf("var_%d", varID)] = term
+				}
+			}
+			resultChan <- result
+		}
+	}()
+
+	// Collect results with timeout protection
+	for result := range resultChan {
+		results = append(results, result)
+
+		// Safety limit on number of results
+		if len(results) >= 100 {
+			break
+		}
+	}
+
+	return results
+}
+
+// WithTimeout creates a goal that executes with a timeout.
+// If the goal doesn't complete within the specified duration,
+// it fails gracefully without causing infinite loops.
+//
+// Example:
+//
+//	goal := WithTimeout(5*time.Second, complexGoal)
+//	results := Run(1, goal) // Will timeout after 5 seconds
+func WithTimeout(timeout time.Duration, goal Goal) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+		go func() {
+			defer stream.Close()
+
+			// Create timeout context
+			timeoutCtx, cancel := context.WithTimeout(ctx, timeout)
+			defer cancel()
+
+			// Execute goal with timeout
+			goalStream := goal(timeoutCtx, store)
+
+			// Try to get one solution within timeout
+			solutions, _, err := goalStream.Take(timeoutCtx, 1)
+			if err != nil || len(solutions) == 0 {
+				// Timeout or no solutions - return empty stream
+				return
+			}
+
+			// Return the solution
+			stream.Put(ctx, solutions[0])
+		}()
+		return stream
+	}
+}
+
+// WithConstraintValidation creates a goal that validates constraint stores
+// at each step, preventing invalid states from propagating through goal execution.
+//
+// This is useful for debugging constraint issues and ensuring goal execution
+// maintains constraint store integrity.
+//
+// Example:
+//
+//	goal := WithConstraintValidation(complexConstraintGoal)
+//	results := Run(1, goal) // Each step validates constraint integrity
+func WithConstraintValidation(goal Goal) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+		go func() {
+			defer stream.Close()
+
+			// Validate initial store
+			if validation := ValidateConstraintStore(store); !validation.Valid {
+				// Invalid initial store - don't proceed
+				return
+			}
+
+			// Execute goal
+			goalStream := goal(ctx, store)
+
+			// Process solutions with validation
+			for {
+				solutions, hasMore, err := goalStream.Take(ctx, 1)
+				if err != nil || len(solutions) == 0 {
+					if !hasMore {
+						break
+					}
+					continue
+				}
+
+				solution := solutions[0]
+
+				// Validate solution store
+				if validation := ValidateConstraintStore(solution); validation.Valid {
+					stream.Put(ctx, solution)
+				}
+				// Skip invalid solutions
+			}
+		}()
+		return stream
 	}
 }

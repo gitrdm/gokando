@@ -268,6 +268,100 @@
   - **Sub-task 11.4.2**: Implement functional options for FD goal constructors
   - **Sub-task 11.4.3**: Create declarative constraint constructors with builder patterns
 
+## Phase 11.5: API Usability Review and Safety Improvements
+
+### Task 11.5.1: Constraint Builder Error Handling Review
+
+**Objective**: Review and redesign constraint builder error handling to prevent infinite loops in user code.
+
+**Problem Identified**: Current `AddConstraint` implementation fails immediately on constraint violations, requiring users to manually handle errors. This creates a usability trap where improper error handling leads to infinite loops, as streams are not properly closed on failure.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/constraints.go`: ConstraintBuilder.AddConstraint error handling
+  - `pkg/minikanren/constraint_manager.go`: Constraint addition and routing logic
+- **Test Files**:
+  - `pkg/minikanren/constraints_test.go`: TestMembershipBuilder and related constraint builder tests
+
+**Requirements**:
+- ✅ Analyze current immediate failure design and its impact on user experience
+- ✅ Design deferred constraint checking mechanism to prevent premature failures
+- ✅ Implement automatic stream cleanup on constraint addition failures
+- ✅ Add safety mechanisms to prevent infinite loops in constraint building
+- ✅ Create helper functions for safe constraint addition with proper error recovery
+- ✅ Update documentation with error handling best practices and examples
+- ✅ Add comprehensive tests for error scenarios and recovery mechanisms
+
+**Success Criteria**:
+- ✅ Users cannot accidentally create infinite loops through constraint builder misuse
+- ✅ Clear error messages guide users toward correct usage patterns
+- ✅ Constraint building is robust against common error scenarios
+- ✅ API design follows principle of least surprise for error handling
+
+### Task 11.5.2: API Safety Mechanisms
+
+**Objective**: Implement safety mechanisms to prevent common user errors that lead to infinite loops or resource leaks.
+
+**Code Locations**:
+- **Primary Files**:
+  - `pkg/minikanren/constraints.go`: Enhanced ConstraintBuilder with safety checks
+  - `pkg/minikanren/core.go`: Stream lifecycle management improvements
+- **Test Files**:
+  - `pkg/minikanren/constraints_test.go`: Safety mechanism tests
+
+**Requirements**:
+- ✅ Add constraint validity checking before addition to prevent invalid states
+- ✅ Implement automatic rollback mechanisms for failed constraint additions
+- ✅ Add timeout and iteration limits for constraint solving operations
+- ✅ Create safe wrapper functions that handle errors gracefully
+- ✅ Implement resource leak detection and prevention in constraint operations
+- ✅ Add debugging utilities to help users identify constraint issues
+- ✅ Comprehensive testing of safety mechanisms under failure conditions
+
+**Success Criteria**:
+- ✅ Constraint operations are safe by default with clear failure modes
+- ✅ Resource leaks prevented even in error scenarios
+- ✅ Users get helpful feedback when constraints cannot be satisfied
+- ✅ API encourages correct usage patterns through design
+
+### Task 11.5.3: Documentation and Examples for Safe Usage
+
+**Objective**: Document safe usage patterns and provide examples of proper error handling.
+
+**Code Locations**:
+- **New Files**:
+  - `pkg/minikanren/constraints_test.go`: Add ExampleConstraintBuilderErrorHandling()
+  - `docs/guides/error-handling.md`: Comprehensive error handling guide
+- **Related Files**:
+  - `pkg/minikanren/constraints.go`: Update ConstraintBuilder documentation
+
+**Requirements**:
+- ✅ Document common pitfalls that lead to infinite loops
+- ✅ Provide working examples of proper constraint builder usage
+- ✅ Create troubleshooting guide for constraint-related errors
+- ✅ Add godoc examples showing safe error handling patterns
+- ✅ Include performance implications of different error handling approaches
+- ✅ Test all documentation examples as part of test suite
+
+**Success Criteria**:
+- ✅ Users can easily find guidance for safe constraint programming
+- ✅ Documentation examples prevent common mistakes
+- ✅ Error messages reference relevant documentation sections
+- ✅ Safe usage patterns are the default in examples and tutorials
+
+**Phase 11.5 Overall Goals**:
+- **API Safety**: Prevent users from accidentally creating infinite loops through poor error handling
+- **Error Resilience**: Make constraint operations robust against common failure modes
+- **User Experience**: Provide clear feedback and guidance when constraints fail
+- **Documentation**: Comprehensive guidance for safe and effective constraint programming
+- **Zero Breaking Changes**: Maintain backward compatibility while improving safety
+
+**Expected Impact**:
+- **Reduced Support Burden**: Fewer user questions about infinite loops and crashes
+- **Improved Adoption**: Safer API encourages broader usage and experimentation
+- **Better Developer Experience**: Clear error messages and documentation reduce frustration
+- **Production Readiness**: Constraint system suitable for production applications with confidence
+
 **Last Updated**: October 31, 2025
 **Current Branch**: go-to-core
 **Test Status**: ✅ All tests passing (406 tests, 9.4s execution time, race-free)

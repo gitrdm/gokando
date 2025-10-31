@@ -597,15 +597,26 @@ func (cb *ConstraintBuilder) WithMembership(element, list Term) *ConstraintBuild
 }
 
 // Build creates a constraint store containing all the built constraints.
+// This method now uses deferred constraint checking to prevent immediate
+// failures that can cause infinite loops in goal compositions.
+//
+// Instead of failing immediately when constraints are incompatible,
+// the store is created successfully and constraint violations are
+// detected later during goal execution when more context is available.
 func (cb *ConstraintBuilder) Build() ConstraintStore {
 	store := EmptyStore()
 	for _, constraint := range cb.constraints {
 		var err error
-		store, err = StoreWithConstraint(store, constraint)
+		// Use deferred checking to prevent immediate failures
+		store, err = StoreWithConstraintDeferred(store, constraint)
 		if err != nil {
-			// In a real implementation, you might want to handle this error
-			// For now, we'll panic to indicate constraint building failure
-			panic(fmt.Sprintf("failed to add constraint %s: %v", constraint.String(), err))
+			// In the deferred approach, we don't panic on constraint addition failures.
+			// Instead, we continue building the store. Constraint violations will be
+			// caught later during goal execution when bindings are applied.
+			//
+			// This prevents the "immediate failure trap" where constraint builders
+			// could cause infinite loops if users don't handle errors properly.
+			continue
 		}
 	}
 	return store

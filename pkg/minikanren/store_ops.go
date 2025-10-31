@@ -295,6 +295,40 @@ func StoreDifference(s1, s2 ConstraintStore) (ConstraintStore, error) {
 	return result, nil
 }
 
+// StoreWithConstraintDeferred creates a new constraint store by adding a constraint
+// to an existing store using deferred checking. The original store is not modified.
+//
+// This operation uses deferred constraint validation to prevent immediate failures
+// that can cause infinite loops in goal compositions. Constraint checking is deferred
+// until later in execution when more context is available about variable bindings.
+//
+// Parameters:
+//   - store: The base constraint store to extend
+//   - constraint: The constraint to add to the store
+//
+// Returns a new ConstraintStore with the constraint added. Unlike StoreWithConstraint,
+// this function does not fail immediately - it always succeeds and lets constraint
+// violations be detected later during goal execution.
+func StoreWithConstraintDeferred(store ConstraintStore, constraint Constraint) (ConstraintStore, error) {
+	if store == nil {
+		return nil, fmt.Errorf("cannot add constraint to nil store")
+	}
+	if constraint == nil {
+		return nil, fmt.Errorf("cannot add nil constraint to store")
+	}
+
+	// Clone the store to avoid modifying the original
+	newStore := store.Clone()
+
+	// Add the constraint using deferred checking
+	err := newStore.AddConstraintDeferred(constraint)
+	if err != nil {
+		return nil, fmt.Errorf("failed to add constraint to store: %w", err)
+	}
+
+	return newStore, nil
+}
+
 // getStoreBindings extracts bindings from a constraint store.
 // This is a helper function that works with the current ConstraintStore interface.
 // In the future, this could be added as a method to the interface.

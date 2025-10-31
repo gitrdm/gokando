@@ -13,6 +13,7 @@
 package minikanren
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -418,4 +419,125 @@ func (lcs *LocalConstraintStoreImpl) Reset() {
 
 	// Note: We keep the same ID and globalBus reference for reuse
 	// The global bus is reset separately if needed
+}
+
+// SafeConstraintGoal creates a goal that safely adds a constraint with deferred checking.
+// This prevents immediate failures that can cause infinite loops in goal compositions.
+//
+// Instead of failing immediately when a constraint is added, this approach defers
+// constraint checking until the goal execution context has more information about
+// variable bindings. This provides better error handling and prevents the usability
+// issues that can arise from immediate constraint failure.
+//
+// Example:
+//
+//	x, y := Fresh("x"), Fresh("y")
+//	goal := Conj(
+//	  SafeConstraintGoal(NewDisequalityConstraint(x, y)),
+//	  Eq(x, NewAtom("a")),
+//	  Eq(y, NewAtom("b")),
+//	)
+//
+// This is safer than direct AddConstraint calls because it handles failures gracefully
+// and prevents infinite loops in complex goal compositions.
+func SafeConstraintGoal(constraint Constraint) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+		go func() {
+			defer stream.Close()
+
+			// Clone the store to avoid modifying the original
+			workingStore := store.Clone()
+
+			// Try to add the constraint
+			err := workingStore.AddConstraint(constraint)
+			if err != nil {
+				// Constraint addition failed - this means the constraint is
+				// immediately violated by current bindings. In the deferred
+				// approach, we still add the constraint but fail the goal,
+				// ensuring violations are properly detected while avoiding
+				// the immediate failure trap.
+				//
+				// Add the constraint anyway for consistency
+				workingStore.AddConstraintDeferred(constraint)
+				// Don't put anything in the stream - goal fails
+				return
+			}
+
+			// Constraint added successfully
+			stream.Put(ctx, workingStore)
+		}()
+		return stream
+	}
+}
+
+// DeferredConstraintGoal creates a goal that adds a constraint with truly deferred checking.
+// Unlike SafeConstraintGoal, this never fails immediately - it always succeeds and
+// lets the constraint system handle violations during normal execution.
+//
+// This is the most user-friendly approach for constraint addition as it eliminates
+// the possibility of immediate failures that can confuse goal composition logic.
+//
+// Example:
+//
+//	x, y := Fresh("x"), Fresh("y")
+//	goal := Conj(
+//	  DeferredConstraintGoal(NewDisequalityConstraint(x, y)),
+//	  Eq(x, NewAtom("a")),
+//	  Eq(y, NewAtom("a")), // This will eventually fail the disequality constraint
+//	)
+//
+// The constraint violation will be caught during the Eq operations, not at
+// constraint addition time, providing more predictable behavior.
+func DeferredConstraintGoal(constraint Constraint) Goal {
+	return func(ctx context.Context, store ConstraintStore) ResultStream {
+		stream := NewStream()
+		go func() {
+			defer stream.Close()
+
+			// Always succeed at constraint addition time
+			// Clone the store and add the constraint without immediate checking
+			workingStore := store.Clone()
+
+			// Add constraint without checking (deferred checking)
+			// This requires a new method that doesn't do immediate validation
+			if err := workingStore.AddConstraintDeferred(constraint); err != nil {
+				// If even deferred addition fails, fall back to safe behavior
+				stream.Put(ctx, store)
+				return
+			}
+
+			stream.Put(ctx, workingStore)
+		}()
+		return stream
+	}
+}
+
+// AddConstraintDeferred adds a constraint without immediate checking.
+// This method defers all constraint validation until later in the execution,
+// when more context is available about variable bindings.
+//
+// This prevents the immediate failure trap that can cause infinite loops
+// in complex goal compositions.
+func (lcs *LocalConstraintStoreImpl) AddConstraintDeferred(constraint Constraint) error {
+	lcs.mu.Lock()
+	defer lcs.mu.Unlock()
+
+	// Add to local constraints list WITHOUT immediate checking
+	lcs.constraints = append(lcs.constraints, constraint)
+	lcs.generation++
+
+	// If constraint requires global coordination, register with bus
+	// Note: We still do this immediately as it's about registration, not validation
+	if !constraint.IsLocal() && lcs.globalBus != nil {
+		err := lcs.globalBus.AddCrossStoreConstraint(constraint)
+		if err != nil {
+			// Remove from local constraints if global registration failed
+			lcs.constraints = lcs.constraints[:len(lcs.constraints)-1]
+			lcs.generation++
+			return fmt.Errorf("failed to register cross-store constraint: %w", err)
+		}
+	}
+
+	return nil
 }
