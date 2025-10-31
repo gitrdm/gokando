@@ -24,6 +24,14 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 - **Committed choice**: Conda, Condu, Onceo
 - **Projection**: Project goal for computing with bound values
 
+#### Tabling System ✅
+- **Memoization**: Tabled goals prevent redundant computation of recursive relations
+- **Global table management**: Configurable LRU caching with TTL and size limits
+- **Thread-safe caching**: Concurrent access with atomic counters and mutexes
+- **Variant generation**: SHA256-based goal normalization for cache keys
+- **Streaming integration**: Asynchronous result caching with consumer notification
+- **Statistics collection**: Hit rates, memory usage, and performance metrics
+
 #### Finite Domain (FD) Solver
 - **Domain representation**: Efficient BitSet-based domains (1-based indexing)
 - **All-different constraints**: Basic pairwise and advanced Regin filtering
@@ -44,17 +52,12 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 
 #### Advanced Constraint Logic Programming (CLP)
 
-1. **Tabling/Memoization**
-   - **core.logic**: `table` for memoizing infinite relations
-   - **Gap**: No tabling support for recursive relations
-   - **Impact**: Cannot solve problems requiring memoization of infinite search spaces
-
-2. **Tree Constraints / CLP(Tree)**
+1. **Tree Constraints / CLP(Tree)**
    - **core.logic**: Support for tree-structured constraints and nominal logic
    - **Gap**: No tree constraint system
    - **Impact**: Limited to flat term structures
 
-3. **Nominal Logic**
+2. **Nominal Logic**
    - **core.logic**: Fresh names and nominal unification
    - **Gap**: No support for nominal logic constructs
    - **Impact**: Cannot handle problems requiring name binding/disbinding
@@ -121,7 +124,7 @@ This document analyzes the current feature set of GoKanDo (a Go implementation o
 
 ## Enhancement Roadmap
 
-### Phase 1: Core Arithmetic Extensions (High Priority)
+### Phase 1: Core Arithmetic Extensions (High Priority) ✅ COMPLETED
 
 #### 1.1 Rich Arithmetic Constraints
 ```go
@@ -149,7 +152,7 @@ goal := FDEqual(a, b)       // a = b
 
 ### Phase 2: Advanced CLP Features (Medium Priority)
 
-#### 2.1 Tabling System
+#### 2.1 Tabling System ✅ COMPLETED
 ```go
 // Memoization for recursive relations
 table := NewTable()
@@ -232,9 +235,9 @@ store = store.WithConstraint(constraint)
 ## Success Metrics
 
 ### Feature Parity
-- [ ] Rich arithmetic constraints (fd/+, fd/*, fd/=, etc.)
+- [x] Rich arithmetic constraints (fd/+, fd/*, fd/=, etc.)
 - [ ] Domain specification (fd/in, fd/dom)
-- [ ] Tabling support
+- [x] Tabling support
 - [ ] Tree constraints
 - [ ] Enhanced search strategies
 
