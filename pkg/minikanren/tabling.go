@@ -291,7 +291,28 @@ func DisableTabling() {
 	// Reset to non-tabled behavior
 }
 
-// IsTablingEnabled returns whether automatic tabling is currently enabled.
+// IsTablingEnabled reports whether automatic tabling is enabled.
+//
+// When automatic tabling is enabled, certain goal constructors may wrap
+// goals with a table that memoizes results. Tabling prevents infinite
+// recursion in many recursive relations and can dramatically improve
+// performance for repeated queries by reusing previously computed results.
+//
+// Note: in this release tabling is opt-in. Prefer explicit wrapping via
+// `TableGoal` or `TableWithManager` to control which goals are memoized.
+// The package also exposes `EnableTabling` and `DisableTabling` as hooks
+// for a global automatic mode, but the default remains disabled to avoid
+// surprising changes in behavior.
+//
+// Example:
+//
+//	if IsTablingEnabled() {
+//	    // callers can optimize goal construction knowing tabling is active
+//	}
+//
+// Thread-safety: this function is safe for concurrent use.
+//
+// See also: TableGoal, TableWithManager, EnableTabling, DisableTabling.
 func IsTablingEnabled() bool {
 	// For now, tabling is always opt-in via Table() calls
 	return false
