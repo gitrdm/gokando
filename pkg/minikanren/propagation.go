@@ -91,9 +91,6 @@ func (c *AllDifferent) String() string {
 	return fmt.Sprintf("AllDifferent(%v)", ids)
 }
 
-// debugAllDiff enables verbose debug output for AllDifferent when set to true.
-const debugAllDiff = false
-
 // Propagate applies Regin's AllDifferent filtering algorithm.
 // Implements PropagationConstraint.
 func (c *AllDifferent) Propagate(solver *Solver, state *SolverState) (*SolverState, error) {
@@ -137,21 +134,6 @@ func (c *AllDifferent) Propagate(solver *Solver, state *SolverState) (*SolverSta
 		return nil, fmt.Errorf("AllDifferent: no complete matching (size=%d, need=%d)", matchSize, n)
 	}
 
-	// DEBUG: Print matching
-	if debugAllDiff {
-		fmt.Printf("\nDEBUG: Matching (size=%d):\n", matchSize)
-		matchedValues := make([]int, 0, len(matching))
-		for val := range matching {
-			if matching[val] != -1 {
-				matchedValues = append(matchedValues, val)
-			}
-		}
-		sort.Ints(matchedValues)
-		for _, val := range matchedValues {
-			fmt.Printf("  val[%d] -> var[%d]\n", val, matching[val])
-		}
-	}
-
 	// Apply Régin's arc-consistency algorithm using value graph and SCC decomposition
 	// This efficiently identifies all edges (variable, value) that cannot be in any
 	// complete matching, removing them in O(n*d + e) time instead of O(n*d*e) naive approach.
@@ -161,23 +143,6 @@ func (c *AllDifferent) Propagate(solver *Solver, state *SolverState) (*SolverSta
 
 	// Compute SCCs using Tarjan's algorithm
 	sccs := c.computeSCCs(valueGraph, n, maxVal)
-
-	// DEBUG: Print SCC info for debugging
-	if debugAllDiff { // Set to true to enable debug output
-		fmt.Printf("\nDEBUG: SCC assignments (n=%d, maxVal=%d):\n", n, maxVal)
-		for i := 0; i < n; i++ {
-			fmt.Printf("  var[%d] (node %d): SCC %d\n", i, i, sccs[i])
-		}
-		sccCounts := make(map[int]int)
-		for val := 1; val <= maxVal; val++ {
-			valNode := n + val - 1
-			if sccs[valNode] != -1 {
-				sccCounts[sccs[valNode]]++
-				fmt.Printf("  val[%d] (node %d): SCC %d\n", val, valNode, sccs[valNode])
-			}
-		}
-		fmt.Printf("  Value SCC distribution: %v\n", sccCounts)
-	}
 
 	// Build reverse matching: variable -> its matched value (or -1)
 	varToVal := make([]int, n)
