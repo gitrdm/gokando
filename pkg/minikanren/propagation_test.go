@@ -126,7 +126,7 @@ func TestAllDifferent_Propagation(t *testing.T) {
 	state := (*SolverState)(nil)
 
 	// Bind first variable to 1
-	state = solver.SetDomain(state, vars[0].ID(), NewBitSetDomainFromValues(4, []int{1}))
+	state, _ = solver.SetDomain(state, vars[0].ID(), NewBitSetDomainFromValues(4, []int{1}))
 
 	// Propagate
 	newState, err := constraint.Propagate(solver, state)
@@ -252,7 +252,7 @@ func TestInequality_LessThan(t *testing.T) {
 	state := (*SolverState)(nil)
 
 	// Restrict Y to {5, 6, 7}
-	state = solver.SetDomain(state, y.ID(), NewBitSetDomainFromValues(10, []int{5, 6, 7}))
+	state, _ = solver.SetDomain(state, y.ID(), NewBitSetDomainFromValues(10, []int{5, 6, 7}))
 
 	// Propagate X < Y
 	newState, err := constraint.Propagate(solver, state)
@@ -302,7 +302,7 @@ func TestInequality_NotEqual(t *testing.T) {
 	state := (*SolverState)(nil)
 
 	// Bind X to 2
-	state = solver.SetDomain(state, x.ID(), NewBitSetDomainFromValues(5, []int{2}))
+	state, _ = solver.SetDomain(state, x.ID(), NewBitSetDomainFromValues(5, []int{2}))
 
 	// Propagate X ≠ Y
 	newState, err := constraint.Propagate(solver, state)
@@ -365,7 +365,7 @@ func TestPropagation_FixedPoint(t *testing.T) {
 	state := (*SolverState)(nil)
 
 	// Bind X to {5}
-	state = solver.SetDomain(state, x.ID(), NewBitSetDomainFromValues(10, []int{5}))
+	state, _ = solver.SetDomain(state, x.ID(), NewBitSetDomainFromValues(10, []int{5}))
 
 	// Run propagation
 	newState, err := solver.propagate(state)
@@ -410,7 +410,7 @@ func TestPropagation_Combined(t *testing.T) {
 	solver := NewSolver(model)
 
 	// Bind X to 1
-	state := solver.SetDomain(nil, x.ID(), NewBitSetDomainFromValues(5, []int{1}))
+	state, _ := solver.SetDomain(nil, x.ID(), NewBitSetDomainFromValues(5, []int{1}))
 
 	newState, err := solver.propagate(state)
 	if err != nil {
@@ -714,7 +714,7 @@ func BenchmarkPropagation_FixedPoint(b *testing.B) {
 	}
 
 	solver := NewSolver(model)
-	state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(20, []int{5}))
+	state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(20, []int{5}))
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -1360,7 +1360,7 @@ func TestPropagation_DeepChain(t *testing.T) {
 	solver := NewSolver(model)
 
 	// Bind first variable to {10}
-	state := solver.SetDomain(nil, vars[0].ID(), NewBitSetDomainFromValues(30, []int{10}))
+	state, _ := solver.SetDomain(nil, vars[0].ID(), NewBitSetDomainFromValues(30, []int{10}))
 
 	// Propagate should cascade through entire chain
 	newState, err := solver.propagate(state)
@@ -1572,7 +1572,7 @@ func TestAllDifferent_LargeDomain(t *testing.T) {
 	solver := NewSolver(model)
 
 	// Bind first variable to force pruning
-	state := solver.SetDomain(nil, vars[0].ID(), NewBitSetDomainFromValues(domainSize, []int{25}))
+	state, _ := solver.SetDomain(nil, vars[0].ID(), NewBitSetDomainFromValues(domainSize, []int{25}))
 
 	newState, err := constraint.Propagate(solver, state)
 	if err != nil {
@@ -1669,7 +1669,7 @@ func TestPropagation_MultipleConstraintTypes(t *testing.T) {
 	solver := NewSolver(model)
 
 	// Bind X to {5}
-	state := solver.SetDomain(nil, x.ID(), NewBitSetDomainFromValues(10, []int{5}))
+	state, _ := solver.SetDomain(nil, x.ID(), NewBitSetDomainFromValues(10, []int{5}))
 
 	newState, err := solver.propagate(state)
 	if err != nil {
@@ -1783,7 +1783,7 @@ func TestPropagation_CircularDetection(t *testing.T) {
 	solver := NewSolver(model)
 
 	// Bind X to 1
-	state := solver.SetDomain(nil, x.ID(), NewBitSetDomainFromValues(3, []int{1}))
+	state, _ := solver.SetDomain(nil, x.ID(), NewBitSetDomainFromValues(3, []int{1}))
 
 	newState, err := solver.propagate(state)
 	if err != nil {
@@ -1832,7 +1832,7 @@ func TestAllDifferent_ProgressivePruning(t *testing.T) {
 
 	// Bind vars progressively and check pruning at each step
 	// Bind v0 = 1
-	state = solver.SetDomain(state, vars[0].ID(), NewBitSetDomainFromValues(5, []int{1}))
+	state, _ = solver.SetDomain(state, vars[0].ID(), NewBitSetDomainFromValues(5, []int{1}))
 	state, err = constraint.Propagate(solver, state)
 	if err != nil {
 		t.Fatalf("propagation 1 failed: %v", err)
@@ -1847,7 +1847,7 @@ func TestAllDifferent_ProgressivePruning(t *testing.T) {
 	}
 
 	// Bind v1 = 2
-	state = solver.SetDomain(state, vars[1].ID(), NewBitSetDomainFromValues(5, []int{2}))
+	state, _ = solver.SetDomain(state, vars[1].ID(), NewBitSetDomainFromValues(5, []int{2}))
 	state, err = constraint.Propagate(solver, state)
 	if err != nil {
 		t.Fatalf("propagation 2 failed: %v", err)
@@ -1983,7 +1983,7 @@ func TestPropagation_MaxIterations(t *testing.T) {
 	solver := NewSolver(model)
 
 	// Bind last variable to {15}
-	state := solver.SetDomain(nil, vars[n-1].ID(), NewBitSetDomainFromValues(20, []int{15}))
+	state, _ := solver.SetDomain(nil, vars[n-1].ID(), NewBitSetDomainFromValues(20, []int{15}))
 
 	// Propagate should complete in reasonable time (< 1 second)
 	newState, err := solver.propagate(state)

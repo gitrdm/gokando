@@ -79,49 +79,70 @@
 **Original Issue:** 4,368 allocations for AllDiff-8vars
 **Current Status:** 215 allocations for AllDiff-8vars (~95% reduction)
 
-**What Was Done:**
-1. ✅ Optimized domain operations reduced allocations significantly
-2. ✅ Bulk range operations (RemoveAbove/Below) reduce intermediate copies
-3. ✅ Efficient matching algorithm reduces temporary structures
+## 3. Memory Allocation Overhead - ✅ IMPLEMENTED (P1)
 
-**Current Results:**
-- AllDifferent-4: 94 allocs (down from ~thousands)
-- AllDifferent-8: 215 allocs (down from 4,368)
-- AllDifferent-12: 383 allocs
-- Memory: Well within bounds (114 MB, threshold 130 MB)
-- No memory leaks detected ✅
+**Original Issue:** 4,368 allocations for AllDiff-8vars
+**Status After P0:** 215 allocations (95% reduction)
+**Status After P1:** 215 allocations (object pooling implemented, minimal additional impact)
 
-**Remaining Opportunity:**
-- Object pooling for domain objects (P1 priority)
-- Would provide another ~30-50% allocation reduction
-- Current allocation count is acceptable for production
-- **Defer to future optimization phase**
+**What Was Done (P1):**
+1. ✅ Implemented `sync.Pool` for BitSetDomain objects
+   - Separate pools for small (1-64 values), medium (65-128), and large (129-256) domains
+   - `getDomainFromPool()` and `releaseDomainToPool()` helper functions
+   - Updated `NewBitSetDomain()`, `NewBitSetDomainFromValues()`, and `Clone()` to use pools
 
----
-
-## 4. Propagation Triggering - ⚠️ NOT IMPLEMENTED
-
-## 4. Propagation Triggering - ⚠️ NOT IMPLEMENTED
-
-**Status:** Deferred to future optimization phase
-**Reason:** Current performance is production-ready without this optimization
-
-**Original Issue:** No change detection in SetDomain()
+2. ✅ Results:
+   - Object pooling infrastructure in place
+   - Allocation counts unchanged (95% reduction already achieved in P0)
+   - Pool hit rate high for common problem sizes (Sudoku, N-Queens)
+   - **Zero measurable performance impact** (±1% variance)
 
 **Analysis:**
-- Current propagation performance is excellent
-- 4-Queens: 341 μs, 8-Queens: 1.6 ms
-- Unnecessary propagations are minimal in practice
-- Would provide ~20-30% improvement at most
-
-**Recommendation:**
-- **Defer to Phase 3** or future optimization
-- Current performance meets production requirements
-- Risk/benefit doesn't justify immediate implementation
+- Allocation reduction from P0 optimizations (Régin's algorithm) was so effective that pooling provides negligible additional benefit
+- Most allocations are now in solver state management, not domains
+- Pooling infrastructure valuable for future high-throughput scenarios
+- **Production-ready, but not a significant win over P0**
 
 ---
 
-## Priority Ranking - UPDATED
+## 4. Propagation Triggering - ✅ IMPLEMENTED (P1)
+
+**Original Issue:** No change detection in SetDomain()
+**Status:** ✅ Implemented with mixed results
+
+**What Was Done (P1):**
+1. ✅ Modified `Solver.SetDomain()` to return `(newState, changed bool)`
+   - Checks domain equality before creating new state
+   - Returns original state + false if domain unchanged
+   - Returns new state + true if domain changed
+
+2. ✅ Updated all 90+ callers to handle tuple return
+   - Propagation constraints check `changed` flag
+   - Tests updated to use `state, _ := solver.SetDomain(...)`
+
+3. ⚠️ Results:
+   - **4-Queens**: 341 μs → 365 μs (7% SLOWER)
+   - **8-Queens**: 1.6 ms → 1.7 ms (7% SLOWER)
+   - **AllDifferent-8**: 141 μs → 142 μs (unchanged within variance)
+   - Allocation counts: Unchanged
+
+**Analysis:**
+- Domain equality check adds O(domain_size) overhead per SetDomain call
+- In these benchmarks, redundant propagations are rare (well-optimized constraints)
+- Overhead of check exceeds benefit of skipped propagations
+- **Trade-off is NEGATIVE for current workloads**
+
+**Recommendation:**
+- Keep implementation (infrastructure is sound)
+- May provide benefits in:
+  - Problems with many redundant constraints
+  - User-defined custom constraints with poor pruning
+  - Future lazy propagation strategies
+- **Not a win for current benchmark suite**
+
+---
+
+## Priority Ranking - FINAL UPDATE
 
 ### P0 - Critical (Block Phase 3) - ✅ ALL COMPLETE
 1. ✅ **DONE: Fix Inequality range operations** 
@@ -130,13 +151,22 @@
    - Status: Production-ready
 
 2. ✅ **DONE: Fix AllDifferent redundant matching**
-   - Implemented: Régin's AC algorithm with Z-reachability
+   - Implemented: Régin's algorithm with Z-reachability
    - Result: 44-318 μs depending on size (massive speedup)
    - Status: Production-ready
 
-### P1 - High (Should do before Phase 3) - DEFERRED
-3. ⚠️ **Deferred: Add object pooling**
-   - Current allocations acceptable (95% reduction already achieved)
+### P1 - High (Should do before Phase 3) - ✅ IMPLEMENTED (Mixed Results)
+3. ✅ **DONE: Add object pooling**
+   - Implemented: `sync.Pool` for BitSetDomain (3 size pools)
+   - Result: Zero additional allocation reduction (95% already achieved)
+   - Impact: Neutral (no performance change, good infrastructure)
+   - Status: **Implemented but minimal benefit**
+
+4. ✅ **DONE: Add change detection**
+   - Implemented: SetDomain returns (state, changed bool)
+   - Result: 7% SLOWER on current benchmarks (equality check overhead)
+   - Impact: Negative for well-optimized constraints, positive for redundant constraints
+   - Status: **Implemented but performance regression on benchmarks**
    - Would provide ~30-50% additional improvement
    - Not blocking for Phase 3
 
@@ -193,35 +223,86 @@
 
 ---
 
-## Overall Assessment
+## Overall Assessment - FINAL
 
 ### Completed Work ✅
-1. ✅ **Inequality optimization**: Bounds propagation implemented
-2. ✅ **AllDifferent optimization**: Régin's algorithm with Z-reachability
-3. ✅ **Domain bulk operations**: RemoveAbove/Below/AtOr* family
-4. ✅ **O(1) Min/Max**: Efficient bounds extraction
-5. ✅ **All tests passing**: 150+ tests, 74% coverage
-6. ✅ **Bug fixes**: Sparse domains, staircase domains, N-Queens regressions
-7. ✅ **Clean code**: All debug instrumentation removed
+1. ✅ **P0: Inequality optimization**: Bounds propagation implemented
+2. ✅ **P0: AllDifferent optimization**: Régin's algorithm with Z-reachability
+3. ✅ **P0: Domain bulk operations**: RemoveAbove/Below/AtOr* family
+4. ✅ **P0: O(1) Min/Max**: Efficient bounds extraction
+5. ✅ **P1: Object pooling**: sync.Pool for BitSetDomain
+6. ✅ **P1: Change detection**: SetDomain equality checking
+7. ✅ **All tests passing**: 150+ tests, 73.8% coverage
+8. ✅ **Bug fixes**: Sparse domains, staircase domains, N-Queens regressions
+9. ✅ **Clean code**: All debug instrumentation removed
 
-### Performance vs. Predictions
-- **Inequality**: ⚠️ Slightly slower than predicted (3.5ms vs 300µs), but includes fixpoint
-- **AllDifferent**: ✅ **Much better** than predicted (141µs vs 2ms for 8-vars)
-- **N-Queens**: ✅ **Better** than predicted (1.6ms vs 3ms for 8-Queens)
-- **Memory**: ✅ **Far exceeded** expectations (95% vs 50% reduction)
+### Performance Results Summary
+
+| Optimization | Target | Achieved | Assessment |
+|--------------|--------|----------|------------|
+| **P0: Inequality** | 16× faster | ~1.4× (fixpoint included) | ⚠️ Acceptable |
+| **P0: AllDifferent** | 100-1000× faster | **22-61× faster** | ✅ Exceeded! |
+| **P0: Memory** | 50% reduction | **95% reduction** | ✅ Far exceeded! |
+| **P1: Object pooling** | 30-50% allocs | 0% change | ⚠️ Neutral |
+| **P1: Change detection** | 20-30% speedup | **7% SLOWER** | ❌ Regression |
+
+### P1 Optimization Analysis
+
+**What Happened:**
+- **Object pooling**: Infrastructure works, but 95% of allocations already eliminated by P0
+- **Change detection**: Adds overhead (equality checks) without eliminating redundant work in optimized constraints
+
+**Why P1 Didn't Help:**
+1. P0 optimizations were SO effective that little room remained for improvement
+2. Régin's algorithm rarely produces unchanged domains (high pruning efficiency)
+3. Benchmark problems have minimal redundant propagation
+4. Equality check cost > benefit for well-designed constraints
+
+**Lessons Learned:**
+- **Measure first, optimize second**: P0 was data-driven, P1 was speculative
+- **Premature optimization**: P1 optimizations based on assumptions, not profiling
+- **Law of diminishing returns**: After 95% improvement, further gains are hard
 
 ### Final Grade
-**Before optimization:** B+  
-**After optimization:** A+ ⭐
+**Before any optimization:** B+  
+**After P0 optimization:** A+ ⭐  
+**After P1 optimization:** A  
 
-**Status:** 🎉 **PRODUCTION-READY - ALL P0 OPTIMIZATIONS COMPLETE** 🎉
+**P1 verdict:** **Slight performance regression** (7% slower on benchmarks due to change detection overhead)
+
+**Decision Required:** 
+1. **Option A - Revert P1**: Remove change detection and pooling, restore P0-only code
+   - Pros: Fastest performance (A+), simpler code
+   - Cons: Lose infrastructure that might help with future user-defined constraints
+
+2. **Option B - Keep P1**: Accept 7% regression for infrastructure value
+   - Pros: Robust foundation for future features, helps pathological cases
+   - Cons: 7% slower on benchmarks, added complexity
+
+**Recommendation:** **REVERT P1** - Performance data shows clear regression without compensating benefits
 
 ---
 
 ## Recommendations for Phase 3
 
-### Must Have ✅
-- ✅ Current constraint propagation performance is excellent
+### Decision Point: P1 Optimizations
+
+**Proposed Action:** Revert change detection, keep object pooling
+
+**Rationale:**
+1. **Change detection** adds 7% overhead with zero benefit on optimized constraints
+   - Equality check is O(domain_size) per SetDomain call
+   - Redundant propagations are rare in practice
+   - **Should be removed**
+
+2. **Object pooling** is performance-neutral but adds infrastructure
+   - No allocation reduction beyond P0's 95%
+   - No performance impact (within variance)
+   - May help future high-throughput scenarios
+   - **Can keep as defensive infrastructure**
+
+### Must Have for Phase 3 ✅
+- ✅ Constraint propagation performance is production-ready (with P1 reverted)
 - ✅ No blocking issues for Phase 3
 - ✅ Code quality is production-grade
 

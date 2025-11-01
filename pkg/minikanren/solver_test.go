@@ -57,7 +57,7 @@ func TestSolver_GetDomain(t *testing.T) {
 
 	// Test with modified state
 	newDomain := NewBitSetDomainFromValues(10, []int{5})
-	state := solver.SetDomain(nil, 0, newDomain)
+	state, _ := solver.SetDomain(nil, 0, newDomain)
 	retrieved := solver.GetDomain(state, 0)
 	if retrieved.Count() != 1 {
 		t.Errorf("GetDomain() after SetDomain count = %d, want 1", retrieved.Count())
@@ -83,14 +83,14 @@ func TestSolver_SetDomain(t *testing.T) {
 
 	// Create state chain
 	d1 := NewBitSetDomainFromValues(10, []int{5})
-	state1 := solver.SetDomain(nil, 0, d1)
+	state1, _ := solver.SetDomain(nil, 0, d1)
 
 	if state1 == nil {
 		t.Fatal("SetDomain() returned nil")
 	}
 
 	d2 := NewBitSetDomainFromValues(10, []int{7})
-	state2 := solver.SetDomain(state1, 1, d2)
+	state2, _ := solver.SetDomain(state1, 1, d2)
 
 	// Verify state chain
 	if solver.GetDomain(state2, 0).Count() != 1 {
@@ -108,7 +108,7 @@ func TestSolver_ReleaseState(t *testing.T) {
 	solver := NewSolver(model)
 
 	// Create and release states
-	state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(10, []int{5}))
+	state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(10, []int{5}))
 	solver.ReleaseState(state)
 
 	// Should not crash
@@ -127,14 +127,14 @@ func TestSolver_IsComplete(t *testing.T) {
 	}
 
 	// Partially assigned state is not complete
-	state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(5, []int{1}))
+	state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(5, []int{1}))
 	if solver.isComplete(state) {
 		t.Error("partially assigned state should not be complete")
 	}
 
 	// Fully assigned state is complete
-	state = solver.SetDomain(state, 1, NewBitSetDomainFromValues(5, []int{2}))
-	state = solver.SetDomain(state, 2, NewBitSetDomainFromValues(5, []int{3}))
+	state, _ = solver.SetDomain(state, 1, NewBitSetDomainFromValues(5, []int{2}))
+	state, _ = solver.SetDomain(state, 2, NewBitSetDomainFromValues(5, []int{3}))
 	if !solver.isComplete(state) {
 		t.Error("fully assigned state should be complete")
 	}
@@ -147,9 +147,9 @@ func TestSolver_ExtractSolution(t *testing.T) {
 	solver := NewSolver(model)
 
 	// Create complete state
-	state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(5, []int{1}))
-	state = solver.SetDomain(state, 1, NewBitSetDomainFromValues(5, []int{2}))
-	state = solver.SetDomain(state, 2, NewBitSetDomainFromValues(5, []int{3}))
+	state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(5, []int{1}))
+	state, _ = solver.SetDomain(state, 1, NewBitSetDomainFromValues(5, []int{2}))
+	state, _ = solver.SetDomain(state, 2, NewBitSetDomainFromValues(5, []int{3}))
 
 	solution := solver.extractSolution(state)
 	expected := []int{1, 2, 3}
@@ -181,7 +181,7 @@ func TestSolver_SelectVariable(t *testing.T) {
 	}
 
 	// Select when one variable is assigned
-	state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(10, []int{5}))
+	state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(10, []int{5}))
 	varID, values = solver.selectVariable(state)
 	if varID == 0 {
 		t.Error("selectVariable() should not select assigned variable")
@@ -191,8 +191,8 @@ func TestSolver_SelectVariable(t *testing.T) {
 	}
 
 	// Select when all variables are assigned
-	state = solver.SetDomain(state, 1, NewBitSetDomainFromValues(10, []int{3}))
-	state = solver.SetDomain(state, 2, NewBitSetDomainFromValues(10, []int{7}))
+	state, _ = solver.SetDomain(state, 1, NewBitSetDomainFromValues(10, []int{3}))
+	state, _ = solver.SetDomain(state, 2, NewBitSetDomainFromValues(10, []int{7}))
 	varID, values = solver.selectVariable(state)
 	if varID != -1 {
 		t.Errorf("selectVariable() on complete state should return -1, got %d", varID)
@@ -379,7 +379,7 @@ func BenchmarkSolver_SetDomain(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		state := solver.SetDomain(nil, 0, domain)
+		state, _ := solver.SetDomain(nil, 0, domain)
 		solver.ReleaseState(state)
 	}
 }
@@ -393,7 +393,7 @@ func BenchmarkSolver_GetDomain(b *testing.B) {
 	var state *SolverState
 	for i := 0; i < 10; i++ {
 		domain := NewBitSetDomainFromValues(100, []int{i + 1})
-		state = solver.SetDomain(state, i, domain)
+		state, _ = solver.SetDomain(state, i, domain)
 	}
 
 	b.ResetTimer()
@@ -519,8 +519,8 @@ func TestSolver_EdgeCases(t *testing.T) {
 		solver := NewSolver(model)
 
 		// Create state with conflicting singletons
-		state := solver.SetDomain(nil, v0.ID(), NewBitSetDomainFromValues(3, []int{1}))
-		state = solver.SetDomain(state, v1.ID(), NewBitSetDomainFromValues(3, []int{2}))
+		state, _ := solver.SetDomain(nil, v0.ID(), NewBitSetDomainFromValues(3, []int{1}))
+		state, _ = solver.SetDomain(state, v1.ID(), NewBitSetDomainFromValues(3, []int{2}))
 
 		_, err = solver.propagate(state)
 		if err == nil {
@@ -534,7 +534,7 @@ func TestSolver_EdgeCases(t *testing.T) {
 		solver := NewSolver(model)
 
 		// Create incomplete state (only one variable bound)
-		state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(5, []int{3}))
+		state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(5, []int{3}))
 
 		// extractSolution should handle unbound variables
 		solution := solver.extractSolution(state)

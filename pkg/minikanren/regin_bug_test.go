@@ -32,7 +32,7 @@ func TestReginStaircaseBug(t *testing.T) {
 			vals[j] = i + j + 1
 		}
 		dom := NewBitSetDomainFromValues(8, vals)
-		state = solver.SetDomain(state, vars[i].ID(), dom)
+		state, _ = solver.SetDomain(state, vars[i].ID(), dom)
 	}
 
 	// Now apply AllDifferent

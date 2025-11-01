@@ -51,7 +51,7 @@ func BenchmarkPhase1_Baseline(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			for j := 0; j < 10; j++ {
-				state = solver.SetDomain(state, j, NewBitSetDomainFromValues(10, []int{i % 10}))
+				state, _ = solver.SetDomain(state, j, NewBitSetDomainFromValues(10, []int{i % 10}))
 			}
 		}
 	})
@@ -68,7 +68,7 @@ func BenchmarkPhase1_Baseline(b *testing.B) {
 			for j := 0; j < 50; j++ {
 				dom = dom.Remove(j)
 			}
-			state = solver.SetDomain(state, v.ID(), dom)
+			state, _ = solver.SetDomain(state, v.ID(), dom)
 		}
 	})
 }
@@ -137,7 +137,7 @@ func BenchmarkPhase2_Propagation(b *testing.B) {
 			model.AddConstraint(c)
 		}
 		solver := NewSolver(model)
-		state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(20, []int{10}))
+		state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(20, []int{10}))
 
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
@@ -257,7 +257,7 @@ func BenchmarkPhase2_MemoryAllocation(b *testing.B) {
 			model.AddConstraint(c)
 		}
 		solver := NewSolver(model)
-		state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(20, []int{10}))
+		state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(20, []int{10}))
 
 		b.ReportAllocs()
 		b.ResetTimer()
@@ -283,7 +283,7 @@ func BenchmarkPhase2_MemoryAllocation(b *testing.B) {
 		b.ResetTimer()
 		for i := 0; i < b.N; i++ {
 			for j := 0; j < 10; j++ {
-				state = solver.SetDomain(state, j, NewBitSetDomainFromValues(10, []int{i % 10}))
+				state, _ = solver.SetDomain(state, j, NewBitSetDomainFromValues(10, []int{i % 10}))
 				state, _ = solver.propagate(state)
 			}
 		}
@@ -326,7 +326,7 @@ func BenchmarkPhase2_ScalabilityStress(b *testing.B) {
 				model.AddConstraint(c)
 			}
 			solver := NewSolver(model)
-			state := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(100, []int{50}))
+			state, _ := solver.SetDomain(nil, 0, NewBitSetDomainFromValues(100, []int{50}))
 
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {

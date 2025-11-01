@@ -176,9 +176,19 @@ func (s *Solver) GetDomain(state *SolverState, varID int) Domain {
 }
 
 // SetDomain creates a new state with an updated domain for the specified variable.
-// This is an O(1) operation as it creates a new state node pointing to the parent.
+// Returns the new state and a boolean indicating if the domain actually changed.
+// If the domain is identical to the current domain, returns the original state
+// and false to avoid unnecessary propagation.
+//
+// This is an O(1) operation for the state update, plus O(domain size) for equality check.
 // The returned state should replace the current state in the search.
-func (s *Solver) SetDomain(state *SolverState, varID int, domain Domain) *SolverState {
+func (s *Solver) SetDomain(state *SolverState, varID int, domain Domain) (*SolverState, bool) {
+	// Check if domain actually changed
+	currentDomain := s.GetDomain(state, varID)
+	if currentDomain.Equal(domain) {
+		return state, false // No change, return original state
+	}
+
 	newState := s.statePool.Get().(*SolverState)
 	newState.parent = state
 	newState.modifiedVarID = varID
@@ -190,7 +200,7 @@ func (s *Solver) SetDomain(state *SolverState, varID int, domain Domain) *Solver
 		newState.depth = 1
 	}
 
-	return newState
+	return newState, true
 }
 
 // propagate runs all propagation constraints to a fixed-point.
@@ -385,7 +395,7 @@ func (s *Solver) search(ctx context.Context, state *SolverState, solutions *[][]
 		// Create new state with variable assigned to value
 		domain := s.GetDomain(frame.state, frame.varID)
 		newDomain := NewBitSetDomainFromValues(domain.MaxValue(), []int{value})
-		newState := s.SetDomain(frame.state, frame.varID, newDomain)
+		newState, _ := s.SetDomain(frame.state, frame.varID, newDomain)
 
 		// Propagate constraints
 		propagatedState, err := s.propagate(newState)

@@ -7,6 +7,32 @@ import (
 	"fmt"
 	"math/bits"
 	"strings"
+	"sync"
+)
+
+// Domain pools for reducing allocations during constraint propagation.
+// Separate pools for common domain sizes to minimize allocation overhead.
+var (
+	// Pool for small domains (1-64 values) - most common in Sudoku, N-Queens
+	smallDomainPool = sync.Pool{
+		New: func() interface{} {
+			return &BitSetDomain{words: make([]uint64, 1)}
+		},
+	}
+
+	// Pool for medium domains (65-128 values)
+	mediumDomainPool = sync.Pool{
+		New: func() interface{} {
+			return &BitSetDomain{words: make([]uint64, 2)}
+		},
+	}
+
+	// Pool for large domains (129-256 values)
+	largeDomainPool = sync.Pool{
+		New: func() interface{} {
+			return &BitSetDomain{words: make([]uint64, 4)}
+		},
+	}
 )
 
 // Domain represents a finite set of values that a variable can take.
@@ -122,51 +148,114 @@ type BitSetDomain struct {
 	words    []uint64 // Bit array: bit i represents value i+1
 }
 
+// getDomainFromPool retrieves a BitSetDomain from the appropriate pool.
+// Returns nil if domain would be too large for pooling.
+func getDomainFromPool(maxValue int) *BitSetDomain {
+	numWords := (maxValue + 63) / 64
+
+	var d *BitSetDomain
+	switch {
+	case numWords == 1:
+		d = smallDomainPool.Get().(*BitSetDomain)
+	case numWords == 2:
+		d = mediumDomainPool.Get().(*BitSetDomain)
+	case numWords <= 4:
+		d = largeDomainPool.Get().(*BitSetDomain)
+	default:
+		// Domain too large for pooling, allocate directly
+		return nil
+	}
+
+	// Ensure words slice has correct capacity
+	if cap(d.words) < numWords {
+		d.words = make([]uint64, numWords)
+	} else {
+		d.words = d.words[:numWords]
+	}
+
+	// Clear all words
+	for i := range d.words {
+		d.words[i] = 0
+	}
+
+	d.maxValue = maxValue
+	return d
+}
+
+// releaseDomainToPool returns a BitSetDomain to the appropriate pool for reuse.
+func releaseDomainToPool(d *BitSetDomain) {
+	if d == nil || d.words == nil {
+		return
+	}
+
+	numWords := len(d.words)
+	switch {
+	case numWords == 1:
+		smallDomainPool.Put(d)
+	case numWords == 2:
+		mediumDomainPool.Put(d)
+	case numWords <= 4:
+		largeDomainPool.Put(d)
+		// Domains > 4 words are not pooled, will be garbage collected
+	}
+}
+
 // NewBitSetDomain creates a new domain containing all values from 1 to maxValue (inclusive).
-// maxValue must be positive.
+// maxValue must be positive. Uses object pooling for common domain sizes.
 func NewBitSetDomain(maxValue int) *BitSetDomain {
 	if maxValue <= 0 {
 		return &BitSetDomain{maxValue: 0, words: nil}
 	}
 
-	numWords := (maxValue + 63) / 64
-	words := make([]uint64, numWords)
+	// Try to get from pool
+	d := getDomainFromPool(maxValue)
+	if d == nil {
+		// Too large for pool, allocate directly
+		numWords := (maxValue + 63) / 64
+		d = &BitSetDomain{
+			maxValue: maxValue,
+			words:    make([]uint64, numWords),
+		}
+	}
 
 	// Set bits 0 to maxValue-1 (representing values 1 to maxValue)
 	for i := 0; i < maxValue; i++ {
 		wordIdx := i / 64
 		bitOffset := uint(i % 64)
-		words[wordIdx] |= 1 << bitOffset
+		d.words[wordIdx] |= 1 << bitOffset
 	}
 
-	return &BitSetDomain{
-		maxValue: maxValue,
-		words:    words,
-	}
+	return d
 }
 
 // NewBitSetDomainFromValues creates a domain containing only the specified values.
-// Values outside [1, maxValue] are ignored.
+// Values outside [1, maxValue] are ignored. Uses object pooling for common domain sizes.
 func NewBitSetDomainFromValues(maxValue int, values []int) *BitSetDomain {
 	if maxValue <= 0 {
 		return &BitSetDomain{maxValue: 0, words: nil}
 	}
 
-	numWords := (maxValue + 63) / 64
-	words := make([]uint64, numWords)
+	// Try to get from pool
+	d := getDomainFromPool(maxValue)
+	if d == nil {
+		// Too large for pool, allocate directly
+		numWords := (maxValue + 63) / 64
+		d = &BitSetDomain{
+			maxValue: maxValue,
+			words:    make([]uint64, numWords),
+		}
+	}
 
+	// Set bits for specified values
 	for _, v := range values {
 		if v >= 1 && v <= maxValue {
 			wordIdx := (v - 1) / 64
 			bitOffset := uint((v - 1) % 64)
-			words[wordIdx] |= 1 << bitOffset
+			d.words[wordIdx] |= 1 << bitOffset
 		}
 	}
 
-	return &BitSetDomain{
-		maxValue: maxValue,
-		words:    words,
-	}
+	return d
 }
 
 // Count returns the number of values in the domain.
@@ -329,15 +418,23 @@ func (d *BitSetDomain) Complement() Domain {
 }
 
 // Clone returns a copy of the domain.
-// O(number of words) operation.
+// O(number of words) operation. Uses object pooling for common domain sizes.
 func (d *BitSetDomain) Clone() Domain {
-	newWords := make([]uint64, len(d.words))
-	copy(newWords, d.words)
-
-	return &BitSetDomain{
-		maxValue: d.maxValue,
-		words:    newWords,
+	// Try to get from pool
+	newDomain := getDomainFromPool(d.maxValue)
+	if newDomain == nil {
+		// Too large for pool, allocate directly
+		newWords := make([]uint64, len(d.words))
+		copy(newWords, d.words)
+		return &BitSetDomain{
+			maxValue: d.maxValue,
+			words:    newWords,
+		}
 	}
+
+	// Copy words into pooled domain
+	copy(newDomain.words, d.words)
+	return newDomain
 }
 
 // Equal returns true if this domain contains exactly the same values as other.

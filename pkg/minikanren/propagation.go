@@ -235,15 +235,16 @@ func (c *AllDifferent) Propagate(solver *Solver, state *SolverState) (*SolverSta
 			}
 
 			newDomain := NewBitSetDomainFromValues(originalDomain.MaxValue(), supportedValues)
-			newState = solver.SetDomain(newState, v.ID(), newDomain)
-			domains[i] = newDomain // Update local copy for subsequent constraints
+			var changed bool
+			newState, changed = solver.SetDomain(newState, v.ID(), newDomain)
+			if changed {
+				domains[i] = newDomain // Update local copy for subsequent constraints
+			}
 		}
 	}
 
 	return newState, nil
-}
-
-// maxMatching computes maximum bipartite matching: variables ← values.
+} // maxMatching computes maximum bipartite matching: variables ← values.
 // Returns mapping from value to variable index, and matching size.
 func (c *AllDifferent) maxMatching(domains []Domain, maxVal int) (map[int]int, int) {
 	n := len(domains)
@@ -572,10 +573,10 @@ func (c *Arithmetic) Propagate(solver *Solver, state *SolverState) (*SolverState
 	// Update state
 	newState := state
 	if !c.eq(newSrcDom, srcDom) {
-		newState = solver.SetDomain(newState, c.src.ID(), newSrcDom)
+		newState, _ = solver.SetDomain(newState, c.src.ID(), newSrcDom)
 	}
 	if !c.eq(newDstDom, dstDom) {
-		newState = solver.SetDomain(newState, c.dst.ID(), newDstDom)
+		newState, _ = solver.SetDomain(newState, c.dst.ID(), newDstDom)
 	}
 
 	return newState, nil
@@ -769,7 +770,7 @@ func (c *Inequality) propLT(solver *Solver, state *SolverState, xDom, yDom Domai
 		return nil, fmt.Errorf("Inequality <: X empty")
 	}
 	if !c.eqDom(newXDom, xDom) {
-		newState = solver.SetDomain(newState, c.x.ID(), newXDom)
+		newState, _ = solver.SetDomain(newState, c.x.ID(), newXDom)
 	}
 
 	// Prune Y: remove values <= minX (Y must be > at least one X, so Y > minX)
@@ -778,7 +779,7 @@ func (c *Inequality) propLT(solver *Solver, state *SolverState, xDom, yDom Domai
 		return nil, fmt.Errorf("Inequality <: Y empty")
 	}
 	if !c.eqDom(newYDom, yDom) {
-		newState = solver.SetDomain(newState, c.y.ID(), newYDom)
+		newState, _ = solver.SetDomain(newState, c.y.ID(), newYDom)
 	}
 
 	return newState, nil
@@ -800,7 +801,7 @@ func (c *Inequality) propLE(solver *Solver, state *SolverState, xDom, yDom Domai
 		return nil, fmt.Errorf("Inequality ≤: X empty")
 	}
 	if !c.eqDom(newXDom, xDom) {
-		newState = solver.SetDomain(newState, c.x.ID(), newXDom)
+		newState, _ = solver.SetDomain(newState, c.x.ID(), newXDom)
 	}
 
 	// Prune Y: remove values < minX (Y must be ≥ at least one X, so Y ≥ minX)
@@ -809,7 +810,7 @@ func (c *Inequality) propLE(solver *Solver, state *SolverState, xDom, yDom Domai
 		return nil, fmt.Errorf("Inequality ≤: Y empty")
 	}
 	if !c.eqDom(newYDom, yDom) {
-		newState = solver.SetDomain(newState, c.y.ID(), newYDom)
+		newState, _ = solver.SetDomain(newState, c.y.ID(), newYDom)
 	}
 
 	return newState, nil
@@ -831,7 +832,7 @@ func (c *Inequality) propGT(solver *Solver, state *SolverState, xDom, yDom Domai
 		return nil, fmt.Errorf("Inequality >: X empty")
 	}
 	if !c.eqDom(newXDom, xDom) {
-		newState = solver.SetDomain(newState, c.x.ID(), newXDom)
+		newState, _ = solver.SetDomain(newState, c.x.ID(), newXDom)
 	}
 
 	// Prune Y: remove values >= maxX (Y must be < at least one X, so Y < maxX)
@@ -840,7 +841,7 @@ func (c *Inequality) propGT(solver *Solver, state *SolverState, xDom, yDom Domai
 		return nil, fmt.Errorf("Inequality >: Y empty")
 	}
 	if !c.eqDom(newYDom, yDom) {
-		newState = solver.SetDomain(newState, c.y.ID(), newYDom)
+		newState, _ = solver.SetDomain(newState, c.y.ID(), newYDom)
 	}
 
 	return newState, nil
@@ -862,7 +863,7 @@ func (c *Inequality) propGE(solver *Solver, state *SolverState, xDom, yDom Domai
 		return nil, fmt.Errorf("Inequality ≥: X empty")
 	}
 	if !c.eqDom(newXDom, xDom) {
-		newState = solver.SetDomain(newState, c.x.ID(), newXDom)
+		newState, _ = solver.SetDomain(newState, c.x.ID(), newXDom)
 	}
 
 	// Prune Y: remove values > maxX (Y must be ≤ at least one X, so Y ≤ maxX)
@@ -871,7 +872,7 @@ func (c *Inequality) propGE(solver *Solver, state *SolverState, xDom, yDom Domai
 		return nil, fmt.Errorf("Inequality ≥: Y empty")
 	}
 	if !c.eqDom(newYDom, yDom) {
-		newState = solver.SetDomain(newState, c.y.ID(), newYDom)
+		newState, _ = solver.SetDomain(newState, c.y.ID(), newYDom)
 	}
 
 	return newState, nil
@@ -902,7 +903,7 @@ func (c *Inequality) propNE(solver *Solver, state *SolverState, xDom, yDom Domai
 			if newYDom.Count() == 0 {
 				return nil, fmt.Errorf("Inequality ≠: Y empty")
 			}
-			newState = solver.SetDomain(newState, c.y.ID(), newYDom)
+			newState, _ = solver.SetDomain(newState, c.y.ID(), newYDom)
 		}
 	}
 
@@ -915,7 +916,7 @@ func (c *Inequality) propNE(solver *Solver, state *SolverState, xDom, yDom Domai
 			if newXDom.Count() == 0 {
 				return nil, fmt.Errorf("Inequality ≠: X empty")
 			}
-			newState = solver.SetDomain(newState, c.x.ID(), newXDom)
+			newState, _ = solver.SetDomain(newState, c.x.ID(), newXDom)
 		}
 	}
 
