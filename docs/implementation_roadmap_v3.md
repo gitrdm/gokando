@@ -266,39 +266,6 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
         - [ ] Register both with the `HybridSolver`.
     - [ ] **Success Criteria**: The `HybridSolver` can solve problems using both relational and FD constraints, replicating and exceeding existing functionality. The standalone engines remain usable on their own.
 
-### Phase 3: Hybrid Solver Framework
-
-**Objective**: Build the pluggable hybrid solver framework integrating relational and FD solvers.
-
-- [ ] **Task 3.1: Define the `SolverPlugin` Interface**
-    - [ ] **Objective**: Create the contract for all pluggable domain solvers.
-    - [ ] **Action**:
-        - [ ] Define a `SolverPlugin` interface with methods like `CanHandle(Constraint)` and `Propagate(UnifiedStore)`.
-    - [ ] **Success Criteria**: A clear, well-documented interface exists for integrating specialized solvers.
-
-- [ ] **Task 3.2: Implement the `HybridSolver` Dispatcher**
-    - [ ] **Objective**: Create the central coordinator that manages plugins.
-    - [ ] **Action**:
-        - [ ] Implement the `HybridSolver` struct, which maintains a registry of `SolverPlugin`s.
-        - [ ] Implement the logic to dispatch constraints to the appropriate registered plugin.
-    - [ ] **Success Criteria**: The `HybridSolver` can register plugins and correctly route constraints.
-
-- [ ] **Task 3.3: Implement the Unified Store and Attributed Variables**
-    - [ ] **Objective**: Create a single, high-performance source of truth for variable state that supports parallel search.
-    - [ ] **Action**:
-        - [ ] Design the `UnifiedStore` as a **persistent data structure**. "Modifications" (e.g., binding a variable) will not happen in-place but will instead create a new, lightweight version of the store that shares the vast majority of its structure with the parent. This makes state-splitting for parallel workers a constant-time, allocation-free operation.
-        - [ ] Implement the concept of "Attributed Variables," allowing a single logical variable to hold both a relational binding and other attributes (like a finite domain).
-        - [ ] The "shared propagation queue" will be a conceptual control flow within each worker, not a contended global data structure. A worker will iterate through relevant plugins until a fixed point is reached for its local state.
-    - [ ] **Success Criteria**: A variable can have both a relational binding and a finite domain. The `UnifiedStore` can be branched for parallel workers with minimal overhead, and inter-solver propagation occurs without locks.
-
-- [ ] **Task 3.4: Refactor Existing Solvers as Plugins**
-    - [ ] **Objective**: Integrate the existing relational and FD logic into the new framework.
-    - [ ] **Action**:
-        - [ ] Wrap the core relational engine in a `RelationalPlugin` that implements the `SolverPlugin` interface.
-        - [ ] Wrap the core FD engine in an `FDPlugin`.
-        - [ ] Register both with the `HybridSolver`.
-    - [ ] **Success Criteria**: The `HybridSolver` can solve problems using both relational and FD constraints, replicating and exceeding existing functionality. The standalone engines remain usable on their own.
-
 ### Phase 4: Constraint Library and Search Enhancements
 
 **Objective**: Close the functional gaps in the solver's capabilities.
