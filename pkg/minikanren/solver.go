@@ -193,6 +193,63 @@ func (s *Solver) SetDomain(state *SolverState, varID int, domain Domain) *Solver
 	return newState
 }
 
+// propagate runs all propagation constraints to a fixed-point.
+// Returns a new state with pruned domains, or error if inconsistency detected.
+//
+// The propagation loop:
+//  1. Collect all PropagationConstraints from the model
+//  2. Run each constraint once
+//  3. If any constraint modified domains, repeat from step 2
+//  4. Stop when no changes occur (fixed-point reached)
+//
+// This maintains copy-on-write semantics: each constraint returns a new state,
+// preserving the lock-free property for parallel search.
+func (s *Solver) propagate(state *SolverState) (*SolverState, error) {
+	constraints := make([]PropagationConstraint, 0)
+
+	// Collect PropagationConstraints from model
+	for _, mc := range s.model.Constraints() {
+		if pc, ok := mc.(PropagationConstraint); ok {
+			constraints = append(constraints, pc)
+		}
+	}
+
+	if len(constraints) == 0 {
+		return state, nil // No propagation constraints
+	}
+
+	currentState := state
+	maxIterations := 1000 // Prevent infinite loops
+
+	for iteration := 0; iteration < maxIterations; iteration++ {
+		changed := false
+
+		for _, constraint := range constraints {
+			newState, err := constraint.Propagate(s, currentState)
+			if err != nil {
+				if s.monitor != nil {
+					s.monitor.RecordBacktrack()
+				}
+				return nil, err // Inconsistency detected
+			}
+
+			// Check if state changed (domain pruning occurred)
+			if newState != currentState {
+				changed = true
+				currentState = newState
+			}
+		}
+
+		if !changed {
+			// Fixed-point reached
+			return currentState, nil
+		}
+	}
+
+	// Should never reach here unless there's a bug in constraints
+	return nil, fmt.Errorf("propagation failed to reach fixed-point after %d iterations", maxIterations)
+}
+
 // ReleaseState returns a state to the pool for reuse.
 // Should be called when backtracking to free memory.
 // Only the state itself is pooled, not domains (they are immutable and shared).
@@ -388,32 +445,8 @@ func (s *Solver) search(ctx context.Context, state *SolverState, solutions *[][]
 // - Constraints to "communicate" via the shared propagation queue
 // - Multiple workers to propagate independently (different state chains)
 // - Efficient backtracking (just pop state nodes)
-func (s *Solver) propagate(state *SolverState) (*SolverState, error) {
-	if s.monitor != nil {
-		s.monitor.StartPropagation()
-	}
-
-	// Simple propagation: check for empty domains
-	for i := 0; i < s.model.VariableCount(); i++ {
-		domain := s.GetDomain(state, i)
-		if domain.Count() == 0 {
-			if s.monitor != nil {
-				s.monitor.EndPropagation()
-			}
-			return nil, fmt.Errorf("empty domain for variable %d", i)
-		}
-	}
-
-	// TODO: Implement constraint-specific propagation
-	// For now, just return the state as-is
-	// Future: iterate through constraints and call propagation methods
-
-	if s.monitor != nil {
-		s.monitor.EndPropagation()
-	}
-
-	return state, nil
-}
+// Note: The actual propagate implementation is defined earlier in this file,
+// after SetDomain. It runs all PropagationConstraints to a fixed-point.
 
 // isComplete returns true if all variables are bound (singleton domains).
 func (s *Solver) isComplete(state *SolverState) bool {
