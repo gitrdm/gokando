@@ -20,6 +20,10 @@ Working examples and tutorials.
 
 In-depth guides and best practices.
 
+### 🏗️ [Implementation Roadmap](implementation_roadmap_v3.md)
+
+Phased implementation plan with detailed progress tracking.
+
 ## Package Overview
 
 ### main

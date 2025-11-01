@@ -527,3 +527,145 @@ func TestBitSetDomain_EdgeCases(t *testing.T) {
 		}
 	})
 }
+
+// TestDomainRangeOperations tests efficient bulk range removal operations.
+func TestDomainRangeOperations(t *testing.T) {
+	domainToSlice := func(d Domain) []int {
+		var result []int
+		d.IterateValues(func(v int) {
+			result = append(result, v)
+		})
+		return result
+	}
+
+	t.Run("RemoveAbove basic", func(t *testing.T) {
+		d := NewBitSetDomain(10) // {1,2,3,4,5,6,7,8,9,10}
+		result := d.RemoveAbove(5)
+		expected := []int{1, 2, 3, 4, 5}
+		actual := domainToSlice(result)
+		if !slicesEqual(actual, expected) {
+			t.Errorf("RemoveAbove(5) = %v, want %v", actual, expected)
+		}
+	})
+
+	t.Run("RemoveAbove nothing to remove", func(t *testing.T) {
+		d := NewBitSetDomain(10)
+		result := d.RemoveAbove(10)
+		if result.Count() != 10 {
+			t.Errorf("RemoveAbove(10) should not remove anything, count = %d", result.Count())
+		}
+	})
+
+	t.Run("RemoveAbove remove all", func(t *testing.T) {
+		d := NewBitSetDomain(10)
+		result := d.RemoveAbove(0)
+		if result.Count() != 0 {
+			t.Errorf("RemoveAbove(0) should remove all, count = %d", result.Count())
+		}
+	})
+
+	t.Run("RemoveBelow basic", func(t *testing.T) {
+		d := NewBitSetDomain(10) // {1,2,3,4,5,6,7,8,9,10}
+		result := d.RemoveBelow(6)
+		expected := []int{6, 7, 8, 9, 10}
+		actual := domainToSlice(result)
+		if !slicesEqual(actual, expected) {
+			t.Errorf("RemoveBelow(6) = %v, want %v", actual, expected)
+		}
+	})
+
+	t.Run("RemoveBelow nothing to remove", func(t *testing.T) {
+		d := NewBitSetDomain(10)
+		result := d.RemoveBelow(1)
+		if result.Count() != 10 {
+			t.Errorf("RemoveBelow(1) should not remove anything, count = %d", result.Count())
+		}
+	})
+
+	t.Run("RemoveBelow remove all", func(t *testing.T) {
+		d := NewBitSetDomain(10)
+		result := d.RemoveBelow(11)
+		if result.Count() != 0 {
+			t.Errorf("RemoveBelow(11) should remove all, count = %d", result.Count())
+		}
+	})
+
+	t.Run("RemoveAtOrAbove basic", func(t *testing.T) {
+		d := NewBitSetDomain(10)
+		result := d.RemoveAtOrAbove(6) // Keep {1,2,3,4,5}
+		expected := []int{1, 2, 3, 4, 5}
+		actual := domainToSlice(result)
+		if !slicesEqual(actual, expected) {
+			t.Errorf("RemoveAtOrAbove(6) = %v, want %v", actual, expected)
+		}
+	})
+
+	t.Run("RemoveAtOrBelow basic", func(t *testing.T) {
+		d := NewBitSetDomain(10)
+		result := d.RemoveAtOrBelow(5) // Keep {6,7,8,9,10}
+		expected := []int{6, 7, 8, 9, 10}
+		actual := domainToSlice(result)
+		if !slicesEqual(actual, expected) {
+			t.Errorf("RemoveAtOrBelow(5) = %v, want %v", actual, expected)
+		}
+	})
+
+	t.Run("RemoveAbove with sparse domain", func(t *testing.T) {
+		d := NewBitSetDomainFromValues(20, []int{2, 5, 8, 12, 15, 18})
+		result := d.RemoveAbove(10)
+		expected := []int{2, 5, 8}
+		actual := domainToSlice(result)
+		if !slicesEqual(actual, expected) {
+			t.Errorf("RemoveAbove(10) on sparse = %v, want %v", actual, expected)
+		}
+	})
+
+	t.Run("RemoveBelow with sparse domain", func(t *testing.T) {
+		d := NewBitSetDomainFromValues(20, []int{2, 5, 8, 12, 15, 18})
+		result := d.RemoveBelow(10)
+		expected := []int{12, 15, 18}
+		actual := domainToSlice(result)
+		if !slicesEqual(actual, expected) {
+			t.Errorf("RemoveBelow(10) on sparse = %v, want %v", actual, expected)
+		}
+	})
+
+	t.Run("Combined range operations", func(t *testing.T) {
+		d := NewBitSetDomain(100)
+		// Keep only values in range [20, 80]
+		result := d.RemoveBelow(20).RemoveAbove(80)
+		if result.Count() != 61 { // 20..80 inclusive
+			t.Errorf("Combined operations count = %d, want 61", result.Count())
+		}
+		if !result.Has(20) || !result.Has(80) {
+			t.Error("Should have bounds 20 and 80")
+		}
+		if result.Has(19) || result.Has(81) {
+			t.Error("Should not have 19 or 81")
+		}
+	})
+
+	t.Run("Large domain efficiency", func(t *testing.T) {
+		// Test with large domain to ensure bit operations work across word boundaries
+		d := NewBitSetDomain(200)
+		result := d.RemoveAbove(150)
+		if result.Count() != 150 {
+			t.Errorf("RemoveAbove(150) on large domain count = %d, want 150", result.Count())
+		}
+		if !result.Has(150) || result.Has(151) {
+			t.Error("Boundary check failed for large domain")
+		}
+	})
+}
+
+func slicesEqual(a, b []int) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}

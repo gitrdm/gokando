@@ -91,6 +91,9 @@ func (c *AllDifferent) String() string {
 	return fmt.Sprintf("AllDifferent(%v)", ids)
 }
 
+// debugAllDiff enables verbose debug output for AllDifferent when set to true.
+const debugAllDiff = false
+
 // Propagate applies Regin's AllDifferent filtering algorithm.
 // Implements PropagationConstraint.
 func (c *AllDifferent) Propagate(solver *Solver, state *SolverState) (*SolverState, error) {
@@ -134,36 +137,141 @@ func (c *AllDifferent) Propagate(solver *Solver, state *SolverState) (*SolverSta
 		return nil, fmt.Errorf("AllDifferent: no complete matching (size=%d, need=%d)", matchSize, n)
 	}
 
-	// Test each variable/value pair for support
+	// DEBUG: Print matching
+	if debugAllDiff {
+		fmt.Printf("\nDEBUG: Matching (size=%d):\n", matchSize)
+		matchedValues := make([]int, 0, len(matching))
+		for val := range matching {
+			if matching[val] != -1 {
+				matchedValues = append(matchedValues, val)
+			}
+		}
+		sort.Ints(matchedValues)
+		for _, val := range matchedValues {
+			fmt.Printf("  val[%d] -> var[%d]\n", val, matching[val])
+		}
+	}
+
+	// Apply Régin's arc-consistency algorithm using value graph and SCC decomposition
+	// This efficiently identifies all edges (variable, value) that cannot be in any
+	// complete matching, removing them in O(n*d + e) time instead of O(n*d*e) naive approach.
+
+	// Build value graph from matching
+	valueGraph := c.buildValueGraph(domains, matching, n, maxVal)
+
+	// Compute SCCs using Tarjan's algorithm
+	sccs := c.computeSCCs(valueGraph, n, maxVal)
+
+	// DEBUG: Print SCC info for debugging
+	if debugAllDiff { // Set to true to enable debug output
+		fmt.Printf("\nDEBUG: SCC assignments (n=%d, maxVal=%d):\n", n, maxVal)
+		for i := 0; i < n; i++ {
+			fmt.Printf("  var[%d] (node %d): SCC %d\n", i, i, sccs[i])
+		}
+		sccCounts := make(map[int]int)
+		for val := 1; val <= maxVal; val++ {
+			valNode := n + val - 1
+			if sccs[valNode] != -1 {
+				sccCounts[sccs[valNode]]++
+				fmt.Printf("  val[%d] (node %d): SCC %d\n", val, valNode, sccs[valNode])
+			}
+		}
+		fmt.Printf("  Value SCC distribution: %v\n", sccCounts)
+	}
+
+	// Build reverse matching: variable -> its matched value (or -1)
+	varToVal := make([]int, n)
+	for i := range varToVal {
+		varToVal[i] = -1
+	}
+	for val, vi := range matching {
+		if vi >= 0 && vi < n {
+			varToVal[vi] = val
+		}
+	}
+
+	// Determine free values that actually appear in some domain
+	present := make([]bool, maxVal+1)
+	for i := 0; i < n; i++ {
+		domains[i].IterateValues(func(val int) {
+			if val >= 1 && val <= maxVal {
+				present[val] = true
+			}
+		})
+	}
+	freeValueNodes := []int{}
+	for val := 1; val <= maxVal; val++ {
+		if present[val] && matching[val] == -1 {
+			freeValueNodes = append(freeValueNodes, n+val-1)
+		}
+	}
+
+	// If there are free values in the value graph, compute reachability Z from them
+	reachable := make([]bool, valueGraph.size)
+	if len(freeValueNodes) > 0 {
+		stack := make([]int, 0, len(freeValueNodes))
+		for _, node := range freeValueNodes {
+			reachable[node] = true
+			stack = append(stack, node)
+		}
+		for len(stack) > 0 {
+			v := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+			for _, w := range valueGraph.adj[v] {
+				if !reachable[w] {
+					reachable[w] = true
+					stack = append(stack, w)
+				}
+			}
+		}
+	}
+
+	// Prune values based on SCC or Z-reachability (Régin):
+	// Always keep the matched value. Otherwise:
+	//  - If there are free values: keep if NOT (var ∈ Z and val ∉ Z)
+	//  - If no free values: keep only if var and val are in the same SCC (part of a cycle)
 	newState := state
 	for i, v := range c.variables {
-		toRemove := []int{}
+		originalDomain := domains[i]
+		varNode := i
+		varSCC := sccs[varNode]
 
-		domains[i].IterateValues(func(val int) {
-			// Value matched to this variable is supported
-			if matching[val] == i {
+		// We build a new domain containing only the supported values.
+		supportedValues := []int{}
+		originalDomain.IterateValues(func(val int) {
+			valNode := n + val - 1
+			// Always keep the matched value for this variable
+			if varToVal[i] == val {
+				supportedValues = append(supportedValues, val)
+				return
+			}
+			if valNode < 0 || valNode >= len(sccs) {
+				// Conservatively keep if node out of range
+				supportedValues = append(supportedValues, val)
 				return
 			}
 
-			// Test if forcing v=val allows full matching
-			if !c.hasSupport(i, val, domains, n, maxVal) {
-				toRemove = append(toRemove, val)
+			if len(freeValueNodes) > 0 {
+				// Z-based pruning: remove edges crossing from Z to outside-Z
+				if !(reachable[varNode] && !reachable[valNode]) {
+					supportedValues = append(supportedValues, val)
+				}
+			} else {
+				// Cycle-based pruning: keep only edges within the same SCC
+				if varSCC == sccs[valNode] {
+					supportedValues = append(supportedValues, val)
+				}
 			}
 		})
 
-		// Apply removals
-		if len(toRemove) > 0 {
-			newDomain := domains[i]
-			for _, val := range toRemove {
-				newDomain = newDomain.Remove(val)
-			}
-
-			if newDomain.Count() == 0 {
+		if len(supportedValues) < originalDomain.Count() {
+			if len(supportedValues) == 0 {
 				return nil, fmt.Errorf("AllDifferent: variable %d domain empty after pruning", v.ID())
 			}
 
+			newDomain := NewBitSetDomainFromValues(originalDomain.MaxValue(), supportedValues)
 			newState = solver.SetDomain(newState, v.ID(), newDomain)
-			domains[i] = newDomain // Update for subsequent iterations
+			domains[i] = newDomain // Update local copy for subsequent constraints
 		}
 	}
 
@@ -273,20 +381,130 @@ func (c *AllDifferent) augment(vi int, domains []Domain, matchVal, matchVar []in
 	return found
 }
 
-// hasSupport tests if variable vi can take value val (allows full matching).
-func (c *AllDifferent) hasSupport(vi, val int, domains []Domain, n, maxVal int) bool {
-	// Create temp domains with vi restricted to {val}
-	tempDomains := make([]Domain, n)
-	for i := range domains {
-		if i == vi {
-			tempDomains[i] = NewBitSetDomainFromValues(maxVal, []int{val})
-		} else {
-			tempDomains[i] = domains[i]
+// buildValueGraph constructs the directed value graph for Régin's algorithm.
+// Graph structure (alternating path graph):
+//   - Nodes: variables (0..n-1) and values (n..n+maxVal-1)
+//   - Matched edges: variable -> matched_value (forward in matching)
+//   - Free edges: value -> variable (reverse, for values in domain but not matched)
+//
+// An edge (variable, value) is supported iff it lies on an alternating cycle,
+// which occurs iff variable and value are in the same SCC.
+type valueGraph struct {
+	adj  [][]int // adjacency list: adj[node] = list of successors
+	size int     // total number of nodes
+}
+
+func (c *AllDifferent) buildValueGraph(domains []Domain, matching map[int]int, n, maxVal int) *valueGraph {
+	totalNodes := n + maxVal
+	g := &valueGraph{
+		adj:  make([][]int, totalNodes),
+		size: totalNodes,
+	}
+
+	// Build reverse matching: variable -> value
+	varToVal := make([]int, n)
+	for i := range varToVal {
+		varToVal[i] = -1
+	}
+	for val, vi := range matching {
+		if vi >= 0 && vi < n {
+			varToVal[vi] = val
 		}
 	}
 
-	_, matchSize := c.maxMatching(tempDomains, maxVal)
-	return matchSize == n
+	// Add edges to form an alternating path graph.
+	// IMPORTANT: Orientation follows Régin's algorithm:
+	// - Matched edges:   variable -> value
+	// - Unmatched edges: value -> variable
+	for vi := 0; vi < n; vi++ {
+		matchedVal := varToVal[vi]
+		varNode := vi
+
+		domains[vi].IterateValues(func(val int) {
+			if val < 1 || val > maxVal {
+				return
+			}
+			valNode := n + val - 1
+
+			if val == matchedVal {
+				// Matched edge oriented from variable to value
+				g.adj[varNode] = append(g.adj[varNode], valNode)
+			} else {
+				// Unmatched edge oriented from value to variable
+				g.adj[valNode] = append(g.adj[valNode], varNode)
+			}
+		})
+	}
+
+	return g
+}
+
+// computeSCCs computes strongly connected components using Tarjan's algorithm.
+// Returns scc[node] = component ID for each node.
+func (c *AllDifferent) computeSCCs(g *valueGraph, n, maxVal int) []int {
+	scc := make([]int, g.size)
+	for i := range scc {
+		scc[i] = -1
+	}
+
+	index := 0
+	stack := []int{}
+	onStack := make([]bool, g.size)
+	indices := make([]int, g.size)
+	lowlink := make([]int, g.size)
+	for i := range indices {
+		indices[i] = -1
+	}
+
+	sccCount := 0
+
+	var strongconnect func(int)
+	strongconnect = func(v int) {
+		indices[v] = index
+		lowlink[v] = index
+		index++
+		stack = append(stack, v)
+		onStack[v] = true
+
+		// Consider successors
+		for _, w := range g.adj[v] {
+			if indices[w] == -1 {
+				// Successor not yet visited; recurse
+				strongconnect(w)
+				if lowlink[w] < lowlink[v] {
+					lowlink[v] = lowlink[w]
+				}
+			} else if onStack[w] {
+				// Successor is on stack, hence in current SCC
+				if indices[w] < lowlink[v] {
+					lowlink[v] = indices[w]
+				}
+			}
+		}
+
+		// If v is a root node, pop the stack to form SCC
+		if lowlink[v] == indices[v] {
+			for {
+				w := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				onStack[w] = false
+				scc[w] = sccCount
+				if w == v {
+					break
+				}
+			}
+			sccCount++
+		}
+	}
+
+	// Find SCCs for all nodes
+	for v := 0; v < g.size; v++ {
+		if indices[v] == -1 {
+			strongconnect(v)
+		}
+	}
+
+	return scc
 }
 
 // Arithmetic enforces dst = src + offset.
@@ -575,18 +793,13 @@ func (c *Inequality) Propagate(solver *Solver, state *SolverState) (*SolverState
 // - Remove from X: all values >= max(Y)
 // - Remove from Y: all values <= min(X)
 func (c *Inequality) propLT(solver *Solver, state *SolverState, xDom, yDom Domain) (*SolverState, error) {
-	minX := c.min(xDom)
-	maxY := c.max(yDom)
+	minX := xDom.Min()
+	maxY := yDom.Max()
 
 	newState := state
 
 	// Prune X: remove values >= maxY (X must be < at least one Y, so X < maxY)
-	newXDom := xDom
-	for v := maxY; v <= xDom.MaxValue(); v++ {
-		if xDom.Has(v) {
-			newXDom = newXDom.Remove(v)
-		}
-	}
+	newXDom := xDom.RemoveAtOrAbove(maxY)
 	if newXDom.Count() == 0 {
 		return nil, fmt.Errorf("Inequality <: X empty")
 	}
@@ -595,12 +808,7 @@ func (c *Inequality) propLT(solver *Solver, state *SolverState, xDom, yDom Domai
 	}
 
 	// Prune Y: remove values <= minX (Y must be > at least one X, so Y > minX)
-	newYDom := yDom
-	for v := 1; v <= minX; v++ {
-		if yDom.Has(v) {
-			newYDom = newYDom.Remove(v)
-		}
-	}
+	newYDom := yDom.RemoveAtOrBelow(minX)
 	if newYDom.Count() == 0 {
 		return nil, fmt.Errorf("Inequality <: Y empty")
 	}
@@ -616,18 +824,13 @@ func (c *Inequality) propLT(solver *Solver, state *SolverState, xDom, yDom Domai
 // - Remove from X: all values > max(Y)
 // - Remove from Y: all values < min(X)
 func (c *Inequality) propLE(solver *Solver, state *SolverState, xDom, yDom Domain) (*SolverState, error) {
-	minX := c.min(xDom)
-	maxY := c.max(yDom)
+	minX := xDom.Min()
+	maxY := yDom.Max()
 
 	newState := state
 
 	// Prune X: remove values > maxY (X must be ≤ at least one Y, so X ≤ maxY)
-	newXDom := xDom
-	for v := maxY + 1; v <= xDom.MaxValue(); v++ {
-		if xDom.Has(v) {
-			newXDom = newXDom.Remove(v)
-		}
-	}
+	newXDom := xDom.RemoveAbove(maxY)
 	if newXDom.Count() == 0 {
 		return nil, fmt.Errorf("Inequality ≤: X empty")
 	}
@@ -636,12 +839,7 @@ func (c *Inequality) propLE(solver *Solver, state *SolverState, xDom, yDom Domai
 	}
 
 	// Prune Y: remove values < minX (Y must be ≥ at least one X, so Y ≥ minX)
-	newYDom := yDom
-	for v := 1; v < minX; v++ {
-		if yDom.Has(v) {
-			newYDom = newYDom.Remove(v)
-		}
-	}
+	newYDom := yDom.RemoveBelow(minX)
 	if newYDom.Count() == 0 {
 		return nil, fmt.Errorf("Inequality ≤: Y empty")
 	}
@@ -657,18 +855,13 @@ func (c *Inequality) propLE(solver *Solver, state *SolverState, xDom, yDom Domai
 // - Remove from X: all values <= min(Y)
 // - Remove from Y: all values >= max(X)
 func (c *Inequality) propGT(solver *Solver, state *SolverState, xDom, yDom Domain) (*SolverState, error) {
-	minY := c.min(yDom)
-	maxX := c.max(xDom)
+	minY := yDom.Min()
+	maxX := xDom.Max()
 
 	newState := state
 
 	// Prune X: remove values <= minY (X must be > at least one Y, so X > minY)
-	newXDom := xDom
-	for v := 1; v <= minY; v++ {
-		if xDom.Has(v) {
-			newXDom = newXDom.Remove(v)
-		}
-	}
+	newXDom := xDom.RemoveAtOrBelow(minY)
 	if newXDom.Count() == 0 {
 		return nil, fmt.Errorf("Inequality >: X empty")
 	}
@@ -677,12 +870,7 @@ func (c *Inequality) propGT(solver *Solver, state *SolverState, xDom, yDom Domai
 	}
 
 	// Prune Y: remove values >= maxX (Y must be < at least one X, so Y < maxX)
-	newYDom := yDom
-	for v := maxX; v <= yDom.MaxValue(); v++ {
-		if yDom.Has(v) {
-			newYDom = newYDom.Remove(v)
-		}
-	}
+	newYDom := yDom.RemoveAtOrAbove(maxX)
 	if newYDom.Count() == 0 {
 		return nil, fmt.Errorf("Inequality >: Y empty")
 	}
@@ -698,18 +886,13 @@ func (c *Inequality) propGT(solver *Solver, state *SolverState, xDom, yDom Domai
 // - Remove from X: all values < min(Y)
 // - Remove from Y: all values > max(X)
 func (c *Inequality) propGE(solver *Solver, state *SolverState, xDom, yDom Domain) (*SolverState, error) {
-	minY := c.min(yDom)
-	maxX := c.max(xDom)
+	minY := yDom.Min()
+	maxX := xDom.Max()
 
 	newState := state
 
 	// Prune X: remove values < minY (X must be ≥ at least one Y, so X ≥ minY)
-	newXDom := xDom
-	for v := 1; v < minY; v++ {
-		if xDom.Has(v) {
-			newXDom = newXDom.Remove(v)
-		}
-	}
+	newXDom := xDom.RemoveBelow(minY)
 	if newXDom.Count() == 0 {
 		return nil, fmt.Errorf("Inequality ≥: X empty")
 	}
@@ -718,12 +901,7 @@ func (c *Inequality) propGE(solver *Solver, state *SolverState, xDom, yDom Domai
 	}
 
 	// Prune Y: remove values > maxX (Y must be ≤ at least one X, so Y ≤ maxX)
-	newYDom := yDom
-	for v := maxX + 1; v <= yDom.MaxValue(); v++ {
-		if yDom.Has(v) {
-			newYDom = newYDom.Remove(v)
-		}
-	}
+	newYDom := yDom.RemoveAbove(maxX)
 	if newYDom.Count() == 0 {
 		return nil, fmt.Errorf("Inequality ≥: Y empty")
 	}
@@ -777,28 +955,6 @@ func (c *Inequality) propNE(solver *Solver, state *SolverState, xDom, yDom Domai
 	}
 
 	return newState, nil
-}
-
-// min finds minimum value in domain.
-func (c *Inequality) min(dom Domain) int {
-	minVal := dom.MaxValue() + 1
-	dom.IterateValues(func(v int) {
-		if v < minVal {
-			minVal = v
-		}
-	})
-	return minVal
-}
-
-// max finds maximum value in domain.
-func (c *Inequality) max(dom Domain) int {
-	maxVal := 0
-	dom.IterateValues(func(v int) {
-		if v > maxVal {
-			maxVal = v
-		}
-	})
-	return maxVal
 }
 
 // eqDom checks domain equality.

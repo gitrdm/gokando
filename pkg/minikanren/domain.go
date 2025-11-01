@@ -74,6 +74,34 @@ type Domain interface {
 	// All domains have values in the range [1, MaxValue].
 	MaxValue() int
 
+	// RemoveAbove returns a new domain with all values > threshold removed.
+	// Efficient bulk operation for inequality constraints.
+	// Example: domain {1,2,3,4,5}.RemoveAbove(3) = {1,2,3}
+	RemoveAbove(threshold int) Domain
+
+	// RemoveBelow returns a new domain with all values < threshold removed.
+	// Efficient bulk operation for inequality constraints.
+	// Example: domain {1,2,3,4,5}.RemoveBelow(3) = {3,4,5}
+	RemoveBelow(threshold int) Domain
+
+	// RemoveAtOrAbove returns a new domain with all values >= threshold removed.
+	// Efficient bulk operation for inequality constraints.
+	// Example: domain {1,2,3,4,5}.RemoveAtOrAbove(3) = {1,2}
+	RemoveAtOrAbove(threshold int) Domain
+
+	// RemoveAtOrBelow returns a new domain with all values <= threshold removed.
+	// Efficient bulk operation for inequality constraints.
+	// Example: domain {1,2,3,4,5}.RemoveAtOrBelow(3) = {4,5}
+	RemoveAtOrBelow(threshold int) Domain
+
+	// Min returns the minimum value in the domain.
+	// Returns 0 if domain is empty.
+	Min() int
+
+	// Max returns the maximum value in the domain.
+	// Returns 0 if domain is empty.
+	Max() int
+
 	// String returns a human-readable representation of the domain.
 	String() string
 }
@@ -336,6 +364,144 @@ func (d *BitSetDomain) Equal(other Domain) bool {
 // MaxValue returns the maximum value that can be in this domain.
 func (d *BitSetDomain) MaxValue() int {
 	return d.maxValue
+}
+
+// RemoveAbove returns a new domain with all values > threshold removed.
+// Uses efficient bit masking - O(words) not O(domain_size).
+// Example: {1,2,3,4,5}.RemoveAbove(3) = {1,2,3}
+func (d *BitSetDomain) RemoveAbove(threshold int) Domain {
+	if threshold <= 0 {
+		// Remove all values
+		return &BitSetDomain{maxValue: d.maxValue, words: make([]uint64, len(d.words))}
+	}
+	if threshold >= d.maxValue {
+		// Nothing to remove
+		return d
+	}
+
+	newWords := make([]uint64, len(d.words))
+	copy(newWords, d.words)
+
+	// Clear all bits representing values > threshold
+	// Bit i represents value i+1, so value > threshold means bit >= threshold
+	bitIdx := threshold // bit index for value threshold+1
+	wordIdx := bitIdx / 64
+	bitOffset := uint(bitIdx % 64)
+
+	// Clear remaining bits in the partial word
+	if wordIdx < len(newWords) {
+		mask := (uint64(1) << bitOffset) - 1 // Keep bits 0..bitOffset-1
+		newWords[wordIdx] &= mask
+	}
+
+	// Clear all subsequent words
+	for i := wordIdx + 1; i < len(newWords); i++ {
+		newWords[i] = 0
+	}
+
+	return &BitSetDomain{maxValue: d.maxValue, words: newWords}
+}
+
+// RemoveBelow returns a new domain with all values < threshold removed.
+// Uses efficient bit masking - O(words) not O(domain_size).
+// Example: {1,2,3,4,5}.RemoveBelow(3) = {3,4,5}
+func (d *BitSetDomain) RemoveBelow(threshold int) Domain {
+	if threshold <= 1 {
+		// Nothing to remove (minimum value is 1)
+		return d
+	}
+	if threshold > d.maxValue {
+		// Remove all values
+		return &BitSetDomain{maxValue: d.maxValue, words: make([]uint64, len(d.words))}
+	}
+
+	newWords := make([]uint64, len(d.words))
+	copy(newWords, d.words)
+
+	// Clear all bits representing values < threshold
+	// Bit i represents value i+1, so to keep values >= threshold, clear bits 0..(threshold-2)
+	// For threshold=6, clear bits 0-4 (values 1-5), keep bits 5+ (values 6+)
+	bitIdx := threshold - 2 // Last bit index to clear (value threshold-1)
+	wordIdx := bitIdx / 64
+	bitOffset := uint(bitIdx % 64)
+
+	// Clear all words before the partial word
+	for i := 0; i < wordIdx && i < len(newWords); i++ {
+		newWords[i] = 0
+	}
+
+	// Clear lower bits in the partial word (bits 0..bitOffset inclusive)
+	if wordIdx < len(newWords) {
+		mask := ^((uint64(1) << (bitOffset + 1)) - 1) // Clear bits 0..bitOffset
+		newWords[wordIdx] &= mask
+	}
+
+	return &BitSetDomain{maxValue: d.maxValue, words: newWords}
+}
+
+// RemoveAtOrAbove returns a new domain with all values >= threshold removed.
+// Uses efficient bit masking - O(words) not O(domain_size).
+// Example: {1,2,3,4,5}.RemoveAtOrAbove(3) = {1,2}
+func (d *BitSetDomain) RemoveAtOrAbove(threshold int) Domain {
+	if threshold <= 1 {
+		// Remove all values
+		return &BitSetDomain{maxValue: d.maxValue, words: make([]uint64, len(d.words))}
+	}
+	return d.RemoveAbove(threshold - 1)
+}
+
+// RemoveAtOrBelow returns a new domain with all values <= threshold removed.
+// Uses efficient bit masking - O(words) not O(domain_size).
+// Example: {1,2,3,4,5}.RemoveAtOrBelow(3) = {4,5}
+func (d *BitSetDomain) RemoveAtOrBelow(threshold int) Domain {
+	if threshold >= d.maxValue {
+		// Remove all values
+		return &BitSetDomain{maxValue: d.maxValue, words: make([]uint64, len(d.words))}
+	}
+	return d.RemoveBelow(threshold + 1)
+}
+
+// Min returns the minimum value in the domain.
+// Returns 0 if domain is empty.
+// O(words) in worst case, but typically O(1) as minimum is in first word.
+func (d *BitSetDomain) Min() int {
+	for wordIdx, word := range d.words {
+		if word != 0 {
+			// Find first set bit in this word
+			bitOffset := 0
+			for bitOffset < 64 && (word&(1<<uint(bitOffset))) == 0 {
+				bitOffset++
+			}
+			// Bit i represents value i+1
+			return wordIdx*64 + bitOffset + 1
+		}
+	}
+	return 0 // Empty domain
+}
+
+// Max returns the maximum value in the domain.
+// Returns 0 if domain is empty.
+// O(words) in worst case, but typically O(1) as maximum is in last word.
+func (d *BitSetDomain) Max() int {
+	// Search from last word backwards
+	for wordIdx := len(d.words) - 1; wordIdx >= 0; wordIdx-- {
+		word := d.words[wordIdx]
+		if word != 0 {
+			// Find last set bit in this word
+			bitOffset := 63
+			for bitOffset >= 0 && (word&(1<<uint(bitOffset))) == 0 {
+				bitOffset--
+			}
+			// Bit i represents value i+1
+			value := wordIdx*64 + bitOffset + 1
+			// Don't return values beyond maxValue
+			if value > d.maxValue {
+				continue
+			}
+			return value
+		}
+	}
+	return 0 // Empty domain
 }
 
 // String returns a human-readable representation of the domain.
