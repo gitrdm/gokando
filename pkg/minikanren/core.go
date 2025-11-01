@@ -348,7 +348,27 @@ func (s *Stream) Take(ctx context.Context, n int) ([]ConstraintStore, bool, erro
 	default:
 		return results, true, nil // Stream is still open, might have more
 	}
-} // Put adds a constraint store to the stream.
+}
+
+// Drain consumes and discards all remaining results from the stream.
+// This is useful when a goal is executed for its side effects (like collecting constraints)
+// and the actual results are not needed.
+func (s *Stream) Drain(ctx context.Context) {
+	for {
+		select {
+		case <-s.ch:
+			// Discard the item
+		case <-s.done:
+			// Stream is closed
+			return
+		case <-ctx.Done():
+			// Context cancelled
+			return
+		}
+	}
+}
+
+// Put adds a constraint store to the stream.
 func (s *Stream) Put(ctx context.Context, store ConstraintStore) error {
 	select {
 	case s.ch <- store:
@@ -390,6 +410,16 @@ func (s *Stream) Count() int64 {
 // The constraint store contains both variable bindings and active constraints,
 // enabling order-independent constraint logic programming.
 type Goal func(ctx context.Context, store ConstraintStore) ResultStream
+
+// NewSingletonStream creates a stream that contains a single constraint store.
+func NewSingletonStream(store ConstraintStore) ResultStream {
+	stream := NewStream()
+	go func() {
+		defer stream.Close()
+		stream.Put(context.Background(), store)
+	}()
+	return stream
+}
 
 // Success is a goal that always succeeds with the given constraint store.
 var Success Goal = func(ctx context.Context, store ConstraintStore) ResultStream {

@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"runtime/pprof"
 	"time"
 
 	"github.com/gitrdm/gokando/pkg/minikanren"
@@ -23,72 +25,136 @@ var puzzle = [81]int{
 	0, 0, 0, 0, 8, 0, 0, 7, 9,
 }
 
-func main() {
-	s := minikanren.NewFDStore()
-	vars := make([]*minikanren.FDVar, 81)
+// sudokuGoal defines the constraints for the Sudoku puzzle in a declarative,
+// high-level style, consistent with idiomatic miniKanren usage.
+func sudokuGoal(puzzle [81]int, solution *minikanren.Var) minikanren.Goal {
+	// Create 81 logic variables for the board cells.
+	vars := make([]minikanren.Term, 81)
 	for i := 0; i < 81; i++ {
-		vars[i] = s.NewVar()
+		// Using Fresh to create logic variables for each cell.
+		vars[i] = minikanren.Fresh(fmt.Sprintf("c%d", i))
 	}
 
-	// apply givens first
-	for i := 0; i < 81; i++ {
-		v := puzzle[i]
+	// A slice to hold all the constraint goals.
+	var goals []minikanren.Goal
+
+	// 1. Add constraints for the given numbers from the puzzle.
+	// The Eq goal unifies a variable with a concrete value.
+	for i, v := range puzzle {
 		if v != 0 {
-			if err := s.Assign(vars[i], v); err != nil {
-				fmt.Println("Puzzle inconsistent at given", i, ":", err)
-				return
-			}
+			goals = append(goals, minikanren.Eq(vars[i], minikanren.NewAtom(v)))
 		}
 	}
 
-	// add row/col/block all-different constraints
-	// rows
+	// 2. Add AllDifferent constraints for each of the 9 rows.
 	for r := 0; r < 9; r++ {
-		row := make([]*minikanren.FDVar, 9)
+		rowVars := make([]*minikanren.Var, 9)
 		for c := 0; c < 9; c++ {
-			row[c] = vars[r*9+c]
+			rowVars[c] = vars[r*9+c].(*minikanren.Var)
 		}
-		s.AddAllDifferentRegin(row)
+		// FDAllDifferent ensures all variables in the list have a unique value.
+		goals = append(goals, minikanren.FDAllDifferent(rowVars...))
 	}
-	// cols
+
+	// 3. Add AllDifferent constraints for each of the 9 columns.
 	for c := 0; c < 9; c++ {
-		col := make([]*minikanren.FDVar, 9)
+		colVars := make([]*minikanren.Var, 9)
 		for r := 0; r < 9; r++ {
-			col[r] = vars[r*9+c]
+			colVars[r] = vars[r*9+c].(*minikanren.Var)
 		}
-		s.AddAllDifferentRegin(col)
+		goals = append(goals, minikanren.FDAllDifferent(colVars...))
 	}
-	// blocks
+
+	// 4. Add AllDifferent constraints for each of the 9 3x3 blocks.
 	for br := 0; br < 3; br++ {
 		for bc := 0; bc < 3; bc++ {
-			block := make([]*minikanren.FDVar, 0, 9)
+			blockVars := make([]*minikanren.Var, 0, 9)
 			for r := 0; r < 3; r++ {
 				for c := 0; c < 3; c++ {
 					idx := (br*3+r)*9 + (bc*3 + c)
-					block = append(block, vars[idx])
+					blockVars = append(blockVars, vars[idx].(*minikanren.Var))
 				}
 			}
-			s.AddAllDifferentRegin(block)
+			goals = append(goals, minikanren.FDAllDifferent(blockVars...))
 		}
 	}
 
-	start := time.Now()
-	sols, err := s.Solve(context.Background(), 1)
-	dur := time.Since(start)
+	// 5. Add domain constraints for all variables, ensuring they are digits 1-9.
+	// FDIn constrains a variable to a specific set of integer values.
+	for i := 0; i < 81; i++ {
+		goals = append(goals, minikanren.FDIn(vars[i].(*minikanren.Var), []int{1, 2, 3, 4, 5, 6, 7, 8, 9}))
+	}
+
+	// 6. Unify the solution variable with a list of all cell variables.
+	goals = append(goals, minikanren.Eq(solution, minikanren.List(vars...)))
+
+	// 7. Combine all goals into a single conjunction and wrap with FDSolve.
+	// FDSolve is the key: it collects all FD constraints and runs the solver.
+	return minikanren.FDSolve(minikanren.Conj(goals...))
+}
+
+func main() {
+	// Set up CPU profiling
+	f, err := os.Create("cpu.prof")
 	if err != nil {
-		fmt.Println("Solve error:", err)
+		fmt.Println("could not create CPU profile: ", err)
+		os.Exit(1)
+	}
+	defer f.Close()
+	if err := pprof.StartCPUProfile(f); err != nil {
+		fmt.Println("could not start CPU profile: ", err)
+		os.Exit(1)
+	}
+	defer pprof.StopCPUProfile()
+
+	fmt.Println("--- Solving Sudoku using idiomatic high-level API (with 10s timeout) ---")
+	start := time.Now()
+
+	// Create a context with a timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	// Run the solver to find one solution.
+	results := minikanren.RunWithContext(ctx, 1, func(q *minikanren.Var) minikanren.Goal {
+		return sudokuGoal(puzzle, q)
+	})
+
+	dur := time.Since(start)
+
+	if len(results) == 0 {
+		fmt.Println("No solutions found (or timeout reached).")
 		return
 	}
-	if len(sols) == 0 {
-		fmt.Println("No solutions")
+
+	fmt.Printf("Solved in %s, found %d solution(s)\n", dur, len(results))
+
+	// Extract and print the solution from the result term.
+	solution, ok := results[0].(*minikanren.Pair)
+	if !ok {
+		fmt.Println("Error: result is not a list.")
 		return
 	}
-	fmt.Printf("Solved in %s, found %d solutions\n", dur, len(sols))
-	sol := sols[0]
+
+	var sol [81]int
+	for i := 0; i < 81; i++ {
+		val, ok := solution.Car().(*minikanren.Atom)
+		if !ok {
+			fmt.Printf("Error: cell %d is not an atom.\n", i)
+			return
+		}
+		sol[i] = val.Value().(int)
+		if cdr, ok := solution.Cdr().(*minikanren.Pair); ok {
+			solution = cdr
+		} else if i < 80 {
+			fmt.Println("Error: solution list is too short.")
+			return
+		}
+	}
+
 	for r := 0; r < 9; r++ {
 		for c := 0; c < 9; c++ {
 			fmt.Printf("%d ", sol[r*9+c])
 		}
-		fmt.Printf("\n")
+		fmt.Println()
 	}
 }

@@ -2,6 +2,7 @@ package minikanren
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 )
@@ -200,4 +201,20 @@ func TestGlobalTableManager(t *testing.T) {
 	if customManager != manager3 {
 		t.Error("Expected custom manager to be set")
 	}
+}
+
+// ExampleSetGlobalTableManager demonstrates setting a custom global table manager.
+func ExampleSetGlobalTableManager() {
+	// Create a custom table manager
+	customManager := NewTableManagerWithConfig(100, 500, time.Hour)
+
+	// Set it as the global manager
+	SetGlobalTableManager(customManager)
+
+	// Verify it's set
+	globalManager := GetGlobalTableManager()
+	fmt.Printf("Global manager set: %v\n", globalManager != nil)
+
+	// Output:
+	// Global manager set: true
 }

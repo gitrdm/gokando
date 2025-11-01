@@ -414,6 +414,19 @@ func (prs *PooledResultStream) Count() int64 {
 	return atomic.LoadInt64(&prs.count)
 }
 
+func (prs *PooledResultStream) Drain(ctx context.Context) {
+	for {
+		select {
+		case _, ok := <-prs.refCh:
+			if !ok {
+				return
+			}
+		case <-ctx.Done():
+			return
+		}
+	}
+}
+
 // String returns a string representation of the pooled stream for debugging.
 func (prs *PooledResultStream) String() string {
 	if prs.pool != nil {

@@ -146,7 +146,7 @@ func main() {
 				// with the FD-based modeling (columns + diagonal offsets).
 				goal := minikanren.Conj(
 					minikanren.Eq(queens[0], minikanren.NewAtom(c)),
-					minikanren.FDQueensGoal(queens, *n),
+					fdQueensGoal(queens, *n),
 					minikanren.Eq(q, termList),
 				)
 
@@ -191,26 +191,9 @@ func nQueensFD(n int, q *minikanren.Var) minikanren.Goal {
 	// representing columns (1-based). We also show how to wrap them into
 	// a single list term to return via the top-level `q` variable.
 	queens := make([]*minikanren.Var, n)
-	terms := make([]minikanren.Term, n)
 	for i := 0; i < n; i++ {
-		v := minikanren.Fresh(fmt.Sprintf("q%d", i))
-		queens[i] = v
-		terms[i] = v
+		queens[i] = minikanren.Fresh(fmt.Sprintf("q%d", i))
 	}
-
-	// FDQueensGoal (implemented in the library) does the heavy lifting:
-	//   - creates an FD store for the variables
-	//   - constrains the column variables to 1..n
-	//   - creates derived diagonal FD variables and links them via offset
-	//     constraints (d = x + offset)
-	//   - applies Regin AllDifferent filtering on columns and diagonals
-	//   - runs the FD solver to either find a unique assignment or leave the
-	//     search to the host (miniKanren) to enumerate via backtracking
-	//
-	// By placing this goal inside the conjunction below we ensure the FD
-	// solver participates in the search and that the final substitution
-	// binds the logical vars to integer atoms.
-	goals := []minikanren.Goal{minikanren.FDQueensGoal(queens, n)}
 
 	// Build the list term that represents the vector of queen columns.
 	// We return that list by constraining the provided `q` variable to it.
@@ -218,15 +201,44 @@ func nQueensFD(n int, q *minikanren.Var) minikanren.Goal {
 	for i := n - 1; i >= 0; i-- {
 		termList = minikanren.NewPair(queens[i], termList)
 	}
-	goals = append(goals, minikanren.Eq(q, termList))
 
-	// Conjoin the FD goal and the result binding. The caller can then run
-	// this goal either sequentially or inside a parallel branch as shown
-	// in main().
-	return minikanren.Conj(goals...)
+	return minikanren.Conj(
+		fdQueensGoal(queens, n),
+		minikanren.Eq(q, termList),
+	)
 }
 
-// displayBoard prints the board similar to the other n-queens example
+func fdQueensGoal(queens []*minikanren.Var, n int) minikanren.Goal {
+	// Set up the FD constraints for the N-Queens problem.
+	domain := make([]int, n)
+	for i := 0; i < n; i++ {
+		domain[i] = i + 1
+	}
+
+	colGoals := []minikanren.Goal{minikanren.FDAllDifferent(queens...)}
+	for _, q := range queens {
+		colGoals = append(colGoals, minikanren.FDIn(q, domain))
+	}
+
+	diag1 := make([]*minikanren.Var, n)
+	diag2 := make([]*minikanren.Var, n)
+	diagGoals := []minikanren.Goal{}
+	for i := 0; i < n; i++ {
+		diag1[i] = minikanren.Fresh(fmt.Sprintf("d1_%d", i))
+		diag2[i] = minikanren.Fresh(fmt.Sprintf("d2_%d", i))
+		diagGoals = append(diagGoals, minikanren.FDMinus(queens[i], minikanren.NewAtom(i), diag1[i]))
+		diagGoals = append(diagGoals, minikanren.FDPlus(queens[i], minikanren.NewAtom(i), diag2[i]))
+	}
+	diagGoals = append(diagGoals, minikanren.FDAllDifferent(diag1...))
+	diagGoals = append(diagGoals, minikanren.FDAllDifferent(diag2...))
+
+	return minikanren.FDSolve(minikanren.Conj(
+		minikanren.Conj(colGoals...),
+		minikanren.Conj(diagGoals...),
+	))
+}
+
+// display
 func displayBoard(result minikanren.Term, n int) {
 	// displayBoard expects the result to be a miniKanren pair-list where
 	// each element is an integer Atom representing a column (1-based). We

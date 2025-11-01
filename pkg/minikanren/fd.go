@@ -620,6 +620,27 @@ func (v *FDVar) SingletonValue() int {
 
 // FDVar is a finite-domain variable
 
+// AddInConstraint restricts the domain of a variable to a given set of values.
+func (s *FDStore) AddInConstraint(v *FDVar, values []int) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	domainToIntersect := NewBitSetFromValues(values)
+
+	newDom := v.domain.Intersect(domainToIntersect)
+	if bitSetEquals(newDom, v.domain) {
+		return nil // no change
+	}
+
+	s.trail = append(s.trail, FDChange{vid: v.ID, domain: v.domain.Clone()})
+	v.domain = newDom
+	if v.domain.Count() == 0 {
+		return ErrDomainEmpty
+	}
+	s.enqueue(v.ID)
+	return s.propagateLocked()
+}
+
 // IntersectDomains intersects the domain of v with the given BitSet
 func (s *FDStore) IntersectDomains(v *FDVar, other BitSet) error {
 	s.mu.Lock()

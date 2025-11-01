@@ -1,13 +1,3 @@
-// Package minikanren provides constraint system infrastructure for order-independent
-// constraint logic programming. This file defines the core interfaces and types
-// for managing constraints in a hybrid local/global architecture.
-//
-// The constraint system uses a two-tier approach:
-//   - Local constraints: managed within individual goal contexts for fast checking
-//   - Global constraints: coordinated across contexts when constraints span multiple stores
-//
-// This design provides order-independent constraint semantics while maintaining
-// high performance for the common case of locally-scoped constraints.
 package minikanren
 
 import (
@@ -82,8 +72,24 @@ type Constraint interface {
 	Clone() Constraint
 }
 
-// ConstraintStore represents a collection of constraints and variable bindings.
-// This interface abstracts over both local and global constraint storage.
+// Reification represents the mapping of a constraint's truth value to a boolean logic variable.
+// It is used to reify constraints, allowing their satisfaction status to be reasoned about.
+type Reification struct {
+	// Var is the logic variable that will be unified with 0 or 1.
+	Var int64
+	// Val is the value (0 or 1) to unify with the variable.
+	Val int
+}
+
+// ConstraintStore manages a set of constraints and variable bindings.
+// It provides the core functionality for unification, constraint checking,
+// and maintaining a consistent logical state.
+//
+// Constraint stores can be either local (per-goal) or global (shared).
+// Local stores are used for fast, order-independent constraint checking
+// within a single goal's context. Global stores coordinate constraints
+// across multiple goals, enabling complex inter-goal relationships
+// to be expressed and managed.
 type ConstraintStore interface {
 	// AddConstraint adds a new constraint to the store.
 	// Returns an error if the constraint immediately violates existing bindings.

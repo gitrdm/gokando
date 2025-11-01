@@ -1,7 +1,6 @@
 package minikanren
 
 import (
-	"fmt"
 	"testing"
 )
 
@@ -262,10 +261,10 @@ func TestFDDomainGoal(t *testing.T) {
 
 	results := Run(10, func(q *Var) Goal {
 		x := Fresh("x")
-		return Conj(
-			FDDomainGoal(x, customDomain),
+		return FDSolve(Conj(
+			FDIn(x, customDomain.Values()),
 			Eq(q, x),
-		)
+		))
 	})
 
 	if len(results) != 3 {
@@ -295,10 +294,10 @@ func TestFDInGoal(t *testing.T) {
 
 	results := Run(10, func(q *Var) Goal {
 		x := Fresh("x")
-		return Conj(
-			FDInGoal(x, values),
+		return FDSolve(Conj(
+			FDIn(x, values),
 			Eq(q, x),
-		)
+		))
 	})
 
 	if len(results) != len(values) {
@@ -330,10 +329,10 @@ func TestFDInGoal(t *testing.T) {
 func TestFDIntervalGoal(t *testing.T) {
 	results := Run(10, func(q *Var) Goal {
 		x := Fresh("x")
-		return Conj(
-			FDIntervalGoal(x, 3, 7),
+		return FDSolve(Conj(
+			FDIn(x, intervalValues(3, 7)),
 			Eq(q, x),
-		)
+		))
 	})
 
 	expectedCount := 5 // 3, 4, 5, 6, 7
@@ -364,11 +363,11 @@ func TestDomainConstraintsWithOtherGoals(t *testing.T) {
 
 	results := Run(10, func(q *Var) Goal {
 		x := Fresh("x")
-		return Conj(
-			FDInGoal(x, values),
+		return FDSolve(Conj(
+			FDIn(x, values),
 			Eq(x, NewAtom(4)),
 			Eq(q, NewAtom("success")),
-		)
+		))
 	})
 
 	if len(results) != 1 {
@@ -389,7 +388,7 @@ func TestDomainConstraintsWithOtherGoals(t *testing.T) {
 // TestEmptyDomainGoals tests behavior with empty domains
 func TestEmptyDomainGoals(t *testing.T) {
 	// Test empty values list
-	goal := FDInGoal(Fresh("x"), []int{})
+	goal := FDSolve(FDIn(Fresh("x"), []int{}))
 	results := Run(10, func(q *Var) Goal {
 		return goal
 	})
@@ -399,7 +398,7 @@ func TestEmptyDomainGoals(t *testing.T) {
 	}
 
 	// Test invalid interval
-	goal = FDIntervalGoal(Fresh("x"), 5, 2) // min > max
+	goal = FDSolve(FDIn(Fresh("x"), []int{})) // min > max -> empty domain
 	results = Run(10, func(q *Var) Goal {
 		return goal
 	})
@@ -409,109 +408,16 @@ func TestEmptyDomainGoals(t *testing.T) {
 	}
 }
 
-// ExampleFDDomainGoal demonstrates constraining a variable to a custom domain.
-func ExampleFDDomainGoal() {
-	// Create a custom domain with values 2, 4, 6
-	domain := NewBitSetFromValues([]int{2, 4, 6})
-
-	results := Run(5, func(q *Var) Goal {
-		x := Fresh("x")
-		return Conj(
-			FDDomainGoal(x, domain),
-			Eq(q, x),
-		)
-	})
-
-	fmt.Printf("Values in domain: %v\n", results)
-
-	// Output:
-	// Values in domain: [2 4 6]
-}
-
-// ExampleFDInGoal demonstrates constraining a variable to specific values.
-func ExampleFDInGoal() {
-	// Constrain variable to values 1, 3, 5, 7, 9
-	values := []int{1, 3, 5, 7, 9}
-
-	results := Run(10, func(q *Var) Goal {
-		x := Fresh("x")
-		return Conj(
-			FDInGoal(x, values),
-			Eq(q, x),
-		)
-	})
-
-	fmt.Printf("Allowed values: %v\n", results)
-
-	// Output:
-	// Allowed values: [1 3 5 7 9]
-}
-
-// ExampleFDIntervalGoal demonstrates constraining a variable to an interval.
-func ExampleFDIntervalGoal() {
-	// Constrain variable to range [3, 7]
-	results := Run(10, func(q *Var) Goal {
-		x := Fresh("x")
-		return Conj(
-			FDIntervalGoal(x, 3, 7),
-			Eq(q, x),
-		)
-	})
-
-	fmt.Printf("Values in interval: %v\n", results)
-
-	// Output:
-	// Values in interval: [3 4 5 6 7]
-}
-
-// ExampleFDAllDifferentGoal demonstrates the all-different constraint.
-func ExampleFDAllDifferentGoal() {
-	// Find 3 different values from domain 1-5
-	results := Run(10, func(q *Var) Goal {
-		x := Fresh("x")
-		y := Fresh("y")
-		z := Fresh("z")
-		return Conj(
-			FDAllDifferentGoal([]*Var{x, y, z}, 5),
-			Eq(q, List(x, y, z)),
-		)
-	})
-
-	fmt.Printf("Found %d solutions\n", len(results))
-
-	// Output:
-	// Found 3 solutions
-}
-
-// ExampleFDInequalityGoal demonstrates inequality constraints.
-func ExampleFDInequalityGoal() {
-	// Find x < y where both are in 1-5
-	results := Run(10, func(q *Var) Goal {
-		x := Fresh("x")
-		y := Fresh("y")
-		return Conj(
-			FDAllDifferentGoal([]*Var{x, y}, 5),
-			FDInequalityGoal(x, y, IneqLessThan),
-			Eq(q, List(x, y)),
-		)
-	})
-
-	fmt.Printf("Found %d solutions where x < y\n", len(results))
-
-	// Output:
-	// Found 4 solutions where x < y
-}
-
 // TestFDAllDifferentFunctionalOptions tests the FDAllDifferent function with options.
 func TestFDAllDifferentFunctionalOptions(t *testing.T) {
 	t.Run("Basic functionality", func(t *testing.T) {
 		x, y, z := Fresh("x"), Fresh("y"), Fresh("z")
 
 		results := Run(10, func(q *Var) Goal {
-			return Conj(
-				FDAllDifferent(x, y, z, WithDomainSize(5)),
+			return FDSolve(Conj(
+				FDAllDifferent(x, y, z),
 				Eq(q, List(x, y, z)),
-			)
+			))
 		})
 
 		if len(results) == 0 {
@@ -542,10 +448,10 @@ func TestFDAllDifferentFunctionalOptions(t *testing.T) {
 		x, y := Fresh("x"), Fresh("y")
 
 		results := Run(5, func(q *Var) Goal {
-			return Conj(
-				FDAllDifferent(x, y, WithDomainSize(4), WithSearchStrategy(NewDFSSearch())),
+			return FDSolve(Conj(
+				FDAllDifferent(x, y),
 				Eq(q, List(x, y)),
-			)
+			))
 		})
 
 		if len(results) == 0 {
@@ -557,10 +463,10 @@ func TestFDAllDifferentFunctionalOptions(t *testing.T) {
 		x, y := Fresh("x"), Fresh("y")
 
 		results := Run(5, func(q *Var) Goal {
-			return Conj(
-				FDAllDifferent(x, y, WithDomainSize(4), WithLabelingStrategy(NewFirstFailLabeling())),
+			return FDSolve(Conj(
+				FDAllDifferent(x, y),
 				Eq(q, List(x, y)),
-			)
+			))
 		})
 
 		if len(results) == 0 {
@@ -638,17 +544,21 @@ func TestFDInFunctionalOptions(t *testing.T) {
 	})
 }
 
-// TestFDIntervalFunctionalOptions tests the FDInterval function with options.
+// TestFDIntervalFunctionalOptions tests the FDIn function with interval-like lists.
 func TestFDIntervalFunctionalOptions(t *testing.T) {
 	t.Run("Basic functionality", func(t *testing.T) {
 		min, max := 3, 7
+		var values []int
+		for i := min; i <= max; i++ {
+			values = append(values, i)
+		}
 
 		results := Run(10, func(q *Var) Goal {
 			x := Fresh("x")
-			return Conj(
-				FDInterval(x, min, max),
+			return FDSolve(Conj(
+				FDIn(x, values),
 				Eq(q, x),
-			)
+			))
 		})
 
 		expectedCount := max - min + 1
@@ -668,10 +578,10 @@ func TestFDIntervalFunctionalOptions(t *testing.T) {
 	t.Run("Invalid interval", func(t *testing.T) {
 		results := Run(10, func(q *Var) Goal {
 			x := Fresh("x")
-			return Conj(
-				FDInterval(x, 10, 5), // min > max
+			return FDSolve(Conj(
+				FDIn(x, []int{}), // min > max becomes empty list
 				Eq(q, x),
-			)
+			))
 		})
 
 		if len(results) != 0 {
@@ -682,10 +592,10 @@ func TestFDIntervalFunctionalOptions(t *testing.T) {
 	t.Run("Single value interval", func(t *testing.T) {
 		results := Run(5, func(q *Var) Goal {
 			x := Fresh("x")
-			return Conj(
-				FDInterval(x, 42, 42),
+			return FDSolve(Conj(
+				FDIn(x, []int{42}),
 				Eq(q, x),
-			)
+			))
 		})
 
 		if len(results) != 1 {
@@ -709,4 +619,15 @@ func extractIntValue(term Term) int {
 		}
 	}
 	return -1 // Error value
+}
+
+func intervalValues(min, max int) []int {
+	if min > max {
+		return []int{}
+	}
+	values := make([]int, 0, max-min+1)
+	for i := min; i <= max; i++ {
+		values = append(values, i)
+	}
+	return values
 }

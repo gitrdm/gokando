@@ -189,9 +189,7 @@ func (fc *FreshnessConstraint) Clone() Constraint {
 	defer fc.mu.RUnlock()
 
 	newNames := make([]*Name, len(fc.names))
-	for i, name := range fc.names {
-		newNames[i] = name
-	}
+	copy(newNames, fc.names)
 
 	return NewFreshnessConstraint(newNames, fc.scope.Clone())
 }

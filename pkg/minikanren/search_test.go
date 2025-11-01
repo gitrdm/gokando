@@ -91,7 +91,7 @@ func TestNonChronologicalSearch(t *testing.T) {
 func TestRunDB(t *testing.T) {
 	// Test with a simple goal that should work with database search
 	solutions := RunDB(5, func(q *Var) Goal {
-		return FDInGoal(q, []int{1, 2, 3, 4, 5})
+		return FDSolve(FDIn(q, []int{1, 2, 3, 4, 5}))
 	})
 
 	if len(solutions) != 5 {
@@ -123,12 +123,12 @@ func TestRunDBWithContext(t *testing.T) {
 	solutions := RunDBWithContext(ctx, 100, func(q *Var) Goal {
 		x := Fresh("x")
 		y := Fresh("y")
-		return Conj(
-			FDInGoal(x, []int{1, 2, 3}),
-			FDInGoal(y, []int{1, 2, 3}),
-			FDAllDifferentGoal([]*Var{x, y}, 3),
+		return FDSolve(Conj(
+			FDIn(x, []int{1, 2, 3}),
+			FDIn(y, []int{1, 2, 3}),
+			FDAllDifferent(x, y),
 			Eq(q, NewPair(x, y)),
-		)
+		))
 	})
 
 	// Should get some solutions or none if cancelled
@@ -143,7 +143,7 @@ func TestRunDBWithContext(t *testing.T) {
 func TestRunNC(t *testing.T) {
 	// Test with a simple goal
 	solutions := RunNC(3, func(q *Var) Goal {
-		return FDInGoal(q, []int{1, 2, 3, 4, 5})
+		return FDSolve(FDIn(q, []int{1, 2, 3, 4, 5}))
 	})
 
 	if len(solutions) != 3 {
@@ -174,12 +174,12 @@ func TestRunNCWithContext(t *testing.T) {
 	solutions := RunNCWithContext(ctx, 10, func(q *Var) Goal {
 		x := Fresh("x")
 		y := Fresh("y")
-		return Conj(
-			FDInGoal(x, []int{1, 2}),
-			FDInGoal(y, []int{1, 2}),
-			FDAllDifferentGoal([]*Var{x, y}, 2),
+		return FDSolve(Conj(
+			FDIn(x, []int{1, 2}),
+			FDIn(y, []int{1, 2}),
+			FDAllDifferent(x, y),
 			Eq(q, NewPair(x, y)),
-		)
+		))
 	})
 
 	// Should get some solutions

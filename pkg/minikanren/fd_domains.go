@@ -67,6 +67,15 @@ func (fdc *FDDomainConstraint) Clone() Constraint {
 	}
 }
 
+// Values returns the values in the domain as a slice of integers.
+func (bs *BitSet) Values() []int {
+	var values []int
+	bs.IterateValues(func(v int) {
+		values = append(values, v)
+	})
+	return values
+}
+
 // FDInConstraint wraps domain membership constraints for FD solving.
 // This corresponds to core.logic's fd/in, constraining a variable to be a member of a domain.
 type FDInConstraint struct {

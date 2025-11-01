@@ -1,0 +1,227 @@
+[
+  {
+    "file": "pkg/minikanren/api_test.go",
+    "symbol": "ExampleCurrentAPIVersion",
+    "expected_output": "API version: 1.0.0"
+  },
+  {
+    "file": "pkg/minikanren/api_test.go",
+    "symbol": "ExampleGetAPIVersion",
+    "expected_output": "Compatible with 1.0.0: true\nCompatible with 2.0.0: false"
+  },
+  {
+    "file": "pkg/minikanren/api_test.go",
+    "symbol": "ExampleCheckAPIVersion",
+    "expected_output": "Migration from 0.9.0 to 1.0.0\nChanges: 1\nFirst change: Context-aware goals and streaming results"
+  },
+  {
+    "file": "pkg/minikanren/api_test.go",
+    "symbol": "ExampleGetMigrationGuide",
+    "expected_output": "API compatibility test passed"
+  },
+  {
+    "file": "pkg/minikanren/api_test.go",
+    "symbol": "ExampleAPICompatibilityTest",
+    "expected_output": "API is consistent"
+  },
+  {
+    "file": "pkg/minikanren/api_test.go",
+    "symbol": "ExampleValidateAPIConsistency",
+    "expected_output": "Version: 1.0.0"
+  },
+  {
+    "file": "pkg/minikanren/api_test.go",
+    "symbol": "ExampleGetVersion",
+    "expected_output": "Version: 1.0.0, Go Version: 1.18+"
+  },
+  {
+    "file": "pkg/minikanren/api_test.go",
+    "symbol": "ExampleGetVersionInfo",
+    "expected_output": ""
+  },
+  {
+    "file": "pkg/minikanren/constraints_test.go",
+    "symbol": "ExampleNewConstraintBuilder",
+    "expected_output": ""
+  },
+  {
+    "file": "pkg/minikanren/context_test.go",
+    "symbol": "ExampleCheckContextCancellation",
+    "expected_output": ""
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleFresh",
+    "expected_output": "q = 42\nq = hello"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleEq",
+    "expected_output": "Found pair: (1 . (2 . \u003cnil\u003e))"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleConj",
+    "expected_output": "Found 2 solutions"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleDisj",
+    "expected_output": "Found 2 matching pairs"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleConde",
+    "expected_output": "Simple result: hello\nFound 3 solutions"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleRun",
+    "expected_output": "Found 3 solutions"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleRunStar",
+    "expected_output": "Empty list: \u003cnil\u003e\nSingle element: (1 . \u003cnil\u003e)\nMultiple elements: (1 . (2 . (3 . \u003cnil\u003e)))"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleList",
+    "expected_output": "Appended list: (1 . (2 . (3 . (4 . \u003cnil\u003e))))"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleAppendo",
+    "expected_output": "Success: done"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleSuccess",
+    "expected_output": "Fallback: fallback"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleFailure",
+    "expected_output": "Found pair: (1 . (2 . \u003cnil\u003e))"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleAnd",
+    "expected_output": "Result: context-aware"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleRunWithContext",
+    "expected_output": "Isolated result: 42"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleRunWithIsolation",
+    "expected_output": "Found 2 database-style results"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleRunDB",
+    "expected_output": "Non-chronological result: non-chronological"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleRunNC",
+    "expected_output": "Found 2 total solutions"
+  },
+  {
+    "file": "pkg/minikanren/core_test.go",
+    "symbol": "ExampleRunStarWithContext",
+    "expected_output": ""
+  },
+  {
+    "file": "pkg/minikanren/examples_test.go",
+    "symbol": "ExampleSafeConstraintGoal",
+    "expected_output": "allowed"
+  },
+  {
+    "file": "pkg/minikanren/examples_test.go",
+    "symbol": "ExampleDeferredConstraintGoal",
+    "expected_output": ""
+  },
+  {
+    "file": "pkg/minikanren/fd_domains_test.go",
+    "symbol": "ExampleFDDomainGoal",
+    "expected_output": "Allowed values: [1 3 5 7 9]"
+  },
+  {
+    "file": "pkg/minikanren/fd_domains_test.go",
+    "symbol": "ExampleFDInGoal",
+    "expected_output": "Values in interval: [3 4 5 6 7]"
+  },
+  {
+    "file": "pkg/minikanren/fd_domains_test.go",
+    "symbol": "ExampleFDIntervalGoal",
+    "expected_output": "Found 3 solutions"
+  },
+  {
+    "file": "pkg/minikanren/fd_domains_test.go",
+    "symbol": "ExampleFDAllDifferentGoal",
+    "expected_output": "Found 4 solutions where x \u003c y"
+  },
+  {
+    "file": "pkg/minikanren/fd_domains_test.go",
+    "symbol": "ExampleFDInequalityGoal",
+    "expected_output": "Found 3 solutions with all different values"
+  },
+  {
+    "file": "pkg/minikanren/fd_domains_test.go",
+    "symbol": "ExampleFDAllDifferent",
+    "expected_output": "Found 4 values in the set"
+  },
+  {
+    "file": "pkg/minikanren/fd_domains_test.go",
+    "symbol": "ExampleFDIn",
+    "expected_output": "Found 5 values in the interval"
+  },
+  {
+    "file": "pkg/minikanren/fd_domains_test.go",
+    "symbol": "ExampleFDInterval",
+    "expected_output": ""
+  },
+  {
+    "file": "pkg/minikanren/store_test.go",
+    "symbol": "ExampleEmptyStore",
+    "expected_output": "Original store constraints: 0\nNew store constraints: 1"
+  },
+  {
+    "file": "pkg/minikanren/store_test.go",
+    "symbol": "ExampleStoreWithConstraint",
+    "expected_output": "Store contains 3 variables\nVariable names: [x y z]"
+  },
+  {
+    "file": "pkg/minikanren/store_test.go",
+    "symbol": "ExampleStoreVariables",
+    "expected_output": "Contains store header: true\nContains disequality constraint: true\nContains type constraint: true"
+  },
+  {
+    "file": "pkg/minikanren/store_test.go",
+    "symbol": "ExampleStoreToString",
+    "expected_output": ""
+  },
+  {
+    "file": "pkg/minikanren/tabling_test.go",
+    "symbol": "ExampleEnableTabling",
+    "expected_output": "Tabling enabled: false"
+  },
+  {
+    "file": "pkg/minikanren/tabling_test.go",
+    "symbol": "ExampleDisableTabling",
+    "expected_output": "Tabling is enabled: false"
+  },
+  {
+    "file": "pkg/minikanren/tabling_test.go",
+    "symbol": "ExampleIsTablingEnabled",
+    "expected_output": "Tabling statistics reset"
+  },
+  {
+    "file": "pkg/minikanren/tabling_test.go",
+    "symbol": "ExampleResetTablingStats",
+    "expected_output": ""
+  }
+]

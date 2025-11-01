@@ -36,6 +36,11 @@ type ResultStream interface {
 	// Count returns the number of stores that have been put into the stream.
 	// This is useful for monitoring progress and optimizing consumption.
 	Count() int64
+
+	// Drain consumes and discards all remaining items in the stream until it is empty.
+	// This is useful when you only care about the side effects of a stream's production,
+	// not the results.
+	Drain(ctx context.Context)
 }
 
 // ChannelResultStream implements ResultStream using Go channels.
@@ -134,6 +139,15 @@ func (s *ChannelResultStream) Close() error {
 // Returns the number of stores that have been successfully put into the stream.
 func (s *ChannelResultStream) Count() int64 {
 	return atomic.LoadInt64(&s.count)
+}
+
+func (s *ChannelResultStream) Drain(ctx context.Context) {
+	for {
+		_, more, err := s.Take(ctx, 1)
+		if err != nil || !more {
+			return
+		}
+	}
 }
 
 // BufferedResultStream extends ChannelResultStream with additional buffering
@@ -237,6 +251,18 @@ func (s *LazyResultStream) Count() int64 {
 		return 0
 	}
 	return s.count
+}
+
+func (s *LazyResultStream) Drain(ctx context.Context) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if !s.computed {
+		// if not computed, we still need to call it to trigger side effects
+		_, _ = s.computeFunc(ctx)
+	}
+	s.results = nil
+	s.index = 0
+	s.computed = true
 }
 
 // BatchedResultStream provides result batching for network efficiency.
@@ -694,6 +720,10 @@ func (mrs *MappedResultStream) Count() int64 {
 	return mrs.source.Count()
 }
 
+func (mrs *MappedResultStream) Drain(ctx context.Context) {
+	mrs.source.Drain(ctx)
+}
+
 // FilteredResultStream implements stream filtering with lazy evaluation.
 // The predicate is applied only when results are consumed.
 type FilteredResultStream struct {
@@ -748,6 +778,10 @@ func (frs *FilteredResultStream) Close() error {
 // Note: This returns the source count, not the filtered count.
 func (frs *FilteredResultStream) Count() int64 {
 	return frs.source.Count()
+}
+
+func (frs *FilteredResultStream) Drain(ctx context.Context) {
+	frs.source.Drain(ctx)
 }
 
 // FlatMappedResultStream implements stream flat mapping with lazy evaluation.
@@ -816,6 +850,10 @@ func (fmrs *FlatMappedResultStream) Close() error {
 // Note: This returns the source count, not the expanded count.
 func (fmrs *FlatMappedResultStream) Count() int64 {
 	return fmrs.source.Count()
+}
+
+func (fmrs *FlatMappedResultStream) Drain(ctx context.Context) {
+	fmrs.source.Drain(ctx)
 }
 
 // StreamStats represents comprehensive statistics for result streams.
@@ -972,6 +1010,10 @@ func (mrs *MonitoredResultStream) Close() error {
 // Count implements ResultStream.Count.
 func (mrs *MonitoredResultStream) Count() int64 {
 	return mrs.stream.Count()
+}
+
+func (mrs *MonitoredResultStream) Drain(ctx context.Context) {
+	mrs.stream.Drain(ctx)
 }
 
 // GetStats returns a snapshot of the current stream statistics.
@@ -1158,6 +1200,10 @@ func (errs *ErrorRecoveryResultStream) Count() int64 {
 	return errs.stream.Count()
 }
 
+func (errs *ErrorRecoveryResultStream) Drain(ctx context.Context) {
+	errs.stream.Drain(ctx)
+}
+
 // CircuitBreakerConfig configures circuit breaker behavior for error recovery.
 type CircuitBreakerConfig struct {
 	FailureThreshold int           // Number of failures before opening circuit
@@ -1296,6 +1342,10 @@ func (cbrs *CircuitBreakerResultStream) Count() int64 {
 	return cbrs.stream.Count()
 }
 
+func (cbrs *CircuitBreakerResultStream) Drain(ctx context.Context) {
+	cbrs.stream.Drain(ctx)
+}
+
 // ErrorAggregationResultStream aggregates multiple errors and provides
 // comprehensive error reporting for stream operations.
 type ErrorAggregationResultStream struct {
@@ -1378,6 +1428,10 @@ func (ears *ErrorAggregationResultStream) Close() error {
 // Count implements ResultStream.Count.
 func (ears *ErrorAggregationResultStream) Count() int64 {
 	return ears.stream.Count()
+}
+
+func (ears *ErrorAggregationResultStream) Drain(ctx context.Context) {
+	ears.stream.Drain(ctx)
 }
 
 // Error definitions for stream operations
