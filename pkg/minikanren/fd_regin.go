@@ -12,10 +12,10 @@ func (s *FDStore) setDomainLocked(v *FDVar, newDom BitSet) {
 }
 
 // maxMatching computes a maximum bipartite matching between variables and values.
-// It returns a map value->varID (1-based value indices) and the matched count.
+// It returns matchVal array (value->varID, -1 if unmatched) and the matched count.
 // Uses an augmenting-path DFS with a token-based visited array and a small
 // heuristic ordering (try smaller domains first).
-func maxMatching(vars []*FDVar, domainSize int) (map[int]int, int) {
+func maxMatching(vars []*FDVar, domainSize int) ([]int, int) {
 	varN := len(vars)
 	matchVal := make([]int, domainSize+1) // value->var index or -1
 	for i := range matchVal {
@@ -41,33 +41,28 @@ func maxMatching(vars []*FDVar, domainSize int) (map[int]int, int) {
 
 	var tryAugment func(vi int, tok int) bool
 	tryAugment = func(vi int, tok int) bool {
-		found := false
-		vars[vi].domain.IterateValues(func(val int) {
-			if found {
-				return
-			}
+		domainVals := vars[vi].domain.ToSlice()
+		for _, val := range domainVals {
 			if val < 1 || val > domainSize {
-				return
+				continue
 			}
 			if seenToken[val] == tok {
-				return
+				continue
 			}
 			seenToken[val] = tok
 			if matchVal[val] == -1 {
 				matchVal[val] = vi
 				matchVar[vi] = val
-				found = true
-				return
+				return true
 			}
 			// try to reassign existing matched variable
 			if tryAugment(matchVal[val], tok) {
 				matchVal[val] = vi
 				matchVar[vi] = val
-				found = true
-				return
+				return true
 			}
-		})
-		return found
+		}
+		return false
 	}
 
 	matched := 0
@@ -81,7 +76,7 @@ func maxMatching(vars []*FDVar, domainSize int) (map[int]int, int) {
 				matched++
 			} else {
 				// conflict or out of range
-				return map[int]int{}, matched
+				return matchVal, matched
 			}
 		}
 	}
@@ -97,16 +92,7 @@ func maxMatching(vars []*FDVar, domainSize int) (map[int]int, int) {
 		}
 	}
 
-	// build map
-	res := make(map[int]int)
-	for val := 1; val <= domainSize; val++ {
-		if matchVal[val] != -1 {
-			res[val] = matchVal[val]
-		} else {
-			res[val] = -1
-		}
-	}
-	return res, matched
+	return matchVal, matched
 }
 
 func (s *FDStore) ReginFilterLocked(vars []*FDVar) error {
@@ -116,29 +102,38 @@ func (s *FDStore) ReginFilterLocked(vars []*FDVar) error {
 	}
 
 	// initial matching
-	matchMap, matched := maxMatching(vars, s.domainSize)
+	matchVal, matched := maxMatching(vars, s.domainSize)
 	if matched < n {
 		return ErrInconsistent
 	}
 
+	// Pre-allocate singleton BitSet for reuse (avoid allocation per value test)
+	singletonDom := BitSet{n: s.domainSize, words: make([]uint64, (s.domainSize+63)/64)}
+
 	// For each variable, test each value in its domain for support
 	for vi, v := range vars {
-		// collect values to possibly remove
-		toRemove := make([]int, 0)
-		v.domain.IterateValues(func(val int) {
+		// Pre-allocate toRemove with capacity for worst case (all values removed)
+		domainValues := v.domain.ToSlice()
+		toRemove := make([]int, 0, len(domainValues))
+
+		for _, val := range domainValues {
 			// if current matching maps this val to vi, it's supported
-			if matchMap[val] == vi {
-				return
+			if val >= 0 && val < len(matchVal) && matchVal[val] == vi {
+				continue
 			}
 
 			// try forcing v=val and check for full matching
 			snap := s.snapshot()
-			// create singleton domain for v
-			newDom := BitSet{n: s.domainSize, words: make([]uint64, len(v.domain.words))}
+
+			// Reuse singleton BitSet by clearing and setting single bit
+			for i := range singletonDom.words {
+				singletonDom.words[i] = 0
+			}
 			idx := (val - 1) / 64
 			off := uint((val - 1) % 64)
-			newDom.words[idx] = 1 << off
-			s.setDomainLocked(v, newDom)
+			singletonDom.words[idx] = 1 << off
+
+			s.setDomainLocked(v, singletonDom)
 
 			// build remaining vars slice (they reference same var objects; singletons included)
 			_, m := maxMatching(vars, s.domainSize)
@@ -146,7 +141,7 @@ func (s *FDStore) ReginFilterLocked(vars []*FDVar) error {
 			if m < n {
 				toRemove = append(toRemove, val)
 			}
-		})
+		}
 
 		if len(toRemove) > 0 {
 			// apply removals

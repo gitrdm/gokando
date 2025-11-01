@@ -320,11 +320,10 @@ func (c *AllDifferent) maxMatching(domains []Domain, maxVal int) (map[int]int, i
 
 // augment finds augmenting path for variable vi using DFS.
 func (c *AllDifferent) augment(vi int, domains []Domain, matchVal, matchVar []int, visited []bool, maxVal int) bool {
-	found := false
-
-	domains[vi].IterateValues(func(val int) {
-		if found || val < 1 || val > maxVal || visited[val] {
-			return
+	domainVals := domains[vi].ToSlice()
+	for _, val := range domainVals {
+		if val < 1 || val > maxVal || visited[val] {
+			continue
 		}
 		visited[val] = true
 
@@ -332,19 +331,18 @@ func (c *AllDifferent) augment(vi int, domains []Domain, matchVal, matchVar []in
 			// Free value - augment successful
 			matchVal[val] = vi
 			matchVar[vi] = val
-			found = true
-			return
+			return true
 		}
 
 		// Try to reassign current holder
 		if c.augment(matchVal[val], domains, matchVal, matchVar, visited, maxVal) {
 			matchVal[val] = vi
 			matchVar[vi] = val
-			found = true
+			return true
 		}
-	})
+	}
 
-	return found
+	return false
 }
 
 // buildValueGraph constructs the directed value graph for Régin's algorithm.

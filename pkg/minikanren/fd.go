@@ -133,6 +133,24 @@ func (b BitSet) IterateValues(f func(v int)) {
 	}
 }
 
+// ToSlice returns all values in the domain as a pre-allocated slice.
+// This is more efficient than IterateValues when you need all values at once.
+func (b BitSet) ToSlice() []int {
+	count := b.Count()
+	if count == 0 {
+		return nil
+	}
+	result := make([]int, 0, count)
+	for i, w := range b.words {
+		for w != 0 {
+			off := bits.TrailingZeros64(w)
+			result = append(result, i*64+off+1)
+			w &^= (1 << off)
+		}
+	}
+	return result
+}
+
 // Intersect returns a new BitSet containing values present in both this and other BitSet
 func (b BitSet) Intersect(other BitSet) BitSet {
 	if b.n != other.n {

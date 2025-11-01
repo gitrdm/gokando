@@ -77,6 +77,10 @@ type Domain interface {
 	// The function must not modify the domain during iteration.
 	IterateValues(f func(value int))
 
+	// ToSlice returns all values in the domain as a slice.
+	// This is more efficient than IterateValues when you need all values.
+	ToSlice() []int
+
 	// Intersect returns a new domain containing only values present in both domains.
 	// This is the primary operation for constraint propagation.
 	Intersect(other Domain) Domain
@@ -336,6 +340,24 @@ func (d *BitSetDomain) IterateValues(f func(value int)) {
 			word &^= lowestBit
 		}
 	}
+}
+
+// ToSlice returns all values in the domain as a pre-allocated slice.
+// This is more efficient than IterateValues when you need all values at once.
+func (d *BitSetDomain) ToSlice() []int {
+	count := d.Count()
+	if count == 0 {
+		return nil
+	}
+	result := make([]int, 0, count)
+	for wordIdx, word := range d.words {
+		for word != 0 {
+			bitOffset := bits.TrailingZeros64(word)
+			result = append(result, wordIdx*64+bitOffset+1)
+			word &^= (1 << bitOffset)
+		}
+	}
+	return result
 }
 
 // Intersect returns a new domain containing values in both this and other.
@@ -657,14 +679,4 @@ func (d *BitSetDomain) isConsecutiveRange(values []int) bool {
 	}
 
 	return true
-}
-
-// ToSlice returns all values in the domain as a sorted slice.
-// Useful for testing and debugging.
-func (d *BitSetDomain) ToSlice() []int {
-	var values []int
-	d.IterateValues(func(v int) {
-		values = append(values, v)
-	})
-	return values
 }
