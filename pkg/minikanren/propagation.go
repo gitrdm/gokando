@@ -348,6 +348,16 @@ func (c *Arithmetic) Propagate(solver *Solver, state *SolverState) (*SolverState
 		return nil, fmt.Errorf("Arithmetic.Propagate: nil solver")
 	}
 
+	// Handle self-reference: X + offset = X
+	if c.src.ID() == c.dst.ID() {
+		if c.offset == 0 {
+			// X + 0 = X is always true, no pruning needed
+			return state, nil
+		}
+		// X + offset = X where offset != 0 is always false
+		return nil, fmt.Errorf("Arithmetic: X + %d = X is impossible", c.offset)
+	}
+
 	srcDom := solver.GetDomain(state, c.src.ID())
 	dstDom := solver.GetDomain(state, c.dst.ID())
 
@@ -522,6 +532,21 @@ func (c *Inequality) Propagate(solver *Solver, state *SolverState) (*SolverState
 		return nil, fmt.Errorf("Inequality.Propagate: nil solver")
 	}
 
+	// Handle self-reference: X op X
+	if c.x.ID() == c.y.ID() {
+		switch c.kind {
+		case LessThan:
+			return nil, fmt.Errorf("Inequality: X < X is always false")
+		case GreaterThan:
+			return nil, fmt.Errorf("Inequality: X > X is always false")
+		case NotEqual:
+			return nil, fmt.Errorf("Inequality: X ≠ X is always false")
+		case LessEqual, GreaterEqual:
+			// X <= X and X >= X are always true, no pruning needed
+			return state, nil
+		}
+	}
+
 	xDom := solver.GetDomain(state, c.x.ID())
 	yDom := solver.GetDomain(state, c.y.ID())
 
@@ -627,14 +652,86 @@ func (c *Inequality) propLE(solver *Solver, state *SolverState, xDom, yDom Domai
 	return newState, nil
 }
 
-// propGT propagates X > Y (same as Y < X).
+// propGT propagates X > Y.
+// Bounds propagation: X must be > some Y value, Y must be < some X value
+// - Remove from X: all values <= min(Y)
+// - Remove from Y: all values >= max(X)
 func (c *Inequality) propGT(solver *Solver, state *SolverState, xDom, yDom Domain) (*SolverState, error) {
-	return c.propLT(solver, state, yDom, xDom)
+	minY := c.min(yDom)
+	maxX := c.max(xDom)
+
+	newState := state
+
+	// Prune X: remove values <= minY (X must be > at least one Y, so X > minY)
+	newXDom := xDom
+	for v := 1; v <= minY; v++ {
+		if xDom.Has(v) {
+			newXDom = newXDom.Remove(v)
+		}
+	}
+	if newXDom.Count() == 0 {
+		return nil, fmt.Errorf("Inequality >: X empty")
+	}
+	if !c.eqDom(newXDom, xDom) {
+		newState = solver.SetDomain(newState, c.x.ID(), newXDom)
+	}
+
+	// Prune Y: remove values >= maxX (Y must be < at least one X, so Y < maxX)
+	newYDom := yDom
+	for v := maxX; v <= yDom.MaxValue(); v++ {
+		if yDom.Has(v) {
+			newYDom = newYDom.Remove(v)
+		}
+	}
+	if newYDom.Count() == 0 {
+		return nil, fmt.Errorf("Inequality >: Y empty")
+	}
+	if !c.eqDom(newYDom, yDom) {
+		newState = solver.SetDomain(newState, c.y.ID(), newYDom)
+	}
+
+	return newState, nil
 }
 
-// propGE propagates X ≥ Y (same as Y ≤ X).
+// propGE propagates X ≥ Y.
+// Bounds propagation: X must be ≥ some Y value, Y must be ≤ some X value
+// - Remove from X: all values < min(Y)
+// - Remove from Y: all values > max(X)
 func (c *Inequality) propGE(solver *Solver, state *SolverState, xDom, yDom Domain) (*SolverState, error) {
-	return c.propLE(solver, state, yDom, xDom)
+	minY := c.min(yDom)
+	maxX := c.max(xDom)
+
+	newState := state
+
+	// Prune X: remove values < minY (X must be ≥ at least one Y, so X ≥ minY)
+	newXDom := xDom
+	for v := 1; v < minY; v++ {
+		if xDom.Has(v) {
+			newXDom = newXDom.Remove(v)
+		}
+	}
+	if newXDom.Count() == 0 {
+		return nil, fmt.Errorf("Inequality ≥: X empty")
+	}
+	if !c.eqDom(newXDom, xDom) {
+		newState = solver.SetDomain(newState, c.x.ID(), newXDom)
+	}
+
+	// Prune Y: remove values > maxX (Y must be ≤ at least one X, so Y ≤ maxX)
+	newYDom := yDom
+	for v := maxX + 1; v <= yDom.MaxValue(); v++ {
+		if yDom.Has(v) {
+			newYDom = newYDom.Remove(v)
+		}
+	}
+	if newYDom.Count() == 0 {
+		return nil, fmt.Errorf("Inequality ≥: Y empty")
+	}
+	if !c.eqDom(newYDom, yDom) {
+		newState = solver.SetDomain(newState, c.y.ID(), newYDom)
+	}
+
+	return newState, nil
 }
 
 // propNE propagates X ≠ Y.
