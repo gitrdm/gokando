@@ -57,6 +57,14 @@ Two production global constraints were added with literate Go examples:
   - Constructor: `NewDiffn(model *Model, x, y []*FDVariable, w, h []int) (*Diffn, error)`
   - See usage: Example function `ExampleNewDiffn` in `pkg/minikanren/diffn_example_test.go`
 
+- InSetReified — Reify set membership: b ↔ (v ∈ S) with bidirectional pruning.
+  - Constructor: `NewInSetReified(v *FDVariable, setValues []int, boolVar *FDVariable) (*InSetReified, error)`
+  - Used internally by higher-level constraints (e.g., Sequence) and available for modeling.
+
+- Sequence (sliding-window set counts) — For every window of length k over vars, the number of vars in S is between minCount and maxCount.
+  - Constructor: `NewSequence(model *Model, vars []*FDVariable, setValues []int, windowLen, minCount, maxCount int) (*Sequence, error)`
+  - See usage: Example function `ExampleNewSequence` in `pkg/minikanren/sequence_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation
