@@ -394,7 +394,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
         - [x] Ensure deadlock-free termination with pending work counter and single-caller cancellation.
     - [x] **Success Criteria**: The solver demonstrates speedup on multi-core machines for suitable problems. All concurrency tests pass with the `-race` flag.
     - **Implementation Notes**:
-        - **Architecture** (`parallel_search.go`, 265 lines):
+        - **Architecture** (`parallel_search.go`, ~265 lines):
             * Channel-based shared work queue (buffered channel for work items)
             * Worker pool pattern with goroutines reading from shared work channel
             * Solution channel for collecting results
@@ -404,44 +404,57 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
             * `SetDomain()` increments parent refcount (retain)
             * `ReleaseState()` decrements refcount and pools when reaches 0
             * Safe concurrent access to pooled states without races
-        - **Termination Detection**:
-            * `pending` counter tracks enqueued-but-not-started work
-            * `activeWorkers` counter tracks in-progress work
-            * Workers signal cancellation via `cancelOnce.Do(cancel)` when both counters reach 0
-            * Solution collector drains channel after hitting maxSolutions to prevent deadlock
+        - **Termination Detection (final design)**:
+            * Uses a task-based `sync.WaitGroup` (tasksWG) to account for all enqueued work. Add(1) before enqueue; Done() after processing.
+            * A coordinator goroutine waits for tasksWG to reach zero, then closes the shared work channel exactly once.
+            * A separate worker `WaitGroup` ensures all workers exit before the coordinator closes the solution channel.
+            * Solution collection supports early-stop on `maxSolutions` and then drains the solution channel after cancellation to prevent sender blocking.
+            * Workers respect `ctx.Done()`; when canceled, they drain any already-queued work items from `workChan` and mark them Done to keep accounting correct.
+            * `processWork` does a non-blocking enqueue; on a full queue or closed channel, it falls back to inline processing to avoid backpressure deadlocks.
         - **Configuration**:
             * `ParallelSearchConfig` with `NumWorkers` and `WorkQueueSize`
             * `DefaultParallelSearchConfig()` returns sensible defaults (NumCPU workers, 1000 queue size)
         - **API**: `SolveParallel(ctx, numWorkers, maxSolutions) ([][]int, error)`
-        - **Testing** (`parallel_search_test.go`, 403 lines):
+        - **Testing** (`parallel_search_test.go`, ~400 lines):
             * 13 tests covering correctness, scaling, cancellation, limits, stress
             * N-Queens test with diagonal modeling (8-Queens finds all 92 solutions)
             * Comparison with sequential solver (same solutions)
             * Worker scaling tests (1, 2, 4, 8 workers)
             * Race detector tests (10 iterations with -race flag)
             * Regression test for non-blocking with small maxSolutions limit
+        - **Additional Regressions** (`parallel_regression_test.go`):
+            * Enumerate-all correctness across worker configs (AllDifferent n∈{4,5,6} → 24/120/720 solutions for workers [1,2,4,8]).
+            * Ensures parallel counts exactly match sequential counts for enumerate-all problems.
         - **Examples** (`parallel_search_examples_test.go`, 95 lines):
             * `ExampleSolver_SolveParallel`: basic parallel usage
             * `ExampleSolver_SolveParallel_limit`: limiting solutions
             * `ExampleSolver_SolveParallel_cancel`: context cancellation
             * `ExampleDefaultParallelSearchConfig`: configuration inspection
         - **Bugs Fixed During Development**:
-            1. Initial work-stealing design had fragile termination (deadlocks)
-            2. Pivoted to idiomatic channel-based approach (simpler, more robust)
-            3. Data races in SolverState pooling (fixed with atomic refcounts)
-            4. "close of closed channel" panic (workers closing shared channel)
-            5. Deadlock from breaking out of solution collection (fixed with drain-after-cancel)
-        - **Performance**:
-            * Benchmarks show scaling with worker count
-            * Zero-overhead when sequential (can still use Solve())
-            * N-Queens (n=8) solved in parallel stress test
+            1. Initial work-stealing design had fragile termination (deadlocks).
+            2. Workers closing shared channels caused `close of closed channel` panics → centralized all closing in coordinator.
+            3. Data races in `SolverState` pooling → fixed with atomic refcounts and cascading release.
+            4. Collector exiting early caused senders to block → added cancel-and-drain after `maxSolutions` reached.
+            5. Ad-hoc atomic counters for termination were brittle → replaced with tasksWG-based accounting.
+        - **Performance snapshot (representative)**:
+            * 4-Queens:
+                - Sequential: ~130 µs/op, 214 KB/op, 5,329 allocs/op
+                - Parallel 2 workers: ~128 µs/op, ~224 KB/op, 5,347 allocs/op
+                - Parallel 4 workers: ~121 µs/op, ~224 KB/op, 5,353 allocs/op
+                - Parallel NumCPU: ~191 µs/op (overhead dominates on small problem)
+            * 8-Queens (find all):
+                - Sequential: ~2.37 ms/op, ~2.99 MB/op, 83,933 allocs/op
+                - Parallel 4 workers: ~3.63 ms/op, ~8.53 MB/op, 236,639 allocs/op
+            * Find-first (limit=1): parallel overhead is significant on small/deep problems; prefer sequential unless work per branch is substantial.
+            * Profiling artifacts (CPU/mem) are checked into `profiles/` (e.g., `profiles/phase4_cpu_seq_8q.prof`, `profiles/phase4_cpu_par4_8q.prof`).
+            * Note: For accurate profiles, build without `-race`; the race detector skews CPU attribution (TSAN dominates stacks).
 
 **Phase 4 Current Status**:
 - Task 4.1 (Parallel Search): Complete ✅
 - Task 4.2 (Reification & Count): Not started
 - Task 4.3 (Global Constraints): Not started
 - Task 4.4 (Optimization): Not started
-- Test Coverage: 284 tests passing, all with -race flag
+- Test Coverage: ~280+ tests passing, all validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
 - Git status: Latest work at current commit
 
