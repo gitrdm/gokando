@@ -405,6 +405,31 @@ S1=1 S2=1 S3=1
 ...
 ```
 
+### Global Cardinality (GCC) Demo
+
+**Path:** `examples/gcc-demo/`
+
+Demonstrates the GlobalCardinality constraint with per-value occurrence bounds. Three variables over {1,2,3}, with value 1 used exactly once and value 2 at most twice.
+
+**Run:**
+```bash
+cd examples/gcc-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- Per-value min/max occurrence bounds
+- Pruning when a value's max count is saturated
+- Enumerating and printing feasible assignments
+
+**Sample Output:**
+```
+=== Global Cardinality Constraint Demo ===
+Found N feasible assignments (showing up to 50):
+X1=1 X2=2 X3=2
+...
+```
+
 ### Zebra Puzzle (Einstein's Riddle)
 
 **Path:** `examples/zebra/`

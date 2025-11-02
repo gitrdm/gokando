@@ -459,11 +459,13 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
             - New: Table (extensional constraint) maintaining GAC over allowed tuples, with tests and example ✅
             - New: Regular (DFA/regular language) constraint with forward/backward filtering, tests and example ✅
             - New: Cumulative (renewable resource) with time-table filtering using compulsory parts, tests, example, and runnable demo ✅
+            - New: GlobalCardinality (GCC) with per-value min/max occurrence bounds, tests, example, and runnable demo ✅
             - Example: `examples/tsp-small/` enumerates and scores tours, prints best cycle
             - Example: `examples/cumulative-demo/` enumerates feasible start-time assignments under capacity
+            - Example: `examples/gcc-demo/` enumerates assignments under value-usage bounds
             - API ref: documented in `docs/api-reference/minikanren.md`; usage in `pkg/minikanren/circuit_example_test.go`
                 - Example: `pkg/minikanren/table_example_test.go` shows pruning with a 2-var table
-            - Next: Additional globals (e.g., cumulative variants, edge-finding) ⏭️
+            - Next: Additional globals (e.g., GCC flow-based GAC, edge-finding for Cumulative) ⏭️
 - Task 4.4 (Optimization): Not started
 - Test Coverage: ~73.6% overall; ~280+ tests passing; validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
@@ -496,6 +498,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
         - [x] Implement an `ElementValues` constraint (`result = values[index]`) over a constant table with bidirectional pruning.
         - [x] Implement a `Circuit` constraint for sequencing/path-finding problems.
         - [x] Implement a `Cumulative` constraint for renewable resource scheduling with time-table filtering.
+    - [x] Implement a `GlobalCardinality` constraint for per-value occurrence bounds.
     - [ ] **Success Criteria**: Problems like `magic-square` and `knights-tour` can be solved efficiently.
     - **Implementation Notes (current progress)**:
         - LinearSum (pkg/minikanren/sum.go):
