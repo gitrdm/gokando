@@ -236,5 +236,189 @@ func (c *Cumulative) Propagate(solver *Solver, state *SolverState) (*SolverState
 		}
 	}
 
+	// --- Energetic reasoning and edge-finding ---
+	// Strengthen propagation beyond time-table by reasoning on energy (work)
+	// over candidate windows [a..b]. If the minimal required energy exceeds
+	// capacity*|W|, the model is inconsistent. Additionally, if including a
+	// specific task k fully inside W would overload it, exclude starts of k
+	// that place it entirely inside W (edge-finding-like pruning).
+
+	// Precompute earliest/latest starts and latest completion times
+	est2 := make([]int, n)
+	lst2 := make([]int, n)
+	lct := make([]int, n)
+	for i := 0; i < n; i++ {
+		est2[i] = domains[i].Min()
+		lst2[i] = domains[i].Max()
+		lct[i] = lst2[i] + c.durations[i] - 1
+	}
+
+	// Candidate window endpoints: A from est, B from lct
+	As := make([]int, 0, n)
+	Bs := make([]int, 0, n)
+	{
+		seenA := map[int]struct{}{}
+		seenB := map[int]struct{}{}
+		for i := 0; i < n; i++ {
+			if _, ok := seenA[est2[i]]; !ok {
+				seenA[est2[i]] = struct{}{}
+				As = append(As, est2[i])
+			}
+			if _, ok := seenB[lct[i]]; !ok {
+				seenB[lct[i]] = struct{}{}
+				Bs = append(Bs, lct[i])
+			}
+		}
+	}
+
+	// Helper: minimum mandatory presence of task i inside [a..b] (inclusive)
+	// p_i = max(0, dur_i - max(0, a - est_i) - max(0, lct_i - b))
+	minPresence := func(i, a, b int) int {
+		if a > b {
+			return 0
+		}
+		dur := c.durations[i]
+		leftOutside := a - est2[i]
+		if leftOutside < 0 {
+			leftOutside = 0
+		}
+		rightOutside := lct[i] - b
+		if rightOutside < 0 {
+			rightOutside = 0
+		}
+		p := dur - leftOutside - rightOutside
+		if p < 0 {
+			p = 0
+		}
+		// Also cap by window length just for sanity, though formula should already honor it
+		L := b - a + 1
+		if p > L {
+			p = L
+		}
+		return p
+	}
+
+	// Collect pruning for edge-finding to avoid repeated domain rebuilds
+	// We’ll compute forbidden intervals for each task and then filter domains once.
+	type interval struct{ lo, hi int }
+	forbid := make([][]interval, n)
+
+	// Iterate candidate windows
+	for _, a := range As {
+		for _, b := range Bs {
+			if a > b {
+				continue
+			}
+			L := b - a + 1
+			if L <= 0 {
+				continue
+			}
+			// Total minimal energy inside [a..b]
+			totalEnergy := 0
+			for i := 0; i < n; i++ {
+				if c.demands[i] == 0 {
+					continue
+				}
+				p := minPresence(i, a, b)
+				if p > 0 {
+					totalEnergy += p * c.demands[i]
+				}
+			}
+			if totalEnergy > c.capacity*L {
+				return nil, fmt.Errorf("Cumulative: energetic overload in [%d..%d]: energy=%d > cap*len=%d", a, b, totalEnergy, c.capacity*L)
+			}
+
+			// Edge-finding-like exclusion for each task k
+			for k := 0; k < n; k++ {
+				if c.demands[k] == 0 {
+					continue
+				}
+				// If placing k entirely inside [a..b] would overload, forbid starts placing k entirely within
+				// Compute energy of others
+				energyOthers := totalEnergy - minPresence(k, a, b)*c.demands[k]
+				needK := c.durations[k] * c.demands[k]
+				if energyOthers+needK > c.capacity*L {
+					// Starts that put k fully within [a..b] are s ∈ [a .. b - dur_k + 1]
+					maxS := b - c.durations[k] + 1
+					if maxS >= a { // non-empty interval
+						forbid[k] = append(forbid[k], interval{lo: a, hi: maxS})
+					}
+				}
+			}
+		}
+	}
+
+	// Apply accumulated forbidden intervals to domains
+	for i, v := range c.starts {
+		if len(forbid[i]) == 0 {
+			continue
+		}
+		// Merge intervals
+		ivs := forbid[i]
+		// Simple O(m^2) merge for small m
+		for merged := true; merged; {
+			merged = false
+			out := make([]interval, 0, len(ivs))
+			for j := 0; j < len(ivs); j++ {
+				cur := ivs[j]
+				if cur.lo > cur.hi {
+					continue
+				}
+				// Try to merge with any following overlapping interval
+				for k := j + 1; k < len(ivs); k++ {
+					o := ivs[k]
+					if o.lo > o.hi {
+						continue
+					}
+					if !(o.hi < cur.lo || o.lo > cur.hi) {
+						// overlap
+						if o.lo < cur.lo {
+							cur.lo = o.lo
+						}
+						if o.hi > cur.hi {
+							cur.hi = o.hi
+						}
+						// mark consumed
+						ivs[k].lo = 1
+						ivs[k].hi = 0
+						merged = true
+					}
+				}
+				out = append(out, cur)
+			}
+			ivs = out
+		}
+
+		// Filter domain values not in any forbidden interval
+		vals := domains[i].ToSlice()
+		if len(vals) == 0 {
+			return nil, fmt.Errorf("Cumulative: variable %d has empty domain", v.ID())
+		}
+		allowed := make([]int, 0, len(vals))
+		for _, sVal := range vals {
+			block := false
+			for _, in := range ivs {
+				if in.lo <= sVal && sVal <= in.hi {
+					block = true
+					break
+				}
+			}
+			if !block {
+				allowed = append(allowed, sVal)
+			}
+		}
+		if len(allowed) == 0 {
+			return nil, fmt.Errorf("Cumulative: variable %d domain empty after edge-finding", v.ID())
+		}
+		if len(allowed) < domains[i].Count() {
+			nd := NewBitSetDomainFromValues(domains[i].MaxValue(), allowed)
+			var changed bool
+			newState, changed = solver.SetDomain(newState, v.ID(), nd)
+			if changed {
+				domains[i] = nd
+			}
+		}
+	}
+
 	return newState, nil
 }

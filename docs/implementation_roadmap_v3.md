@@ -472,7 +472,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
                             - `examples/twelve-statements/`: BoolSum + reification + small Tables (implication/XOR/and), FD-only model
             - API ref: documented in `docs/api-reference/minikanren.md`; usage in `pkg/minikanren/circuit_example_test.go`
                 - Example: `pkg/minikanren/table_example_test.go` shows pruning with a 2-var table
-            - Next: Additional globals (e.g., GCC flow-based GAC, edge-finding for Cumulative) ⏭️
+            - Completed follow-on: Edge-finding / energetic reasoning for Cumulative ✅
 - Task 4.4 (Optimization): Not started
 - Test Coverage: ~74.2% overall; ~280+ tests passing; validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
@@ -565,6 +565,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
 
 - Scheduling and routing
     - [x] Cumulative (renewable resource) — time-table filtering with compulsory parts
+    - [x] Edge-finding / energetic reasoning for Cumulative — stronger propagation over windows
     - [x] Circuit (single Hamiltonian cycle with reified subtour elimination)
     - [ ] Edge-finding / energetic reasoning for Cumulative
     - [ ] Path / Subcircuit (optional, if needed by examples)
@@ -582,7 +583,7 @@ Acceptance criteria for each constraint family:
 - Performance notes if applicable; stable under `-race`; compatible with parallel search
 
 Prioritization for remaining work (suggested order):
-1) Edge-finding for Cumulative (stronger propagation)
+1) Task 4.4 — Optimization support (objective variable, branch-and-bound)
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.
