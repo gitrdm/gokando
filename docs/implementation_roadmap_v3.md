@@ -453,11 +453,14 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
 - Task 4.1 (Parallel Search): Complete ✅
 - Task 4.2 (Reification & Count): Complete ✅
 - Task 4.3 (Global Constraints): In progress ▶️
-    - New: LinearSum (weighted sum equality, bounds-consistent) with tests and example ✅
-    - New: ElementValues (result = values[index]) with bidirectional pruning, tests and example ✅
-    - Next: Circuit and additional globals ⏭️
+        - New: LinearSum (weighted sum equality, bounds-consistent) with tests and example ✅
+        - New: ElementValues (result = values[index]) with bidirectional pruning, tests and example ✅
+        - New: Circuit (single Hamiltonian cycle) with reified subtour elimination, tests and examples ✅
+            - Example: `examples/tsp-small/` enumerates and scores tours, prints best cycle
+            - API ref: documented in `docs/api-reference/minikanren.md`; usage in `pkg/minikanren/circuit_example_test.go`
+        - Next: Additional globals (e.g., table, regular, cumulative) ⏭️
 - Task 4.4 (Optimization): Not started
-- Test Coverage: ~280+ tests passing, all validated under `-race` for concurrency paths
+- Test Coverage: ~73.2% overall; ~280+ tests passing; validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
 - Git status: Latest work at current commit
 
@@ -486,7 +489,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
     - [ ] **Action**:
         - [x] Implement a bounds-propagating `LinearSum` constraint (Σ a[i]*x[i] = total) with non-negative coefficients.
         - [x] Implement an `ElementValues` constraint (`result = values[index]`) over a constant table with bidirectional pruning.
-        - [ ] Implement a `Circuit` constraint for sequencing/path-finding problems.
+        - [x] Implement a `Circuit` constraint for sequencing/path-finding problems.
     - [ ] **Success Criteria**: Problems like `magic-square` and `knights-tour` can be solved efficiently.
     - **Implementation Notes (current progress)**:
         - LinearSum (pkg/minikanren/sum.go):
@@ -503,6 +506,14 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
               - Prune result to values reachable from index domain
               - Prune index to positions consistent with result domain
             * Examples and tests validate basic propagation, clamping, fixed index forcing result, and inconsistency
+        - Circuit (pkg/minikanren/circuit.go):
+            * Models a single Hamiltonian cycle over successor variables `succ[1..n]`
+            * Builds a boolean matrix `b[i][j]` with reified equalities `b[i][j] ↔ succ[i] == j`
+            * Exactly-one successor per node (row) and predecessor per node (column) enforced via `BoolSum`
+            * Forbids self-loops with `b[i][i] = false`
+            * Eliminates subtours using order variables `u` with reified `Arithmetic` constraints; fixes `u[start]=1`, others in [2..n]
+            * Tests: `circuit_test.go` cover basic shaping and subtour elimination conflicts
+            * Examples: `circuit_example_test.go` and runnable TSP demo at `examples/tsp-small/`
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.

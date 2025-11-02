@@ -16,6 +16,10 @@ Two production global constraints were added with literate Go examples:
   - Constructor: `NewElementValues(index *FDVariable, values []int, result *FDVariable) (PropagationConstraint, error)`
   - See usage: Example function `ExampleNewElementValues` in `pkg/minikanren/element_example_test.go`
 
+- Circuit — Single Hamiltonian cycle over successors ensuring exactly one successor and predecessor per node and eliminating subtours via reified order constraints.
+  - Constructor: `NewCircuit(model *Model, succ []*FDVariable, startIndex int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewCircuit` in `pkg/minikanren/circuit_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation

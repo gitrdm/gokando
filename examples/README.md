@@ -302,6 +302,30 @@ Region Coloring:
 ✅ Valid 3-coloring found
 ```
 
+### Small TSP (Hamiltonian Cycle with Circuit)
+
+**Path:** `examples/tsp-small/`
+
+Demonstrates the new Circuit global constraint on a small symmetric TSP instance (n=5). Builds a successor permutation forming a single Hamiltonian cycle and enumerates tours, reporting the best cost found.
+
+**Run:**
+```bash
+cd examples/tsp-small
+go run main.go
+```
+
+**Features demonstrated:**
+- Circuit global constraint: exactly-one successor and predecessor per node
+- Subtour elimination using reified order constraints
+- Enumerating and scoring Hamiltonian cycles; printing the best tour
+
+**Sample Output:**
+```
+=== Small TSP with Circuit (n=5) ===
+Found 12 unique tours. Best cost = 17
+Best cycle: 1 -> 2 -> 5 -> 3 -> 4 -> 1
+```
+
 ### Zebra Puzzle (Einstein's Riddle)
 
 **Path:** `examples/zebra/`
