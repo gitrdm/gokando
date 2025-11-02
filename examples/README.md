@@ -326,6 +326,33 @@ Found 12 unique tours. Best cost = 17
 Best cycle: 1 -> 2 -> 5 -> 3 -> 4 -> 1
 ```
 
+### Table Constraint Demo (Extensional Constraint)
+
+**Path:** `examples/table-demo/`
+
+Demonstrates the Table global constraint over enumerated variables by restricting (Color, Pet, Drink) tuples to a small allowed set and enumerating all satisfying assignments.
+
+**Run:**
+```bash
+cd examples/table-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- Table (extensional) constraint over multiple variables
+- Enumerated domains with 1-based encoding
+- Solving and printing all allowed tuples
+
+**Sample Output:**
+```
+=== Table Constraint Demo (Color, Pet, Drink) ===
+Found 4 solutions:
+    Color=Red, Pet=Dog, Drink=Coffee
+    Color=Green, Pet=Bird, Drink=Tea
+    Color=Blue, Pet=Cat, Drink=Water
+    Color=Blue, Pet=Dog, Drink=Tea
+```
+
 ### Zebra Puzzle (Einstein's Riddle)
 
 **Path:** `examples/zebra/`

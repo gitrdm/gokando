@@ -455,12 +455,14 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
 - Task 4.3 (Global Constraints): In progress ▶️
         - New: LinearSum (weighted sum equality, bounds-consistent) with tests and example ✅
         - New: ElementValues (result = values[index]) with bidirectional pruning, tests and example ✅
-        - New: Circuit (single Hamiltonian cycle) with reified subtour elimination, tests and examples ✅
+            - New: Circuit (single Hamiltonian cycle) with reified subtour elimination, tests and examples ✅
+            - New: Table (extensional constraint) maintaining GAC over allowed tuples, with tests and example ✅
             - Example: `examples/tsp-small/` enumerates and scores tours, prints best cycle
             - API ref: documented in `docs/api-reference/minikanren.md`; usage in `pkg/minikanren/circuit_example_test.go`
-        - Next: Additional globals (e.g., table, regular, cumulative) ⏭️
+                - Example: `pkg/minikanren/table_example_test.go` shows pruning with a 2-var table
+            - Next: Additional globals (e.g., regular, cumulative) ⏭️
 - Task 4.4 (Optimization): Not started
-- Test Coverage: ~73.2% overall; ~280+ tests passing; validated under `-race` for concurrency paths
+- Test Coverage: ~73.4% overall; ~280+ tests passing; validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
 - Git status: Latest work at current commit
 
@@ -514,6 +516,12 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
             * Eliminates subtours using order variables `u` with reified `Arithmetic` constraints; fixes `u[start]=1`, others in [2..n]
             * Tests: `circuit_test.go` cover basic shaping and subtour elimination conflicts
             * Examples: `circuit_example_test.go` and runnable TSP demo at `examples/tsp-small/`
+        - Table (pkg/minikanren/table.go):
+            * Extensional constraint over fixed allowed rows (tuples); prunes each variable's domain to values with a supporting row under current domains
+            * Maintains generalized arc consistency in a pass; solver fixed-point loop iterates if further pruning is enabled by other constraints
+            * Validation: non-empty vars/rows, arity match, positive values
+            * Tests: `table_test.go` cover basic pruning, inconsistency, and constructor validation
+            * Example: `table_example_test.go` demonstrates pruning on a 2-variable table
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.

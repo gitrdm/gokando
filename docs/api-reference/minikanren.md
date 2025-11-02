@@ -20,6 +20,10 @@ Two production global constraints were added with literate Go examples:
   - Constructor: `NewCircuit(model *Model, succ []*FDVariable, startIndex int) (PropagationConstraint, error)`
   - See usage: Example function `ExampleNewCircuit` in `pkg/minikanren/circuit_example_test.go`
 
+- Table — Extensional constraint enforcing that a tuple of variables matches one of the allowed rows; maintains generalized arc consistency over the fixed table.
+  - Constructor: `NewTable(vars []*FDVariable, rows [][]int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewTable` in `pkg/minikanren/table_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation
