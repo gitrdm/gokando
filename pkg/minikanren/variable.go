@@ -94,6 +94,16 @@ func (v *FDVariable) Value() int {
 	return v.domain.SingletonValue()
 }
 
+// TryValue returns the variable's value if it is bound; otherwise it
+// returns 0 together with a descriptive error. This provides a safe
+// alternative to Value() for callers that prefer not to recover panics.
+func (v *FDVariable) TryValue() (int, error) {
+	if !v.IsBound() {
+		return 0, fmt.Errorf("variable %s is not bound (domain size: %d)", v.name, v.domain.Count())
+	}
+	return v.domain.SingletonValue(), nil
+}
+
 // String returns a human-readable representation.
 func (v *FDVariable) String() string {
 	if v.IsBound() {

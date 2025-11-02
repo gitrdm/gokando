@@ -328,6 +328,24 @@ func BenchmarkFDVariable_String(b *testing.B) {
 	}
 }
 
+func TestFDVariable_TryValue(t *testing.T) {
+	// Unbound -> error
+	v1 := NewFDVariable(0, NewBitSetDomain(10))
+	if _, err := v1.TryValue(); err == nil {
+		t.Errorf("TryValue() should return error for unbound variable")
+	}
+
+	// Bound -> value, nil
+	v2 := NewFDVariable(0, NewBitSetDomainFromValues(10, []int{7}))
+	val, err := v2.TryValue()
+	if err != nil {
+		t.Fatalf("TryValue() unexpected error: %v", err)
+	}
+	if val != 7 {
+		t.Errorf("TryValue() = %d, want 7", val)
+	}
+}
+
 // Edge case tests for >90% coverage
 
 func TestFDVariable_SetDomain(t *testing.T) {

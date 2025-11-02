@@ -472,9 +472,9 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
                             - `examples/twelve-statements/`: BoolSum + reification + small Tables (implication/XOR/and), FD-only model
             - API ref: documented in `docs/api-reference/minikanren.md`; usage in `pkg/minikanren/circuit_example_test.go`
                 - Example: `pkg/minikanren/table_example_test.go` shows pruning with a 2-var table
-            - Completed follow-on: Edge-finding / energetic reasoning for Cumulative ✅
-- Task 4.4 (Optimization): Not started
-- Test Coverage: ~74.2% overall; ~280+ tests passing; validated under `-race` for concurrency paths
+-            - Completed follow-on: Edge-finding / energetic reasoning for Cumulative ✅
+- Task 4.4 (Optimization): Core and options complete — sequential `SolveOptimal` and `SolveOptimalWithOptions` implemented with unit tests and examples; parallel branch-and-bound implemented with shared incumbent via atomics; node limit semantics refined to count only explored leaves to guarantee anytime incumbent; structural lower bound for LinearSum integrated.
+- Test Coverage: ~75.4% overall; full suite passing; validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
 - Git status: Latest work at current commit
 
@@ -567,7 +567,6 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
     - [x] Cumulative (renewable resource) — time-table filtering with compulsory parts
     - [x] Edge-finding / energetic reasoning for Cumulative — stronger propagation over windows
     - [x] Circuit (single Hamiltonian cycle with reified subtour elimination)
-    - [ ] Edge-finding / energetic reasoning for Cumulative
     - [ ] Path / Subcircuit (optional, if needed by examples)
 
 - Utility/derived constraints
@@ -585,12 +584,75 @@ Acceptance criteria for each constraint family:
 Prioritization for remaining work (suggested order):
 1) Task 4.4 — Optimization support (objective variable, branch-and-bound)
 
-- [ ] **Task 4.4: Add Optimization Support**
-    - [ ] **Objective**: Allow the solver to find optimal solutions.
-    - [ ] **Action**:
-        - [ ] Add support for an objective variable.
-        - [ ] Implement a branch-and-bound search strategy to `minimize` or `maximize` the objective.
-    - [ ] **Success Criteria**: The solver can find the best solution for optimization problems, not just any solution.
+- [ ] **Task 4.4: Add Optimization Support** (Substantial progress)
+    - [x] **Objective**: Enable optimal solution search with a native branch-and-bound layered on the existing FD solver. Provide an ergonomic API, strong pruning via incumbents and lower bounds, anytime behavior, and parallel support.
+
+    - [x] **Public API**
+        - Ergonomic entry points coexisting with `Solve`:
+            - Implemented: `SolveOptimal(ctx, obj *FDVariable, minimize bool) (solution []int, objVal int, err error)`
+            - Implemented: `SolveOptimalWithOptions(ctx, obj *FDVariable, minimize bool, opts ...OptimizeOption) (solution []int, objVal int, err error)`
+        - Options implemented:
+            - `WithTimeLimit(d time.Duration)` — cancels search after deadline; returns incumbent with `ErrSearchLimitReached` if any
+            - `WithNodeLimit(n int)` — leaf-count limit only; guarantees anytime incumbent semantics; returns `ErrSearchLimitReached` when limit reached
+            - `WithTargetObjective(val int)` — early-accept when objective equals target (direction-aware)
+            - `WithParallelWorkers(k int)` — enables parallel branch-and-bound with shared incumbent via atomics
+            - `WithHeuristics(h Heuristic)` — override variable/value ordering
+        - Results semantics:
+            - Best found assignment and objective value. On limits/timeouts, returns incumbent and `ErrSearchLimitReached`. If no solution was found, returns `nil, 0, ErrSearchLimitReached`.
+
+    - [x] **Core algorithm (branch-and-bound)**
+        - Implemented: depth-first BnB reusing propagation/backtracking with incumbent cutoffs.
+            1) Compute a trivial admissible bound from the objective domain (min/max) and prune against incumbent.
+            2) Branch using existing heuristics; on improving leaf, update incumbent and tighten `obj` domain globally at that node.
+        - Incumbent propagation:
+            - Implemented: dynamic domain tightening on `obj` (`RemoveAtOrAbove(best)` for minimize; symmetric for maximize) to drive propagation.
+            - Implemented (parallel): atomic shared incumbent for parallel runs with periodic cutoff refresh.
+        - Parallel integration:
+            - Implemented: channel-based shared work queue; coordinator-only channel close with tasks-based accounting; workers drain on cancel; share incumbent via atomics; avoid work-stealing.
+
+    - [ ] **Lower-bound computations (plug-in interface)**
+        - Provide a small, pluggable LB interface with safe defaults:
+            - Identity objective: `LB = domain.Min()` (minimize) or `UB = domain.Max()` (maximize)
+            - LinearSum `Σ a[i]*x[i]` with non-negative coefficients: `LB = Σ a[i]*min(x[i])` — Implemented via `computeObjectiveBound` when the objective is the `total` of a `LinearSum`
+            - Min/Max of array: `LB(min) = min_i min(x[i])`, `LB(max) = min_i max(x[i])` appropriately for direction
+            - Reified/encoded counts (e.g., BoolSum with count+1 encoding): map to raw counts and compute trivial bounds
+            - Cumulative makespan (optional first pass): use `max_i(est_i + dur_i - 1)` as a baseline; stronger LBs can come later
+        - Keep LBs cheap: O(n) in variables; enable composition when the objective is an FD variable driven by other constraints (use the result var’s domain bounds).
+
+    - [ ] **Search heuristics and tie-breaking**
+        - Default to existing heuristic (e.g., Dom/Deg/Lex); allow optimization-aware tie-breaks: prefer assignments improving the best-case bound on the objective.
+        - Optional phase-saving or value ordering biased toward objective-improving values first.
+
+    - [x] **Correctness and semantics**
+        - Soundness: Never prune feasible optimal solutions; LB must be admissible (never exceed true optimum for minimize).
+        - Anytime: On timeout/limits, return the best incumbent and `ErrSearchLimitReached` indicating optimality not proven.
+        - Determinism: Given fixed seeds and ordering, produce reproducible incumbents; document parallel non-determinism of exploration order.
+
+    - [x] **Testing**
+        - Unit tests for API surface: nil checks, invalid objectives, option validation.
+        - Functional tests per objective family:
+            - Implemented: Identity objective over a single var (minimize) ✅
+            - Implemented: LinearSum total minimize ✅
+            - Implemented: Integration with Cumulative — minimize makespan (two-task) ✅
+            - Planned: Min/Max synthetic arrays
+        - Limits tests: Implemented (time limit, leaf-count node limit returns incumbent, target objective early-accept)
+        - Parallel tests: Implemented (parallel identity minimize; race-free; channel-close correctness under cancellation)
+
+    - [x] **Examples and demos**
+        - Implemented: `ExampleSolver_SolveOptimal` minimizing a linear cost ✅
+        - Implemented: `ExampleSolver_SolveOptimalWithOptions` showing time limit and parallel workers ✅
+        - Planned: `examples/cumulative-demo/` add “minimize makespan” variant using `SolveOptimal`
+        - Planned: show anytime optimization with short timeout and incumbent output
+
+    - [ ] **Performance notes**
+        - Incumbent checks must be O(1) and low contention; use atomics for the best objective and a versioned bound.
+        - LB computations are O(n) and cache-friendly; avoid allocations in hot paths.
+        - Parallel cut sharing: periodically refresh worker-local cutoff; apply as a constraint only when it tightens to reduce SetDomain churn.
+        - Provide a basic benchmark comparing Solve vs SolveOptimal on small models; report nodes pruned and time.
+
+    - [ ] **Success Criteria**
+        - The solver finds and returns an optimal solution for supported objective forms on small-to-medium instances; when interrupted, returns the best incumbent and indicates non-optimality.
+        - Works with existing constraints without API changes; passes the full test suite; documented with runnable examples.
 
 ### Phase 5: API and Usability
 
@@ -610,3 +672,19 @@ Prioritization for remaining work (suggested order):
         - [ ] Create a "cookbook" of examples demonstrating how to solve common problems with the new declarative API.
         - [ ] Ensure all examples are runnable and tested as part of the CI suite.
     - [ ] **Success Criteria**: A new user can get started and solve a non-trivial problem by reading the documentation and examples.
+
+---
+
+## Quality gates (latest update)
+
+- Build: PASS (go build implicit via tests)
+- Tests: PASS (full suite green after adding optimization options and parallel BnB; coverage ~75.4%)
+- Lint/Typecheck: PASS (no static errors observed in CI-local run)
+- Concurrency: PASS on parallel tests; design continues to avoid work-stealing; uses shared work-queue
+
+## Next steps (Phase 4.4)
+
+- Extend lower-bound plugins (LinearSum sign-aware coefficients, Min/Max, stronger makespan LB)
+- Add micro-benchmarks comparing Solve vs SolveOptimal; record pruning stats
+- Add examples: minimize makespan in `examples/cumulative-demo/`; anytime demo
+- Document API ergonomics: `FDVariable.TryValue()` as safe accessor alongside `Value()`

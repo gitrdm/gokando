@@ -4,6 +4,35 @@ Complete API documentation for the minikanren package.
 
 **Import Path:** `github.com/gitrdm/gokando/pkg/minikanren`
 
+## Optimization API (Phase 4.4)
+
+Production-grade optimization is available via branch-and-bound over the FD solver with sequential and parallel execution.
+
+- Entry points:
+  - `SolveOptimal(ctx context.Context, obj *FDVariable, minimize bool) (solution []int, objVal int, err error)`
+  - `SolveOptimalWithOptions(ctx context.Context, obj *FDVariable, minimize bool, opts ...OptimizeOption) (solution []int, objVal int, err error)`
+
+- Options:
+  - `WithTimeLimit(d time.Duration)` — cancels search after deadline; returns incumbent with `ErrSearchLimitReached` if any
+  - `WithNodeLimit(n int)` — counts only explored leaves; guarantees anytime incumbent; returns `ErrSearchLimitReached` when limit reached
+  - `WithTargetObjective(val int)` — early-accept when objective reaches the target (direction-aware)
+  - `WithParallelWorkers(k int)` — parallel branch-and-bound with shared incumbent via atomics
+  - `WithHeuristics(h Heuristic)` — override variable/value ordering
+
+- Semantics and errors:
+  - Always returns the best found assignment and objective. If a limit/timeouts prevents proving optimality, `err == ErrSearchLimitReached` and the incumbent is returned.
+  - If no solution is found before a limit, returns `nil, 0, ErrSearchLimitReached`.
+
+- Lower bounds and pruning:
+  - Uses structural lower bounds when recognized, e.g., `LinearSum` totals: LB = Σ a[i]·min(x[i]) for non-negative coefficients.
+  - Tightens the objective variable's domain on improved incumbents to drive propagation.
+
+- Examples:
+  - `pkg/minikanren/optimization_example_test.go`: `ExampleSolver_SolveOptimal`, `ExampleSolver_SolveOptimalWithOptions`
+
+- Ergonomics:
+  - `FDVariable.Value()` panics if unbound by contract. A safe accessor is available: `FDVariable.TryValue() (int, error)`.
+
 ## Global Constraints (additions in Phase 4.3)
 
 Two production global constraints were added with literate Go examples:
