@@ -456,20 +456,25 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
         - New: LinearSum (weighted sum equality, bounds-consistent) with tests and example ✅
         - New: ElementValues (result = values[index]) with bidirectional pruning, tests and example ✅
             - New: Circuit (single Hamiltonian cycle) with reified subtour elimination, tests and examples ✅
-            - New: Table (extensional constraint) maintaining GAC over allowed tuples, with tests and example ✅
+                        - New: Table (extensional constraint) maintaining GAC over allowed tuples, with tests and example ✅
             - New: Regular (DFA/regular language) constraint with forward/backward filtering, tests and example ✅
             - New: Cumulative (renewable resource) with time-table filtering using compulsory parts, tests, example, and runnable demo ✅
             - New: GlobalCardinality (GCC) with per-value min/max occurrence bounds, tests, example, and runnable demo ✅
             - New: Lexicographic ordering (LexLess, LexLessEq) with bounds-consistent pruning, tests, example, and demo ✅
+                        - New: Among (bounds-consistent) with literate docs, tests, example, and demo ✅
             - Example: `examples/tsp-small/` enumerates and scores tours, prints best cycle
             - Example: `examples/cumulative-demo/` enumerates feasible start-time assignments under capacity
             - Example: `examples/gcc-demo/` enumerates assignments under value-usage bounds
             - Example: `examples/lex-demo/` shows non-strict lex ordering pruning
+                        - Examples modernized to FD-only:
+                            - `examples/magic-square/`: AllDifferent + LinearSum, prints actual solution from solver
+                            - `examples/send-more-money/`: AllDifferent + Table carries; fixes M=1; prints the classic solution
+                            - `examples/twelve-statements/`: BoolSum + reification + small Tables (implication/XOR/and), FD-only model
             - API ref: documented in `docs/api-reference/minikanren.md`; usage in `pkg/minikanren/circuit_example_test.go`
                 - Example: `pkg/minikanren/table_example_test.go` shows pruning with a 2-var table
             - Next: Additional globals (e.g., GCC flow-based GAC, edge-finding for Cumulative) ⏭️
 - Task 4.4 (Optimization): Not started
-- Test Coverage: ~73.6% overall; ~280+ tests passing; validated under `-race` for concurrency paths
+- Test Coverage: ~74.2% overall; ~280+ tests passing; validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
 - Git status: Latest work at current commit
 
@@ -531,6 +536,59 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
             * Validation: non-empty vars/rows, arity match, positive values
             * Tests: `table_test.go` cover basic pruning, inconsistency, and constructor validation
             * Example: `table_example_test.go` demonstrates pruning on a 2-variable table
+
+#### Phase 4.3 Completion Criteria: Typical Global Constraint Set
+
+> Definition of done for Phase 4.3 is having the following commonly-used global constraints implemented with production quality, each with docs, examples, and comprehensive tests.
+
+- Core arithmetic and relations
+    - [x] Arithmetic (X + offset = Y) — bidirectional
+    - [x] Inequality (</≤/>/≥/≠) — bounds-consistent
+    - [x] LinearSum (Σ a[i]*x[i] = total) — bounds-consistent
+
+- Selection and counting
+    - [x] ElementValues (result = values[index]) — bidirectional
+    - [x] BoolSum and Count (boolean sums, reified equals)
+    - [x] Among (count how many vars in a set S) — bounds-consistent
+    - [ ] NValue / AtMostNValues / AtLeastNValues
+
+- Global structure constraints
+    - [x] AllDifferent (Régin AC)
+    - [x] GlobalCardinality (GCC) — per-value min/max occurrence bounds
+    - [x] Lexicographic ordering (LexLess, LexLessEq)
+    - [x] Regular (DFA language membership)
+    - [x] Table (extensional, GAC)
+    - [ ] Disjunctive / NoOverlap (1D scheduling)
+    - [ ] Diffn (2D NoOverlap / rectangle packing)
+    - [ ] Sequence / Stretch (bounded runs of values)
+    - [ ] BinPacking (items with sizes into capacity-limited bins)
+
+- Scheduling and routing
+    - [x] Cumulative (renewable resource) — time-table filtering with compulsory parts
+    - [x] Circuit (single Hamiltonian cycle with reified subtour elimination)
+    - [ ] Edge-finding / energetic reasoning for Cumulative
+    - [ ] Path / Subcircuit (optional, if needed by examples)
+
+- Utility/derived constraints
+    - [ ] Min/Max of array (result = min/max(vars)) with bounds propagation
+    - [ ] AlldifferentExcept0 (optional variant)
+    - [ ] Value precedence / channeling (optional, as needed by models)
+
+Acceptance criteria for each constraint family:
+- Constructor validation with clear errors for bad inputs
+- Unit tests for: happy path, edge/boundary cases, inconsistency, and interaction with other constraints
+- Example or demo under `examples/` or `pkg/..._example_test.go` showing actual pruning or solving
+- API reference in `docs/api-reference/` (or corresponding guide) with literate comments in code
+- Performance notes if applicable; stable under `-race`; compatible with parallel search
+
+Prioritization for remaining work (suggested order):
+1) Disjunctive/NoOverlap (1D) → unlocks clearer scheduling examples
+2) NValue family
+3) Diffn (2D)
+4) Min/Max of array
+5) Sequence/Stretch
+6) BinPacking
+7) Edge-finding for Cumulative (stronger propagation)
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.
