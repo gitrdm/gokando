@@ -430,6 +430,32 @@ X1=1 X2=2 X3=2
 ...
 ```
 
+### Lexicographic Ordering Demo
+
+**Path:** `examples/lex-demo/`
+
+Demonstrates the Lexicographic ordering constraint with non-strict ordering X ≤lex Y over two-length vectors, showing bounds pruning on the first component.
+
+**Run:**
+```bash
+cd examples/lex-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- Bounds-consistent lexicographic pruning
+- Symmetry breaking building block for sequences and permutations
+- Prints pruned domains after propagation
+
+**Sample Output:**
+```
+=== Lexicographic Constraint Demo (X ≤lex Y) ===
+x1: {2..4}
+x2: {1..3}
+y1: {3..5}
+y2: {2..4}
+```
+
 ### Zebra Puzzle (Einstein's Riddle)
 
 **Path:** `examples/zebra/`

@@ -460,9 +460,11 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
             - New: Regular (DFA/regular language) constraint with forward/backward filtering, tests and example ✅
             - New: Cumulative (renewable resource) with time-table filtering using compulsory parts, tests, example, and runnable demo ✅
             - New: GlobalCardinality (GCC) with per-value min/max occurrence bounds, tests, example, and runnable demo ✅
+            - New: Lexicographic ordering (LexLess, LexLessEq) with bounds-consistent pruning, tests, example, and demo ✅
             - Example: `examples/tsp-small/` enumerates and scores tours, prints best cycle
             - Example: `examples/cumulative-demo/` enumerates feasible start-time assignments under capacity
             - Example: `examples/gcc-demo/` enumerates assignments under value-usage bounds
+            - Example: `examples/lex-demo/` shows non-strict lex ordering pruning
             - API ref: documented in `docs/api-reference/minikanren.md`; usage in `pkg/minikanren/circuit_example_test.go`
                 - Example: `pkg/minikanren/table_example_test.go` shows pruning with a 2-var table
             - Next: Additional globals (e.g., GCC flow-based GAC, edge-finding for Cumulative) ⏭️
