@@ -15,7 +15,7 @@ type ParallelSearchConfig struct {
 	// NumWorkers is the number of parallel worker goroutines.
 	// If 0 or negative, defaults to runtime.NumCPU().
 	NumWorkers int
-	
+
 	// WorkQueueSize is the buffer size for the work channel.
 	// Larger values allow more work to be queued, potentially improving
 	// load balancing at the cost of memory.
@@ -52,37 +52,37 @@ func (s *Solver) SolveParallel(ctx context.Context, numWorkers, maxSolutions int
 	if numWorkers <= 0 {
 		numWorkers = runtime.NumCPU()
 	}
-	
+
 	// Perform initial propagation
 	initialState := (*SolverState)(nil)
 	propagatedState, err := s.propagate(initialState)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Check if already solved after propagation
 	if s.isComplete(propagatedState) {
 		solution := s.extractSolution(propagatedState)
 		return [][]int{solution}, nil
 	}
-	
+
 	// Select initial variable and values
 	varID, values := s.selectVariable(propagatedState)
 	if varID == -1 {
 		// No variables to assign
 		return nil, nil
 	}
-	
+
 	// Create channels for work and solutions
 	workChan := make(chan *workItem, 1000)
 	solutionChan := make(chan []int, numWorkers*2)
-	
+
 	// Track active workers
 	var activeWorkers atomic.Int64
 	var solutionsFound atomic.Int64
 	var pending atomic.Int64 // number of enqueued-but-not-yet-started work items
 	var cancelOnce sync.Once
-	
+
 	// Add initial work
 	workChan <- &workItem{
 		state:      propagatedState,
@@ -92,11 +92,11 @@ func (s *Solver) SolveParallel(ctx context.Context, numWorkers, maxSolutions int
 		depth:      0,
 	}
 	pending.Store(1)
-	
+
 	// Start workers
 	workerCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	
+
 	var wg sync.WaitGroup
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
@@ -105,13 +105,13 @@ func (s *Solver) SolveParallel(ctx context.Context, numWorkers, maxSolutions int
 			s.parallelWorker(workerCtx, cancel, &cancelOnce, workerID, workChan, solutionChan, &activeWorkers, &solutionsFound, &pending, maxSolutions)
 		}(i)
 	}
-	
+
 	// Close channels when workers are done
 	go func() {
 		wg.Wait()
 		close(solutionChan)
 	}()
-	
+
 	// Collect solutions. If we hit the limit, cancel workers and keep draining
 	// the channel to avoid deadlocks from blocked senders.
 	solutions := make([][]int, 0)
@@ -126,7 +126,7 @@ func (s *Solver) SolveParallel(ctx context.Context, numWorkers, maxSolutions int
 		}
 		// else: discard additional solutions until solutionChan closes
 	}
-    
+
 	return solutions, ctx.Err()
 }
 
@@ -136,7 +136,7 @@ func (s *Solver) parallelWorker(ctx context.Context, cancel context.CancelFunc, 
 		select {
 		case <-ctx.Done():
 			return
-			
+
 		case work, ok := <-workChan:
 			if !ok {
 				// Work channel closed, we're done
@@ -145,25 +145,25 @@ func (s *Solver) parallelWorker(ctx context.Context, cancel context.CancelFunc, 
 
 			// This work item is now in progress; decrement pending.
 			pending.Add(-1)
-			
+
 			// Check solution limit
 			if maxSolutions > 0 && solutionsFound.Load() >= int64(maxSolutions) {
 				s.ReleaseState(work.state)
 				return
 			}
-			
+
 			// Mark as active
 			activeWorkers.Add(1)
-			
+
 			// Process this work item
 			s.processWork(ctx, work, workChan, solutionChan, solutionsFound, pending, maxSolutions)
-			
+
 			// Release the work item's state now that we're done with it
 			s.ReleaseState(work.state)
-			
+
 			// Mark as inactive
 			activeWorkers.Add(-1)
-			
+
 			// If no active workers and the queue is empty, signal global cancellation.
 			// We don't close workChan here to avoid races; cancellation will unblock
 			// all workers via ctx.Done in their select.
@@ -185,50 +185,50 @@ func (s *Solver) processWork(ctx context.Context, work *workItem, workChan chan 
 			return
 		default:
 		}
-		
+
 		// Check solution limit
 		if maxSolutions > 0 && solutionsFound.Load() >= int64(maxSolutions) {
 			return
 		}
-		
+
 		value := work.values[work.valueIndex]
 		work.valueIndex++
-		
+
 		// Assign value
 		domain := s.GetDomain(work.state, work.varID)
 		newDomain := NewBitSetDomainFromValues(domain.MaxValue(), []int{value})
 		newState, _ := s.SetDomain(work.state, work.varID, newDomain)
-		
+
 		// Propagate
 		propagatedState, err := s.propagate(newState)
 		if err != nil {
 			s.ReleaseState(newState)
 			continue
 		}
-		
+
 		// Check if complete
 		if s.isComplete(propagatedState) {
 			solution := s.extractSolution(propagatedState)
 			solutionsFound.Add(1)
-			
+
 			select {
 			case solutionChan <- solution:
 			case <-ctx.Done():
 				s.ReleaseState(propagatedState)
 				return
 			}
-			
+
 			s.ReleaseState(propagatedState)
 			continue
 		}
-		
+
 		// Select next variable
 		nextVarID, nextValues := s.selectVariable(propagatedState)
 		if nextVarID == -1 {
 			s.ReleaseState(propagatedState)
 			continue
 		}
-		
+
 		// Add new work to channel
 		// NOTE: The new work item now owns propagatedState,
 		// so we don't release it here
@@ -239,7 +239,7 @@ func (s *Solver) processWork(ctx context.Context, work *workItem, workChan chan 
 			valueIndex: 0,
 			depth:      work.depth + 1,
 		}
-        
+
 		// Enqueue new work: increment pending before queueing to avoid races.
 		pending.Add(1)
 		select {
