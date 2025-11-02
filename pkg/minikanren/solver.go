@@ -347,7 +347,11 @@ func (s *Solver) Solve(ctx context.Context, maxSolutions int) ([][]int, error) {
 	}
 
 	// Cache the root-level propagated state for later inspection via GetDomain(nil, id)
+	// Retain an extra reference so search/backtracking won't release it.
 	s.baseState = propagatedState
+	if s.baseState != nil {
+		s.baseState.refCount.Add(1)
+	}
 
 	if s.monitor != nil {
 		s.monitor.EndPropagation()

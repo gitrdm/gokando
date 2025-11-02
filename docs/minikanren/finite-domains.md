@@ -308,6 +308,32 @@ Notes and best practices:
 
 See ExampleCount in the package for a runnable example.
 
+### Counting Membership in a Set (Among)
+
+The Among global constraint counts how many variables take values from a given set S, and constrains that count via a dedicated variable K using the solver's positive-domain encoding.
+
+Concepts and encoding:
+- Given variables vars = [X1..Xn] and a set of values S, Among(vars, S, K) ensures count({i | Xi ∈ S}) = K-1, where K ∈ [1..n+1]. This mirrors the Count encoding and keeps all domains strictly positive.
+
+Propagation strength (bounds-consistent):
+- Let m = number of Xi whose domains are subsets of S (mandatory), and p = number of Xi whose domains intersect S (possible). Then m ≤ count ≤ p. The constraint prunes K to [m+1..p+1].
+- If m equals K's maximum count (K.max-1), all remaining may-in variables are forced OUT of S.
+- If p equals K's minimum count (K.min-1), all may-in variables are forced INTO S.
+
+API:
+
+```go
+// NewAmong(vars, values, k)
+//  - vars: []*FDVariable to inspect
+//  - values: []int representing set S
+//  - k: FD variable with domain in [1..len(vars)+1] encoding the count as K = count+1
+c, err := minikanren.NewAmong(vars, []int{1,2,3}, k)
+if err != nil { /* handle error */ }
+_ = model.AddConstraint(c)
+```
+
+Example: See ExampleNewAmong in the package and the runnable demo at examples/among-demo.
+
 ### Post-solve Domain Inspection and Solver Semantics
 
 For convenience, the solver caches the root-level propagated state after an initial Solve. This allows querying domains without threading an explicit state:
