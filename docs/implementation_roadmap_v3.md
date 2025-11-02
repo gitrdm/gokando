@@ -550,7 +550,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
     - [x] ElementValues (result = values[index]) — bidirectional
     - [x] BoolSum and Count (boolean sums, reified equals)
     - [x] Among (count how many vars in a set S) — bounds-consistent
-    - [ ] NValue / AtMostNValues / AtLeastNValues
+    - [x] NValue / AtMostNValues / AtLeastNValues
 
 - Global structure constraints
     - [x] AllDifferent (Régin AC)
@@ -582,12 +582,10 @@ Acceptance criteria for each constraint family:
 - Performance notes if applicable; stable under `-race`; compatible with parallel search
 
 Prioritization for remaining work (suggested order):
-1) NValue family
-2) Diffn (2D)
-3) Min/Max of array
-4) Sequence/Stretch
-5) BinPacking
-6) Edge-finding for Cumulative (stronger propagation)
+1) Diffn (2D)
+2) Sequence/Stretch
+3) BinPacking
+4) Edge-finding for Cumulative (stronger propagation)
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.

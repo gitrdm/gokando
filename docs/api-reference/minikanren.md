@@ -46,6 +46,13 @@ Two production global constraints were added with literate Go examples:
     - `NewMax(vars []*FDVariable, result *FDVariable) (PropagationConstraint, error)`
   - See usage: Example functions `ExampleNewMin` and `ExampleNewMax` in `pkg/minikanren/minmax_example_test.go`
 
+- DistinctCount / NValue family — Count the number of distinct values taken by a set of variables using a composition of reified equalities and BoolSum; supports exact and at-most variants with safe bounds-consistent propagation.
+  - Constructors:
+    - `NewNValue(model *Model, vars []*FDVariable, nPlus1 *FDVariable) (*DistinctCount, error)`
+    - `NewAtMostNValues(model *Model, vars []*FDVariable, limitPlus1 *FDVariable) (*DistinctCount, error)`
+    - `NewAtLeastNValues(model *Model, vars []*FDVariable, minPlus1 *FDVariable) (*DistinctCount, error)`
+  - See usage: Example functions `ExampleNewAtMostNValues` and `ExampleNewNValue` in `pkg/minikanren/nvalue_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation
