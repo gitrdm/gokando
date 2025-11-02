@@ -4,6 +4,20 @@ Complete API documentation for the minikanren package.
 
 **Import Path:** `github.com/gitrdm/gokando/pkg/minikanren`
 
+## Global Constraints (additions in Phase 4.3)
+
+Two production global constraints were added with literate Go examples:
+
+- LinearSum — Weighted sum equality with non-negative coefficients enforcing Σ a[i]*x[i] = total with bounds-consistent propagation.
+  - Constructor: `NewLinearSum(vars []*FDVariable, coeffs []int, total *FDVariable) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewLinearSum` in `pkg/minikanren/sum_example_test.go`
+
+- ElementValues — Element constraint over a constant array enforcing `result = values[index]` with bidirectional pruning and index clamping.
+  - Constructor: `NewElementValues(index *FDVariable, values []int, result *FDVariable) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewElementValues` in `pkg/minikanren/element_example_test.go`
+
+These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
+
 ## Package Documentation
 
 Package minikanren provides constraint system infrastructure for order-independent

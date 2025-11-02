@@ -452,7 +452,10 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
 **Phase 4 Current Status**:
 - Task 4.1 (Parallel Search): Complete ✅
 - Task 4.2 (Reification & Count): Complete ✅
-- Task 4.3 (Global Constraints): Not started
+- Task 4.3 (Global Constraints): In progress ▶️
+    - New: LinearSum (weighted sum equality, bounds-consistent) with tests and example ✅
+    - New: ElementValues (result = values[index]) with bidirectional pruning, tests and example ✅
+    - Next: Circuit and additional globals ⏭️
 - Task 4.4 (Optimization): Not started
 - Test Coverage: ~280+ tests passing, all validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
@@ -481,10 +484,25 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
 - [ ] **Task 4.3: Enhance the Global Constraint Library**
     - [ ] **Objective**: Provide a rich set of common, high-performance global constraints.
     - [ ] **Action**:
-        - [ ] Implement a bounds-propagating `Sum` constraint.
-        - [ ] Implement an `Element` constraint (`vars[index] = value`).
+        - [x] Implement a bounds-propagating `LinearSum` constraint (Σ a[i]*x[i] = total) with non-negative coefficients.
+        - [x] Implement an `ElementValues` constraint (`result = values[index]`) over a constant table with bidirectional pruning.
         - [ ] Implement a `Circuit` constraint for sequencing/path-finding problems.
     - [ ] **Success Criteria**: Problems like `magic-square` and `knights-tour` can be solved efficiently.
+    - **Implementation Notes (current progress)**:
+        - LinearSum (pkg/minikanren/sum.go):
+            * Bounds-consistent propagation on both sides:
+              - total ∈ [Σ a[i]·min(xi), Σ a[i]·max(xi)]
+              - For each xi: xi ∈ [ceil((t.min - otherMax)/ai), floor((t.max - otherMin)/ai)] when ai>0
+            * Supports ai ≥ 0; zero coefficients are ignored during pruning
+            * Example: `ExampleNewLinearSum` demonstrates pruning behavior
+            * Tests: `sum_test.go` cover total bounds, variable bounds, zero coefficients, inconsistency
+        - ElementValues (pkg/minikanren/element.go):
+            * Enforces result = values[index] over a constant slice
+            * Clamps index to valid range [1..len(values)]
+            * Bidirectional pruning:
+              - Prune result to values reachable from index domain
+              - Prune index to positions consistent with result domain
+            * Examples and tests validate basic propagation, clamping, fixed index forcing result, and inconsistency
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.
