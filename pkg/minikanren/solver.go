@@ -44,6 +44,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"sync/atomic"
 )
 
 // Solver performs backtracking search to find solutions to constraint satisfaction problems.
@@ -119,6 +120,12 @@ type SolverState struct {
 
 	// depth tracks the depth in the search tree for heuristics
 	depth int
+
+	// refCount tracks the number of active references to this state node.
+	// In sequential search this is typically 1 and ReleaseState will cascade,
+	// in parallel search multiple workers may hold references simultaneously.
+	// When the count drops to zero, the node can be safely returned to the pool.
+	refCount atomic.Int64
 }
 
 // NewSolver creates a solver for the given model.
@@ -190,15 +197,21 @@ func (s *Solver) SetDomain(state *SolverState, varID int, domain Domain) (*Solve
 	}
 
 	newState := s.statePool.Get().(*SolverState)
+	// Initialize new state node
 	newState.parent = state
 	newState.modifiedVarID = varID
 	newState.modifiedDomain = domain
 
 	if state != nil {
 		newState.depth = state.depth + 1
+		// Retain parent since this child holds a reference to it
+		state.refCount.Add(1)
 	} else {
 		newState.depth = 1
 	}
+
+	// New nodes start with a refCount of 1 (owned by the caller)
+	newState.refCount.Store(1)
 
 	return newState, true
 }
@@ -264,17 +277,30 @@ func (s *Solver) propagate(state *SolverState) (*SolverState, error) {
 // Should be called when backtracking to free memory.
 // Only the state itself is pooled, not domains (they are immutable and shared).
 func (s *Solver) ReleaseState(state *SolverState) {
-	if state == nil {
-		return
+	// Cascade release: decrement refCount; if it hits zero, release this node
+	// and continue to parent (which this node retained at creation time).
+	for cur := state; cur != nil; {
+		// Nothing to do for nil
+		// Decrement and check if others still hold references
+		if cur.refCount.Add(-1) > 0 {
+			return // someone else still holds this node
+		}
+
+		// No more references: capture parent and clear this node before pooling
+		parent := cur.parent
+
+		// Clear references to allow GC and avoid accidental reuse races
+		cur.parent = nil
+		cur.modifiedDomain = nil
+		cur.modifiedVarID = 0
+		cur.depth = 0
+		cur.refCount.Store(0)
+
+		s.statePool.Put(cur)
+
+		// Continue to parent (which we retained when creating cur)
+		cur = parent
 	}
-
-	// Clear references to allow GC
-	state.parent = nil
-	state.modifiedDomain = nil
-	state.modifiedVarID = 0
-	state.depth = 0
-
-	s.statePool.Put(state)
 }
 
 // Solve finds solutions to the constraint satisfaction problem.
