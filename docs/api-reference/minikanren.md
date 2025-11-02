@@ -28,6 +28,10 @@ Two production global constraints were added with literate Go examples:
   - Constructor: `NewRegular(vars []*FDVariable, numStates int, start int, acceptStates []int, delta [][]int) (PropagationConstraint, error)`
   - See usage: Example function `ExampleNewRegular` in `pkg/minikanren/regular_example_test.go`
 
+- Cumulative — Renewable resource constraint ensuring that at every time unit the sum of demands of running tasks does not exceed capacity; implements time-table filtering using compulsory parts.
+  - Constructor: `NewCumulative(starts []*FDVariable, durations, demands []int, capacity int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewCumulative` in `pkg/minikanren/cumulative_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation

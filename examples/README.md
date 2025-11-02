@@ -380,6 +380,31 @@ B A A
 B B A
 ```
 
+### Cumulative Constraint Demo (Resource scheduling)
+
+**Path:** `examples/cumulative-demo/`
+
+Demonstrates the Cumulative global constraint for renewable resource scheduling. Three tasks with fixed durations and demands share a resource with capacity 3; the demo enumerates feasible start-time assignments.
+
+**Run:**
+```bash
+cd examples/cumulative-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- Time-table filtering using compulsory parts
+- Discrete time modeling with 1-based domains
+- Enumerating and printing feasible schedules
+
+**Sample Output:**
+```
+=== Cumulative Constraint Demo (capacity=3) ===
+Found N feasible schedules (showing up to 50):
+S1=1 S2=1 S3=1
+...
+```
+
 ### Zebra Puzzle (Einstein's Riddle)
 
 **Path:** `examples/zebra/`
