@@ -32,6 +32,10 @@ Two production global constraints were added with literate Go examples:
   - Constructor: `NewCumulative(starts []*FDVariable, durations, demands []int, capacity int) (PropagationConstraint, error)`
   - See usage: Example function `ExampleNewCumulative` in `pkg/minikanren/cumulative_example_test.go`
 
+- NoOverlap (Disjunctive) — Single-machine non-overlap scheduling: tasks with given durations must not overlap in time. Implemented as a validated wrapper over Cumulative with unit demands and capacity = 1.
+  - Constructor: `NewNoOverlap(starts []*FDVariable, durations []int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewNoOverlap` in `pkg/minikanren/nooverlap_example_test.go`
+
 - GlobalCardinality (GCC) — Bounds how many times each value can occur across a set of variables, with per-value min/max occurrence limits; performs bounds checks and prunes saturated values.
   - Constructor: `NewGlobalCardinality(vars []*FDVariable, minCount, maxCount []int) (PropagationConstraint, error)`
   - See usage: Example function `ExampleNewGlobalCardinality` in `pkg/minikanren/gcc_example_test.go`

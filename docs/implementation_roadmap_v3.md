@@ -558,7 +558,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
     - [x] Lexicographic ordering (LexLess, LexLessEq)
     - [x] Regular (DFA language membership)
     - [x] Table (extensional, GAC)
-    - [ ] Disjunctive / NoOverlap (1D scheduling)
+    - [x] Disjunctive / NoOverlap (1D scheduling)
     - [ ] Diffn (2D NoOverlap / rectangle packing)
     - [ ] Sequence / Stretch (bounded runs of values)
     - [ ] BinPacking (items with sizes into capacity-limited bins)
@@ -582,13 +582,12 @@ Acceptance criteria for each constraint family:
 - Performance notes if applicable; stable under `-race`; compatible with parallel search
 
 Prioritization for remaining work (suggested order):
-1) Disjunctive/NoOverlap (1D) → unlocks clearer scheduling examples
-2) NValue family
-3) Diffn (2D)
-4) Min/Max of array
-5) Sequence/Stretch
-6) BinPacking
-7) Edge-finding for Cumulative (stronger propagation)
+1) NValue family
+2) Diffn (2D)
+3) Min/Max of array
+4) Sequence/Stretch
+5) BinPacking
+6) Edge-finding for Cumulative (stronger propagation)
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.
