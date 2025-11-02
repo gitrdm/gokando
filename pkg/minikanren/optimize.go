@@ -102,6 +102,18 @@ func (s *Solver) SolveOptimalWithOptions(ctx context.Context, obj *FDVariable, m
 
 	// Temporary heuristic override (restore after)
 	orig := *s.config
+	origOptCtx := s.optContext
+	defer func() {
+		*s.config = orig
+		s.optContext = origOptCtx
+	}()
+
+	// Set optimization context for impact-based heuristics
+	s.optContext = &optimizationContext{
+		objectiveID: obj.ID(),
+		minimize:    minimize,
+	}
+
 	if cfg.varHeuristic != nil {
 		s.config.VariableHeuristic = *cfg.varHeuristic
 	}
@@ -111,7 +123,6 @@ func (s *Solver) SolveOptimalWithOptions(ctx context.Context, obj *FDVariable, m
 	if cfg.randomSeed != nil {
 		s.config.RandomSeed = *cfg.randomSeed
 	}
-	defer func() { *s.config = orig }()
 
 	// Parallel mode if requested
 	if cfg.parallelWorkers > 1 {
@@ -358,17 +369,31 @@ func (s *Solver) computeObjectiveBound(state *SolverState, obj *FDVariable, mini
 	for _, c := range s.model.Constraints() {
 		if ls, ok := c.(*LinearSum); ok {
 			if ls != nil && ls.total != nil && ls.total.ID() == obj.ID() {
-				// Compute sum of coeffs times bound of xi
+				// Compute sum with sign-aware coefficient handling
 				sum := 0
 				for i, v := range ls.vars {
 					d := s.GetDomain(state, v.ID())
 					if d == nil || d.Count() == 0 {
 						return 0, false
 					}
+					coeff := ls.coeffs[i]
+					if coeff == 0 {
+						continue
+					}
 					if minimize {
-						sum += ls.coeffs[i] * d.Min()
+						// LB: positive coeffs use Min, negative coeffs use Max
+						if coeff > 0 {
+							sum += coeff * d.Min()
+						} else {
+							sum += coeff * d.Max()
+						}
 					} else {
-						sum += ls.coeffs[i] * d.Max()
+						// UB: positive coeffs use Max, negative coeffs use Min
+						if coeff > 0 {
+							sum += coeff * d.Max()
+						} else {
+							sum += coeff * d.Min()
+						}
 					}
 				}
 				return sum, true
@@ -432,6 +457,75 @@ func (s *Solver) computeObjectiveBound(state *SolverState, obj *FDVariable, mini
 			}
 		}
 	}
+	// Strategy 3: Detect makespan pattern (M >= e_i for all tasks)
+	// When minimizing M, LB = max_i Min(e_i); when maximizing, UB = max_i Max(e_i)
+	// Heuristic: collect all Inequality(M >= Xi) constraints where M is the objective
+	var endVars []*FDVariable
+	for _, c := range s.model.Constraints() {
+		if ineq, ok := c.(*Inequality); ok {
+			if ineq != nil && ineq.x != nil && ineq.y != nil {
+				// M >= e_i matches when x=M and kind=GreaterEqual
+				if ineq.x.ID() == obj.ID() && ineq.kind == GreaterEqual {
+					endVars = append(endVars, ineq.y)
+				}
+			}
+		}
+	}
+	if len(endVars) > 0 {
+		// Found makespan pattern: M >= e_i for multiple e_i
+		maxOfMins := math.MinInt32
+		maxOfMaxs := math.MinInt32
+		for _, v := range endVars {
+			d := s.GetDomain(state, v.ID())
+			if d == nil || d.Count() == 0 {
+				return 0, false
+			}
+			if d.Min() > maxOfMins {
+				maxOfMins = d.Min()
+			}
+			if d.Max() > maxOfMaxs {
+				maxOfMaxs = d.Max()
+			}
+		}
+		if minimize {
+			// LB = max_i Min(e_i): M must be at least the max of minimum end times
+			return maxOfMins, true
+		}
+		// maximize: UB = max_i Max(e_i)
+		return maxOfMaxs, true
+	}
+
+	// Strategy 4: Detect BoolSum with total == obj to compute bounds from encoded count
+	for _, c := range s.model.Constraints() {
+		if bs, ok := c.(*BoolSum); ok {
+			if bs != nil && bs.total != nil && bs.total.ID() == obj.ID() {
+				// BoolSum encoding: total ∈ [1..n+1] represents actual count ∈ [0..n]
+				// Compute bounds on the actual count (sum of booleans)
+				minCount := 0
+				maxCount := 0
+				for _, v := range bs.vars {
+					d := s.GetDomain(state, v.ID())
+					if d == nil || d.Count() == 0 {
+						return 0, false
+					}
+					// Boolean domain {1=false, 2=true}
+					// Contribution: 0 if domain contains only 1, 1 if contains only 2, [0,1] if both
+					if d.Has(2) {
+						maxCount++ // can be true
+					}
+					if !d.Has(1) {
+						minCount++ // must be true (domain={2})
+					}
+				}
+				// Convert actual count bounds to encoded total bounds (add 1)
+				if minimize {
+					return minCount + 1, true
+				}
+				return maxCount + 1, true
+			}
+		}
+	}
+
 	// Fallback: use the objective variable domain directly
 	d := s.GetDomain(state, obj.ID())
 	if d == nil || d.Count() == 0 {

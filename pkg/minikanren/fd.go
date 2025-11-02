@@ -25,6 +25,9 @@ const (
 	HeuristicRandom
 	// HeuristicActivity uses constraint activity (not yet implemented)
 	HeuristicActivity
+	// HeuristicImpact uses objective impact for optimization problems
+	// Prefers variables that most affect the objective bounds when assigned
+	HeuristicImpact
 )
 
 // ValueOrderingHeuristic defines strategies for ordering values within a domain
@@ -39,6 +42,9 @@ const (
 	ValueOrderRandom
 	// ValueOrderMid starts from middle value outward
 	ValueOrderMid
+	// ValueOrderObjImproving tries objective-improving values first
+	// For minimize: try smaller values first; for maximize: try larger values first
+	ValueOrderObjImproving
 )
 
 // SolverConfig holds configuration for the FD solver

@@ -245,3 +245,33 @@ func TestSolveOptimal_Maximize_MaxOfArray(t *testing.T) {
 		t.Fatalf("expected objective 7, got %d", obj)
 	}
 }
+
+// Minimize makespan M with M >= e_i constraints (inequality-based LB pattern).
+// This tests the structural lower bound for makespan objectives.
+func TestSolveOptimal_Makespan_InequalityLowerBound(t *testing.T) {
+	model := NewModel()
+	// Three end-time variables with different domains
+	e1 := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 3, 4}))
+	e2 := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 4, 5}))
+	e3 := model.NewVariable(NewBitSetDomainFromValues(10, []int{1, 2, 3}))
+
+	// Makespan M must be >= all end times
+	m := model.NewVariable(NewBitSetDomain(10))
+	ge1, _ := NewInequality(m, e1, GreaterEqual)
+	ge2, _ := NewInequality(m, e2, GreaterEqual)
+	ge3, _ := NewInequality(m, e3, GreaterEqual)
+	model.AddConstraint(ge1)
+	model.AddConstraint(ge2)
+	model.AddConstraint(ge3)
+
+	solver := NewSolver(model)
+	_, obj, err := solver.SolveOptimal(context.Background(), m, true)
+	if err != nil {
+		t.Fatalf("SolveOptimal: %v", err)
+	}
+	// LB = max_i Min(e_i) = max(2,3,1) = 3
+	// Optimal M should be 3 (e1=2, e2=3, e3=1 gives M=3)
+	if obj != 3 {
+		t.Fatalf("expected objective 3, got %d", obj)
+	}
+}

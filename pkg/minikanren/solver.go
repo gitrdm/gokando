@@ -81,6 +81,15 @@ type Solver struct {
 	// rather than the model's initial domains, allowing callers to inspect
 	// propagation effects without threading SolverState explicitly.
 	baseState *SolverState
+
+	// optContext holds optimization-specific state during SolveOptimal calls
+	optContext *optimizationContext
+}
+
+// optimizationContext tracks objective-related state during optimization
+type optimizationContext struct {
+	objectiveID int  // Variable ID of the objective
+	minimize    bool // true for minimize, false for maximize
 }
 
 // SolverState represents the mutable state of the solver at a point in search.
@@ -592,6 +601,41 @@ func (s *Solver) computeVariableScore(varID int, domain Domain) float64 {
 		// Lexicographic order (variable ID)
 		return float64(varID)
 
+	case HeuristicImpact:
+		// For optimization: prefer variables that appear in constraints with the objective
+		// This focuses search on objective-relevant parts of the problem
+		if s.optContext == nil {
+			// Fall back to DomDeg if not in optimization mode
+			degree := s.computeVariableDegree(varID)
+			return float64(domain.Count()) / float64(1+degree)
+		}
+		// Check if this variable shares constraints with the objective
+		objID := s.optContext.objectiveID
+		shareConstraint := false
+		for _, c := range s.model.Constraints() {
+			hasVar := false
+			hasObj := false
+			for _, v := range c.Variables() {
+				if v.ID() == varID {
+					hasVar = true
+				}
+				if v.ID() == objID {
+					hasObj = true
+				}
+			}
+			if hasVar && hasObj {
+				shareConstraint = true
+				break
+			}
+		}
+		// Prefer variables connected to objective, then use DomDeg tie-break
+		degree := s.computeVariableDegree(varID)
+		score := float64(domain.Count()) / float64(1+degree)
+		if shareConstraint {
+			score *= 0.5 // Halve score to prefer it
+		}
+		return score
+
 	default:
 		// Default to smallest domain
 		return float64(domain.Count())
@@ -614,7 +658,38 @@ func (s *Solver) computeVariableDegree(varID int) int {
 
 // orderValues orders domain values according to the configured heuristic.
 func (s *Solver) orderValues(values []int) []int {
-	// For now, just return values as-is (ascending order)
-	// TODO: Implement value ordering heuristics
-	return values
+	switch s.config.ValueHeuristic {
+	case ValueOrderAsc:
+		// Already in ascending order from domain iteration
+		return values
+
+	case ValueOrderDesc:
+		// Reverse order
+		reversed := make([]int, len(values))
+		for i, v := range values {
+			reversed[len(values)-1-i] = v
+		}
+		return reversed
+
+	case ValueOrderObjImproving:
+		// During optimization, try objective-improving values first
+		if s.optContext == nil {
+			// Not in optimization mode, use ascending
+			return values
+		}
+		if s.optContext.minimize {
+			// For minimize: try smaller values first (already ascending)
+			return values
+		}
+		// For maximize: try larger values first (descending)
+		reversed := make([]int, len(values))
+		for i, v := range values {
+			reversed[len(values)-1-i] = v
+		}
+		return reversed
+
+	default:
+		// Default to ascending
+		return values
+	}
 }
