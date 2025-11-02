@@ -452,7 +452,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
 **Phase 4 Current Status**:
 - Task 4.1 (Parallel Search): Complete ✅
 - Task 4.2 (Reification & Count): Complete ✅
-- Task 4.3 (Global Constraints): In progress ▶️
+- Task 4.3 (Global Constraints): Complete ✅
         - New: LinearSum (weighted sum equality, bounds-consistent) with tests and example ✅
         - New: ElementValues (result = values[index]) with bidirectional pruning, tests and example ✅
             - New: Circuit (single Hamiltonian cycle) with reified subtour elimination, tests and examples ✅
@@ -498,7 +498,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
         - Tests fixed and expanded: reification behavior, Count propagation; updated solver tests for base-state domain reads
         - Docs updated: FD guide now documents boolean encoding, reification, Count, and solver post-solve inspection
 
-- [ ] **Task 4.3: Enhance the Global Constraint Library**
+- [x] **Task 4.3: Enhance the Global Constraint Library** ✅
     - [ ] **Objective**: Provide a rich set of common, high-performance global constraints.
     - [ ] **Action**:
         - [x] Implement a bounds-propagating `LinearSum` constraint (Σ a[i]*x[i] = total) with non-negative coefficients.
@@ -560,7 +560,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
     - [x] Table (extensional, GAC)
     - [x] Disjunctive / NoOverlap (1D scheduling)
     - [x] Diffn (2D NoOverlap / rectangle packing)
-    - [x] Sequence / Stretch (bounded runs of values) — Sequence implemented; Stretch pending
+    - [x] Sequence / Stretch (bounded runs of values)
     - [x] BinPacking (items with sizes into capacity-limited bins)
 
 - Scheduling and routing
@@ -582,8 +582,7 @@ Acceptance criteria for each constraint family:
 - Performance notes if applicable; stable under `-race`; compatible with parallel search
 
 Prioritization for remaining work (suggested order):
-1) Stretch (run-length bounds)
-2) Edge-finding for Cumulative (stronger propagation)
+1) Edge-finding for Cumulative (stronger propagation)
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.
