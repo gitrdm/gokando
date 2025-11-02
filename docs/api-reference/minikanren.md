@@ -53,6 +53,10 @@ Two production global constraints were added with literate Go examples:
     - `NewAtLeastNValues(model *Model, vars []*FDVariable, minPlus1 *FDVariable) (*DistinctCount, error)`
   - See usage: Example functions `ExampleNewAtMostNValues` and `ExampleNewNValue` in `pkg/minikanren/nvalue_example_test.go`
 
+- Diffn (2D non-overlap) — Ensures axis-aligned rectangles do not overlap: for each pair (i,j) enforce at least one axis separation using reified inequalities and a BoolSum disjunction.
+  - Constructor: `NewDiffn(model *Model, x, y []*FDVariable, w, h []int) (*Diffn, error)`
+  - See usage: Example function `ExampleNewDiffn` in `pkg/minikanren/diffn_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation
