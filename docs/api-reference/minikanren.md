@@ -40,6 +40,12 @@ Two production global constraints were added with literate Go examples:
   - Constructor: `NewGlobalCardinality(vars []*FDVariable, minCount, maxCount []int) (PropagationConstraint, error)`
   - See usage: Example function `ExampleNewGlobalCardinality` in `pkg/minikanren/gcc_example_test.go`
 
+- Min/Max of array — Link a result variable to the extremum of a list: R = min(vars) or R = max(vars), with safe bounds-consistent pruning.
+  - Constructors:
+    - `NewMin(vars []*FDVariable, result *FDVariable) (PropagationConstraint, error)`
+    - `NewMax(vars []*FDVariable, result *FDVariable) (PropagationConstraint, error)`
+  - See usage: Example functions `ExampleNewMin` and `ExampleNewMax` in `pkg/minikanren/minmax_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation

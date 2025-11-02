@@ -570,7 +570,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
     - [ ] Path / Subcircuit (optional, if needed by examples)
 
 - Utility/derived constraints
-    - [ ] Min/Max of array (result = min/max(vars)) with bounds propagation
+    - [x] Min/Max of array (result = min/max(vars)) with bounds propagation
     - [ ] AlldifferentExcept0 (optional variant)
     - [ ] Value precedence / channeling (optional, as needed by models)
 
