@@ -561,7 +561,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
     - [x] Disjunctive / NoOverlap (1D scheduling)
     - [x] Diffn (2D NoOverlap / rectangle packing)
     - [x] Sequence / Stretch (bounded runs of values) — Sequence implemented; Stretch pending
-    - [ ] BinPacking (items with sizes into capacity-limited bins)
+    - [x] BinPacking (items with sizes into capacity-limited bins)
 
 - Scheduling and routing
     - [x] Cumulative (renewable resource) — time-table filtering with compulsory parts
@@ -583,8 +583,7 @@ Acceptance criteria for each constraint family:
 
 Prioritization for remaining work (suggested order):
 1) Stretch (run-length bounds)
-2) BinPacking
-3) Edge-finding for Cumulative (stronger propagation)
+2) Edge-finding for Cumulative (stronger propagation)
 
 - [ ] **Task 4.4: Add Optimization Support**
     - [ ] **Objective**: Allow the solver to find optimal solutions.

@@ -65,6 +65,10 @@ Two production global constraints were added with literate Go examples:
   - Constructor: `NewSequence(model *Model, vars []*FDVariable, setValues []int, windowLen, minCount, maxCount int) (*Sequence, error)`
   - See usage: Example function `ExampleNewSequence` in `pkg/minikanren/sequence_example_test.go`
 
+- BinPacking — Assign each item to one of m bins such that the weighted load of items in each bin does not exceed its capacity. Implemented by reifying assignments (x[i]==k) to booleans and enforcing per-bin weighted sums with a load+1 encoding via Arithmetic.
+  - Constructor: `NewBinPacking(model *Model, items []*FDVariable, sizes []int, capacities []int) (*BinPacking, error)`
+  - See usage: Example function `ExampleNewBinPacking` in `pkg/minikanren/bin_packing_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation
