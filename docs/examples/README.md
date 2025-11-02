@@ -8,6 +8,10 @@ This section contains practical examples demonstrating how to use the various pa
 
 ## Package Examples
 
+- SEND + MORE = MONEY (walkthrough)
+   - Declarative modeling with reification and Count using shifted digit encoding
+   - See docs/examples/send-more-money/README.md
+
 ## Getting Started
 
 1. **Clone the repository:**

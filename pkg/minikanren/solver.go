@@ -75,6 +75,12 @@ type Solver struct {
 
 	// monitor tracks solving statistics (optional)
 	monitor *SolverMonitor
+
+	// baseState caches the last root-level propagated state from Solve.
+	// When present, GetDomain(nil, varID) will read domains from this state
+	// rather than the model's initial domains, allowing callers to inspect
+	// propagation effects without threading SolverState explicitly.
+	baseState *SolverState
 }
 
 // SolverState represents the mutable state of the solver at a point in search.
@@ -171,6 +177,15 @@ func (s *Solver) GetDomain(state *SolverState, varID int) Domain {
 	for current := state; current != nil; current = current.parent {
 		if current.modifiedVarID == varID && current.modifiedDomain != nil {
 			return current.modifiedDomain
+		}
+	}
+
+	// If no explicit state is provided, try the cached base propagated state
+	if state == nil && s.baseState != nil {
+		for current := s.baseState; current != nil; current = current.parent {
+			if current.modifiedVarID == varID && current.modifiedDomain != nil {
+				return current.modifiedDomain
+			}
 		}
 	}
 
@@ -324,8 +339,15 @@ func (s *Solver) Solve(ctx context.Context, maxSolutions int) ([][]int, error) {
 	// Perform initial constraint propagation
 	propagatedState, err := s.propagate(initialState)
 	if err != nil {
-		return nil, err
+		// Root-level inconsistency: no solutions exist; return empty result set
+		if s.monitor != nil {
+			s.monitor.EndPropagation()
+		}
+		return [][]int{}, nil
 	}
+
+	// Cache the root-level propagated state for later inspection via GetDomain(nil, id)
+	s.baseState = propagatedState
 
 	if s.monitor != nil {
 		s.monitor.EndPropagation()

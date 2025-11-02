@@ -451,19 +451,32 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
 
 **Phase 4 Current Status**:
 - Task 4.1 (Parallel Search): Complete ✅
-- Task 4.2 (Reification & Count): Not started
+- Task 4.2 (Reification & Count): Complete ✅
 - Task 4.3 (Global Constraints): Not started
 - Task 4.4 (Optimization): Not started
 - Test Coverage: ~280+ tests passing, all validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
 - Git status: Latest work at current commit
 
-- [ ] **Task 4.2: Implement Reification and a `Count` Constraint**
-    - [ ] **Objective**: Enable powerful logical constraints.
-    - [ ] **Action**:
-        - [ ] Implement reification, allowing the truth value of a constraint to be reflected into a 0/1 variable.
-        - [ ] Use reification to build a powerful, propagating `Count` global constraint.
-    - [ ] **Success Criteria**: Problems like `send-more-money` can be modeled declaratively and solved efficiently without `Project`.
+- [x] **Task 4.2: Implement Reification and a `Count` Constraint** ✅
+    - [x] **Objective**: Enable powerful logical constraints.
+    - [x] **Action**:
+        - [x] Implemented generic reification linking a constraint C to a boolean B ∈ {1:false, 2:true}; B=2 iff C holds, B=1 iff ¬C
+        - [x] Added EqualityReified (X == Y ↔ B) with full bidirectional propagation
+        - [x] Added ValueEqualsReified (X == constant ↔ B) used by Count
+        - [x] Added BoolSum for bounds-consistent sums over booleans with encoded total T ∈ [1..n+1] (actual count = T-1)
+        - [x] Implemented Count via per-variable reification + BoolSum; enforces extremes and strong bounds propagation
+        - [x] Strengthened ReifiedConstraint to enforce negation for core constraints (Arithmetic, Inequality, AllDifferent) when B=1
+        - [x] Adjusted unknown-boolean semantics: when B={1,2}, do not prune underlying domains; only detect impossibility to set B=1
+        - [x] Solver enhancement: cache root-level propagated state to support post-solve domain queries (GetDomain(nil, id))
+        - [x] Solver semantics: root-level inconsistency returns zero solutions (no error); validation errors (e.g., empty domain) still error
+        - [x] Added literate Example functions: ExampleReifiedConstraint, ExampleCount
+    - [x] **Success Criteria**: Models using Count and reification solve declaratively with strong propagation and without Project. Unit tests cover distribution, extremes, bounds, inequality/all-different reification, and error paths.
+    - **Implementation Notes**:
+        - Boolean encoding: {1=false, 2=true} to respect positive domain invariant
+        - Count encoding: countVar domain [1..n+1] encodes actual count as value-1
+        - Tests fixed and expanded: reification behavior, Count propagation; updated solver tests for base-state domain reads
+        - Docs updated: FD guide now documents boolean encoding, reification, Count, and solver post-solve inspection
 
 - [ ] **Task 4.3: Enhance the Global Constraint Library**
     - [ ] **Objective**: Provide a rich set of common, high-performance global constraints.

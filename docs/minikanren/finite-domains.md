@@ -37,6 +37,15 @@ Constraints restrict the possible values variables can take. The solver supports
 - **Inequality**: Ordering constraints between variables
 - **Custom**: User-defined constraint logic
 
+### Booleans and Encoding Semantics
+
+For consistency with 1-indexed finite domains, boolean variables use the domain {1,2} where:
+
+- 1 means false
+- 2 means true
+
+This encoding allows boolean variables to participate in the same domain operations and constraints as integer variables while keeping all domains strictly positive.
+
 ### Propagation
 
 The solver uses constraint propagation to reduce domains before search:
@@ -205,6 +214,108 @@ if err := store.AddCustomConstraint(constraint); err != nil {
     // Handle error
 }
 ```
+
+### Reification: Turning Constraints into Booleans
+
+Reification links the truth of a constraint to a boolean variable. This enables modeling rich logical patterns such as implications, cardinalities, and conditional constraints.
+
+Key components:
+- ReifiedConstraint: wraps a core constraint C and a boolean B so that B=2 iff C holds, B=1 iff ¬C holds
+- EqualityReified: specialized, bidirectional version for X == Y ↔ B
+- ValueEqualsReified: specialized reification for X == constant ↔ B
+
+Propagation semantics:
+- If B is 2 (true), the wrapped constraint is enforced and can prune variable domains
+- If B is 1 (false), the negation of the constraint is enforced for core constraints (Arithmetic, Inequality, AllDifferent)
+- If B is {1,2} (unknown), domains of X/Y are not pruned by the wrapped constraint to avoid bias; however, if the wrapped constraint becomes impossible under current domains, B is set to 1 (false)
+
+Example:
+
+```go
+// X + 1 = Y reified into boolean B
+model := minikanren.NewModel(9)
+X := model.NewVariable()
+Y := model.NewVariable()
+// Boolean variable uses {1:false, 2:true}
+B := model.NewVariable()
+_ = B.SetDomain(minikanren.NewBitSetDomainFromValues(9, []int{1,2}))
+
+arith, _ := minikanren.NewArithmetic(X, 1, Y)
+reif, _ := minikanren.NewReifiedConstraint(arith, B)
+_ = model.AddConstraint(reif)
+
+solver := minikanren.NewSolver(model)
+solutions, _ := solver.Solve(context.Background(), 1)
+_ = solutions
+```
+
+See ExampleReifiedConstraint in the package for a runnable example.
+
+### Counting with Reification (Count)
+
+The Count constraint models: among vars, exactly count of them equal targetValue.
+
+Implementation overview:
+- For each variable vi, create a boolean bi reifying vi == targetValue (using ValueEqualsReified)
+- Sum the booleans with BoolSum into a total T
+- Encode count via T = count + 1 using a 1-indexed total domain; i.e., if k variables are true, T takes value k+1
+
+API:
+
+```go
+// NewCount(model, vars, targetValue, countVar)
+// - vars: []*FDVariable to inspect
+// - targetValue: integer to count
+// - countVar: variable whose domain encodes the count as [1..len(vars)+1]
+//   actualCount = countVarSingleton - 1
+c, err := minikanren.NewCount(model, vars, targetValue, countVar)
+if err != nil { /* handle error */ }
+_ = model.AddConstraint(c)
+```
+
+Encoding and domains:
+- Each boolean bi has domain {1,2} (false/true)
+- The total T (internal) and the provided countVar both live in [1 .. len(vars)+1]
+- The actual count is T-1; this preserves the solver’s positive-domain invariant
+
+Propagation strength:
+- Extremes: if count=1 then exactly one var can equal targetValue; if count=0 the target is removed from all vars
+- Bounds: if count ≥ m, at least m variables will be forced to the target when possible; if count ≤ u, at most u variables can equal the target, pruning others accordingly
+
+Example:
+
+```go
+model := minikanren.NewModel(9)
+X, Y, Z := model.NewVariable(), model.NewVariable(), model.NewVariable()
+// All in 1..9 by default
+
+// Count how many are equal to 5
+N := model.NewVariable()
+// N encodes [1..4] → counts 0..3
+_ = N.SetDomain(minikanren.NewBitSetDomain(4))
+
+_, _ = minikanren.NewCount(model, []*minikanren.FDVariable{X, Y, Z}, 5, N)
+
+solver := minikanren.NewSolver(model)
+solutions, _ := solver.Solve(context.Background(), 0)
+_ = solutions
+```
+
+Notes and best practices:
+- Create the countVar in the same Model as vars
+- Use the Model’s MaxValue to validate domains; NewCount enforces that countVar’s max ≤ len(vars)+1
+- Booleans use {1:false,2:true}; avoid directly assigning 0/1
+
+See ExampleCount in the package for a runnable example.
+
+### Post-solve Domain Inspection and Solver Semantics
+
+For convenience, the solver caches the root-level propagated state after an initial Solve. This allows querying domains without threading an explicit state:
+
+- solver.GetDomain(nil, varID) returns the domain from the last propagated root state when state is nil
+- Root-level inconsistency now yields zero solutions (no error). However, model validation errors (e.g., variable with empty domain before solving) still return an error
+
+This behavior makes it straightforward to inspect pruned domains after Solve() in tests and examples.
 
 ## Search Heuristics
 
