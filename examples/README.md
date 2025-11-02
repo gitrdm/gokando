@@ -353,6 +353,33 @@ Found 4 solutions:
     Color=Blue, Pet=Dog, Drink=Tea
 ```
 
+### Regular Constraint Demo (DFA pattern checker)
+
+**Path:** `examples/regular-demo/`
+
+Demonstrates the Regular global constraint using a simple DFA over the alphabet {A=1, B=2} that accepts exactly the strings that end with A. Shows strong pruning and enumerates all accepted sequences of fixed length.
+
+**Run:**
+```bash
+cd examples/regular-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- DFA-based Regular constraint with forward/backward filtering
+- Enumerated symbols mapped to friendly names (A/B)
+- Solving and printing all accepted sequences of a given length
+
+**Sample Output:**
+```
+=== Regular Constraint Demo (DFA: ends with A) ===
+Found 4 accepted sequences (length=3):
+A A A
+A B A
+B A A
+B B A
+```
+
 ### Zebra Puzzle (Einstein's Riddle)
 
 **Path:** `examples/zebra/`

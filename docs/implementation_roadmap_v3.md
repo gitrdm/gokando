@@ -457,12 +457,13 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
         - New: ElementValues (result = values[index]) with bidirectional pruning, tests and example ✅
             - New: Circuit (single Hamiltonian cycle) with reified subtour elimination, tests and examples ✅
             - New: Table (extensional constraint) maintaining GAC over allowed tuples, with tests and example ✅
+            - New: Regular (DFA/regular language) constraint with forward/backward filtering, tests and example ✅
             - Example: `examples/tsp-small/` enumerates and scores tours, prints best cycle
             - API ref: documented in `docs/api-reference/minikanren.md`; usage in `pkg/minikanren/circuit_example_test.go`
                 - Example: `pkg/minikanren/table_example_test.go` shows pruning with a 2-var table
-            - Next: Additional globals (e.g., regular, cumulative) ⏭️
+            - Next: Additional globals (e.g., cumulative) ⏭️
 - Task 4.4 (Optimization): Not started
-- Test Coverage: ~73.4% overall; ~280+ tests passing; validated under `-race` for concurrency paths
+- Test Coverage: ~73.6% overall; ~280+ tests passing; validated under `-race` for concurrency paths
 - Implementation Quality: Production-ready, zero technical debt
 - Git status: Latest work at current commit
 

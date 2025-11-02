@@ -24,6 +24,10 @@ Two production global constraints were added with literate Go examples:
   - Constructor: `NewTable(vars []*FDVariable, rows [][]int) (PropagationConstraint, error)`
   - See usage: Example function `ExampleNewTable` in `pkg/minikanren/table_example_test.go`
 
+- Regular — DFA (regular language) constraint enforcing that a sequence of variables forms a word accepted by a given DFA; uses forward/backward filtering for strong pruning.
+  - Constructor: `NewRegular(vars []*FDVariable, numStates int, start int, acceptStates []int, delta [][]int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewRegular` in `pkg/minikanren/regular_example_test.go`
+
 These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
 
 ## Package Documentation
