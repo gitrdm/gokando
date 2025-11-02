@@ -374,6 +374,63 @@ func (s *Solver) computeObjectiveBound(state *SolverState, obj *FDVariable, mini
 				return sum, true
 			}
 		}
+		// Strategy 2: Detect Min/Max-of-array objectives when obj is the result variable
+		if m, ok := c.(*MinOfArray); ok {
+			if m != nil && m.r != nil && m.r.ID() == obj.ID() {
+				if len(m.vars) == 0 {
+					return 0, false
+				}
+				// For R = min(vars):
+				//   minimize → LB = min_i Min(Xi)
+				//   maximize → UB = min_i Max(Xi)
+				minOfMins := math.MaxInt32
+				minOfMaxs := math.MaxInt32
+				for _, v := range m.vars {
+					d := s.GetDomain(state, v.ID())
+					if d == nil || d.Count() == 0 {
+						return 0, false
+					}
+					if d.Min() < minOfMins {
+						minOfMins = d.Min()
+					}
+					if d.Max() < minOfMaxs {
+						minOfMaxs = d.Max()
+					}
+				}
+				if minimize {
+					return minOfMins, true
+				}
+				return minOfMaxs, true
+			}
+		}
+		if m, ok := c.(*MaxOfArray); ok {
+			if m != nil && m.r != nil && m.r.ID() == obj.ID() {
+				if len(m.vars) == 0 {
+					return 0, false
+				}
+				// For R = max(vars):
+				//   minimize → LB = max_i Min(Xi)
+				//   maximize → UB = max_i Max(Xi)
+				maxOfMins := math.MinInt32
+				maxOfMaxs := math.MinInt32
+				for _, v := range m.vars {
+					d := s.GetDomain(state, v.ID())
+					if d == nil || d.Count() == 0 {
+						return 0, false
+					}
+					if d.Min() > maxOfMins {
+						maxOfMins = d.Min()
+					}
+					if d.Max() > maxOfMaxs {
+						maxOfMaxs = d.Max()
+					}
+				}
+				if minimize {
+					return maxOfMins, true
+				}
+				return maxOfMaxs, true
+			}
+		}
 	}
 	// Fallback: use the objective variable domain directly
 	d := s.GetDomain(state, obj.ID())

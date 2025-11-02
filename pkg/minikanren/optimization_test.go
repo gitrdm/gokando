@@ -157,3 +157,91 @@ func TestSolveOptimal_NodeLimit_ReturnsIncumbent(t *testing.T) {
 		t.Fatalf("unexpected incumbent objective: %d", obj)
 	}
 }
+
+// Minimize R where R = min(x,y). Expect R = min(min(x), min(y)).
+func TestSolveOptimal_Minimize_MinOfArray(t *testing.T) {
+	model := NewModel()
+	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 4, 5, 6}))
+	y := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 3, 4, 5, 6, 7}))
+	r := model.NewVariable(NewBitSetDomain(10))
+	c, err := NewMin([]*FDVariable{x, y}, r)
+	if err != nil {
+		t.Fatalf("NewMin: %v", err)
+	}
+	model.AddConstraint(c)
+
+	solver := NewSolver(model)
+	_, obj, err := solver.SolveOptimal(context.Background(), r, true)
+	if err != nil {
+		t.Fatalf("SolveOptimal: %v", err)
+	}
+	if obj != 2 { // min(mins) = min(3,2) = 2
+		t.Fatalf("expected objective 2, got %d", obj)
+	}
+}
+
+// Maximize R where R = min(x,y). Expect R = min(max(x), max(y)) when achievable.
+func TestSolveOptimal_Maximize_MinOfArray(t *testing.T) {
+	model := NewModel()
+	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 3, 4, 5}))
+	y := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 4, 5, 6, 7}))
+	r := model.NewVariable(NewBitSetDomain(10))
+	c, err := NewMin([]*FDVariable{x, y}, r)
+	if err != nil {
+		t.Fatalf("NewMin: %v", err)
+	}
+	model.AddConstraint(c)
+
+	solver := NewSolver(model)
+	_, obj, err := solver.SolveOptimal(context.Background(), r, false)
+	if err != nil {
+		t.Fatalf("SolveOptimal: %v", err)
+	}
+	if obj != 5 { // min(maxes) = min(5,7) = 5
+		t.Fatalf("expected objective 5, got %d", obj)
+	}
+}
+
+// Minimize R where R = max(x,y). Expect R = max(min(x), min(y)).
+func TestSolveOptimal_Minimize_MaxOfArray(t *testing.T) {
+	model := NewModel()
+	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{1, 2, 3, 4, 5}))
+	y := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 3, 4, 5, 6, 7}))
+	r := model.NewVariable(NewBitSetDomain(10))
+	c, err := NewMax([]*FDVariable{x, y}, r)
+	if err != nil {
+		t.Fatalf("NewMax: %v", err)
+	}
+	model.AddConstraint(c)
+
+	solver := NewSolver(model)
+	_, obj, err := solver.SolveOptimal(context.Background(), r, true)
+	if err != nil {
+		t.Fatalf("SolveOptimal: %v", err)
+	}
+	if obj != 2 { // max(mins) = max(1,2) = 2
+		t.Fatalf("expected objective 2, got %d", obj)
+	}
+}
+
+// Maximize R where R = max(x,y). Expect R = max(max(x), max(y)).
+func TestSolveOptimal_Maximize_MaxOfArray(t *testing.T) {
+	model := NewModel()
+	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{1, 2, 3, 4, 5}))
+	y := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 3, 4, 5, 6, 7}))
+	r := model.NewVariable(NewBitSetDomain(10))
+	c, err := NewMax([]*FDVariable{x, y}, r)
+	if err != nil {
+		t.Fatalf("NewMax: %v", err)
+	}
+	model.AddConstraint(c)
+
+	solver := NewSolver(model)
+	_, obj, err := solver.SolveOptimal(context.Background(), r, false)
+	if err != nil {
+		t.Fatalf("SolveOptimal: %v", err)
+	}
+	if obj != 7 { // max(maxes) = max(5,7) = 7
+		t.Fatalf("expected objective 7, got %d", obj)
+	}
+}
