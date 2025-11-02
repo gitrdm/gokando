@@ -77,11 +77,9 @@ func (s *Solver) SolveParallel(ctx context.Context, numWorkers, maxSolutions int
 	workChan := make(chan *workItem, 1000)
 	solutionChan := make(chan []int, numWorkers*2)
 
-	// Track active workers
-	var activeWorkers atomic.Int64
+	// Track solutions and outstanding tasks
 	var solutionsFound atomic.Int64
-	var pending atomic.Int64 // number of enqueued-but-not-yet-started work items
-	var cancelOnce sync.Once
+	var tasksWG sync.WaitGroup
 
 	// Add initial work
 	workChan <- &workItem{
@@ -91,7 +89,7 @@ func (s *Solver) SolveParallel(ctx context.Context, numWorkers, maxSolutions int
 		valueIndex: 0,
 		depth:      0,
 	}
-	pending.Store(1)
+	tasksWG.Add(1)
 
 	// Start workers
 	workerCtx, cancel := context.WithCancel(ctx)
@@ -102,11 +100,17 @@ func (s *Solver) SolveParallel(ctx context.Context, numWorkers, maxSolutions int
 		wg.Add(1)
 		go func(workerID int) {
 			defer wg.Done()
-			s.parallelWorker(workerCtx, cancel, &cancelOnce, workerID, workChan, solutionChan, &activeWorkers, &solutionsFound, &pending, maxSolutions)
+			s.parallelWorker(workerCtx, cancel, workerID, workChan, solutionChan, &tasksWG, &solutionsFound, maxSolutions)
 		}(i)
 	}
 
-	// Close channels when workers are done
+	// Close work channel when all tasks are completed so workers exit cleanly
+	go func() {
+		tasksWG.Wait()
+		close(workChan)
+	}()
+
+	// Close solution channel when workers are done
 	go func() {
 		wg.Wait()
 		close(solutionChan)
@@ -131,53 +135,34 @@ func (s *Solver) SolveParallel(ctx context.Context, numWorkers, maxSolutions int
 }
 
 // parallelWorker processes work items from the shared work channel.
-func (s *Solver) parallelWorker(ctx context.Context, cancel context.CancelFunc, cancelOnce *sync.Once, workerID int, workChan chan *workItem, solutionChan chan []int, activeWorkers, solutionsFound, pending *atomic.Int64, maxSolutions int) {
+func (s *Solver) parallelWorker(ctx context.Context, cancel context.CancelFunc, workerID int, workChan chan *workItem, solutionChan chan []int, tasksWG *sync.WaitGroup, solutionsFound *atomic.Int64, maxSolutions int) {
 	for {
 		select {
 		case <-ctx.Done():
+			// Drain remaining queued items so tasksWG can reach zero
+			for work := range workChan {
+				s.ReleaseState(work.state)
+				tasksWG.Done()
+			}
 			return
-
 		case work, ok := <-workChan:
 			if !ok {
-				// Work channel closed, we're done
+				// All tasks completed and channel closed
 				return
 			}
-
-			// This work item is now in progress; decrement pending.
-			pending.Add(-1)
-
-			// Check solution limit
-			if maxSolutions > 0 && solutionsFound.Load() >= int64(maxSolutions) {
-				s.ReleaseState(work.state)
-				return
-			}
-
-			// Mark as active
-			activeWorkers.Add(1)
-
 			// Process this work item
-			s.processWork(ctx, work, workChan, solutionChan, solutionsFound, pending, maxSolutions)
-
+			s.processWork(ctx, work, workChan, solutionChan, solutionsFound, tasksWG, maxSolutions)
 			// Release the work item's state now that we're done with it
 			s.ReleaseState(work.state)
-
-			// Mark as inactive
-			activeWorkers.Add(-1)
-
-			// If no active workers and the queue is empty, signal global cancellation.
-			// We don't close workChan here to avoid races; cancellation will unblock
-			// all workers via ctx.Done in their select.
-			if activeWorkers.Load() == 0 && pending.Load() == 0 {
-				cancelOnce.Do(cancel)
-				return
-			}
+			// Mark this task as done
+			tasksWG.Done()
 		}
 	}
 }
 
 // processWork processes a single work item, trying all values for the variable.
 // Does NOT release work.state - caller is responsible.
-func (s *Solver) processWork(ctx context.Context, work *workItem, workChan chan *workItem, solutionChan chan []int, solutionsFound, pending *atomic.Int64, maxSolutions int) {
+func (s *Solver) processWork(ctx context.Context, work *workItem, workChan chan *workItem, solutionChan chan []int, solutionsFound *atomic.Int64, tasksWG *sync.WaitGroup, maxSolutions int) {
 	// Try each value for this variable
 	for work.valueIndex < len(work.values) {
 		select {
@@ -240,16 +225,21 @@ func (s *Solver) processWork(ctx context.Context, work *workItem, workChan chan 
 			depth:      work.depth + 1,
 		}
 
-		// Enqueue new work: increment pending before queueing to avoid races.
-		pending.Add(1)
+		// Try to enqueue new work. Register task before enqueue; roll back if not queued.
+		tasksWG.Add(1)
 		select {
 		case workChan <- newWork:
-			// queued
+			// queued successfully
 		case <-ctx.Done():
-			// Roll back pending increment if we didn't enqueue
-			pending.Add(-1)
+			tasksWG.Done()
 			s.ReleaseState(propagatedState)
 			return
+		default:
+			// Channel full: roll back and process inline to guarantee progress
+			tasksWG.Done()
+			s.processWork(ctx, newWork, workChan, solutionChan, solutionsFound, tasksWG, maxSolutions)
+			// We're the caller; release its state after processing
+			s.ReleaseState(propagatedState)
 		}
 	}
 }
