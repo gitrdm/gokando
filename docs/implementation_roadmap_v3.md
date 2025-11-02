@@ -665,18 +665,290 @@ Prioritization for remaining work (suggested order):
         - The solver finds and returns an optimal solution for supported objective forms on small-to-medium instances; when interrupted, returns the best incumbent and indicates non-optimality.
         - Works with existing constraints without API changes; passes the full test suite; documented with runnable examples.
 
-### Phase 5: API and Usability
+### Phase 5: Tabling Infrastructure ⏳ PLANNED
+
+**Objective**: Enable termination of recursive queries through result memoization, closing a critical gap with Clojure's core.logic.
+
+**Background**: Tabling (also known as memoization or dynamic programming for logic programs) prevents infinite loops in recursive relations by caching previously computed results. This is essential for queries like transitive closure that would otherwise not terminate in standard miniKanren.
+
+- [ ] **Task 5.1: Design Tabled Goal Framework**
+    - [ ] **Objective**: Create infrastructure for memoizing goal results keyed by arguments.
+    - [ ] **Action**:
+        - [ ] Define `TabledGoal` type wrapping a goal with result cache
+        - [ ] Implement cache key generation from goal arguments (variable IDs + bindings)
+        - [ ] Design thread-safe cache storage using `sync.Map` or similar
+        - [ ] Handle cache invalidation on constraint store changes
+    - [ ] **Success Criteria**: Cache correctly stores and retrieves results for identical argument patterns.
+    - **Design Considerations**:
+        - Cache granularity: per-goal-definition vs. per-goal-invocation
+        - Memory management: LRU eviction for long-running programs
+        - Thread safety: concurrent access from parallel search
+
+- [ ] **Task 5.2: Implement Tabling API**
+    - [ ] **Objective**: Provide user-facing functions to create tabled goals.
+    - [ ] **Action**:
+        - [ ] Implement `Tabled(name string, goal Goal) Goal` for wrapping existing goals
+        - [ ] Implement `TabledFunc(name string, fn func(...Term) Goal) func(...Term) Goal` for goal generators
+        - [ ] Ensure proper context propagation through tabled calls
+        - [ ] Add configuration options (cache size, eviction policy)
+    - [ ] **Success Criteria**: Users can convert any goal to a tabled version with a single function call.
+    - **Example API**:
+        ```go
+        // Define path relation recursively
+        func patho(x, y Term) Goal {
+            return Conde(
+                arco(x, y),  // Direct arc
+                Fresh2(func(z Term) Goal {
+                    return Conj(arco(x, z), patho(z, y))  // Transitive
+                }),
+            )
+        }
+        
+        // Make it tabled to prevent infinite loops
+        tabledPatho := TabledFunc("patho", patho)
+        
+        // Now this terminates even with cycles
+        results := Run(10, func(q *Var) Goal {
+            return tabledPatho(NewAtom("a"), q)
+        })
+        ```
+
+- [ ] **Task 5.3: Integration with Constraint Store**
+    - [ ] **Objective**: Ensure tabling works correctly with the constraint store system.
+    - [ ] **Action**:
+        - [ ] Implement cache invalidation when constraint stores diverge
+        - [ ] Handle variable renaming in cached results
+        - [ ] Ensure cache hits preserve constraint semantics
+        - [ ] Test interaction with FD constraints and hybrid solver
+    - [ ] **Success Criteria**: Tabled goals produce correct results in all constraint contexts.
+
+- [ ] **Task 5.4: Comprehensive Testing**
+    - [ ] **Objective**: Validate correctness and performance of tabling.
+    - [ ] **Action**:
+        - [ ] Test classic tabling examples (transitive closure, paths in graphs)
+        - [ ] Test termination on cyclic relations
+        - [ ] Benchmark performance improvement vs. non-tabled
+        - [ ] Test thread safety with parallel execution
+        - [ ] Test memory usage and cache eviction
+    - [ ] **Success Criteria**: All recursive queries terminate; performance improves on repeated queries; zero race conditions.
+    - **Test Cases**:
+        - Graph reachability with cycles
+        - Ancestor/descendant queries with infinite families
+        - Fibonacci-style recursive definitions
+        - Concurrent tabled goal execution
+
+- [ ] **Task 5.5: Documentation and Examples**
+    - [ ] **Objective**: Teach users when and how to use tabling.
+    - [ ] **Action**:
+        - [ ] Document tabling in miniKanren core guide
+        - [ ] Create `ExampleTabled()` functions
+        - [ ] Add "Comparison with core.logic" section on tabling
+        - [ ] Document performance characteristics and trade-offs
+    - [ ] **Success Criteria**: Users understand when tabling is beneficial and how to apply it.
+
+**Phase 5 Success Criteria**:
+- Recursive queries that would loop infinitely now terminate
+- Performance improvement measurable on repeated queries
+- Zero race conditions in concurrent execution
+- API is simple and non-intrusive (doesn't require model changes)
+- Documentation explains when to use tabling
+
+---
+
+### Phase 6: Relational Database (pldb) ⏳ PLANNED
+
+**Objective**: Provide efficient in-memory fact storage and querying, enabling logic programming over structured data.
+
+**Background**: Clojure's core.logic includes `pldb` (Prolog-like database) for defining relations and storing facts with indexed access. This is useful for applications like family trees, graph databases, and rule-based systems.
+
+- [ ] **Task 6.1: Design Relation and Database Schema**
+    - [ ] **Objective**: Create the data model for relations and facts.
+    - [ ] **Action**:
+        - [ ] Define `Relation` type with name, arity, and index specifications
+        - [ ] Design `Database` type for storing facts with indexed lookups
+        - [ ] Implement hash-based indexing for fast pattern matching
+        - [ ] Support dynamic fact addition and removal
+    - [ ] **Success Criteria**: Relations can be defined with arbitrary arities and indexed on any positions.
+    - **Design Considerations**:
+        - Index strategy: hash tables per indexed position
+        - Fact representation: [][]Term or more optimized structure
+        - Persistence: in-memory only or optional serialization
+
+- [ ] **Task 6.2: Implement Database API**
+    - [ ] **Objective**: Provide ergonomic functions for defining and querying facts.
+    - [ ] **Action**:
+        - [ ] Implement `DbRel(name string, arity int, indices ...int) *Relation`
+        - [ ] Implement `NewDatabase() *Database`
+        - [ ] Implement `(db *Database) AddFact(rel *Relation, terms ...Term)`
+        - [ ] Implement `(db *Database) RemoveFact(rel *Relation, terms ...Term)`
+        - [ ] Implement `(db *Database) Query(rel *Relation, pattern ...Term) Goal`
+    - [ ] **Success Criteria**: Users can define relations, add facts, and query with pattern matching.
+    - **Example API**:
+        ```go
+        // Define relations
+        parent := DbRel("parent", 2, 0, 1)  // Index both positions
+        
+        // Create database and add facts
+        db := NewDatabase()
+        db.AddFact(parent, NewAtom("Alice"), NewAtom("Bob"))
+        db.AddFact(parent, NewAtom("Bob"), NewAtom("Charlie"))
+        
+        // Query: who are Alice's children?
+        results := WithDB(db, func() []Term {
+            return Run(10, func(q *Var) Goal {
+                return db.Query(parent, NewAtom("Alice"), q)
+            })
+        })
+        // => [Bob]
+        
+        // Query: who are Bob's parents?
+        results = WithDB(db, func() []Term {
+            return Run(10, func(q *Var) Goal {
+                return db.Query(parent, q, NewAtom("Bob"))
+            })
+        })
+        // => [Alice]
+        ```
+
+- [ ] **Task 6.3: Implement Indexed Queries**
+    - [ ] **Objective**: Ensure sub-linear query performance with proper indexing.
+    - [ ] **Action**:
+        - [ ] Implement index-aware pattern matching
+        - [ ] Use hash lookups for bound positions in patterns
+        - [ ] Fall back to linear scan only when necessary
+        - [ ] Optimize for common query patterns (all vars, one var, all ground)
+    - [ ] **Success Criteria**: Query time is sub-linear with indexed access; large fact sets (10k+) perform well.
+
+- [ ] **Task 6.4: Integration with miniKanren**
+    - [ ] **Objective**: Make database queries work seamlessly with existing goals.
+    - [ ] **Action**:
+        - [ ] Implement `WithDB(db *Database, goal Goal) Goal` for scoped database access
+        - [ ] Ensure database goals compose with Conj, Disj, etc.
+        - [ ] Test interaction with constraint store
+        - [ ] Support nested WithDB calls
+    - [ ] **Success Criteria**: Database queries integrate cleanly with all miniKanren operators.
+
+- [ ] **Task 6.5: Testing and Examples**
+    - [ ] **Objective**: Validate correctness and performance.
+    - [ ] **Action**:
+        - [ ] Test family tree queries (ancestors, descendants, siblings)
+        - [ ] Test large fact sets (10k+ facts) with indexes
+        - [ ] Benchmark index performance vs. linear scan
+        - [ ] Test fact addition/removal dynamics
+        - [ ] Create comprehensive examples
+    - [ ] **Success Criteria**: All queries return correct results; indexed queries are significantly faster.
+    - **Example Applications**:
+        - Family tree with transitive ancestor queries
+        - Graph database with path finding
+        - Rule-based expert system
+        - Datalog-style queries
+
+**Phase 6 Success Criteria**:
+- Relations can be defined with arbitrary arities and indexes
+- Fact storage and retrieval is efficient (sub-linear with indexes)
+- Clean integration with existing miniKanren API
+- Comprehensive examples demonstrate practical applications
+- Documentation explains when pldb is preferable to constraints
+
+---
+
+### Phase 7: Nominal Logic Programming ⏳ PLANNED
+
+**Objective**: Enable reasoning about variable binding and scope (alpha-equivalence), supporting meta-programming and compiler applications.
+
+**Background**: Nominal logic (αKanren) extends miniKanren with special support for reasoning about binders in syntax trees, making it easier to implement type checkers, interpreters, and program transformations without worrying about variable capture.
+
+- [ ] **Task 7.1: Design Nominal Variable System**
+    - [ ] **Objective**: Create the foundation for nominal variables and binding.
+    - [ ] **Action**:
+        - [ ] Define `NominalVar` type distinct from regular logic variables
+        - [ ] Implement nominal variable generation with `NomFresh(name string) *NominalVar`
+        - [ ] Design representation for binding constructs (`Tie`)
+        - [ ] Implement freshness constraint tracking
+    - [ ] **Success Criteria**: Nominal variables can be created and distinguished from regular variables.
+    - **Design Considerations**:
+        - Nominal variables are atoms but with special properties
+        - Freshness is a constraint, not a structural property
+        - Need efficient freshness constraint propagation
+
+- [ ] **Task 7.2: Implement Binding and Freshness**
+    - [ ] **Objective**: Support name binding and freshness constraints.
+    - [ ] **Action**:
+        - [ ] Implement `Tie(v *NominalVar, body Term) *Tie` for λ-abstraction style binding
+        - [ ] Implement `Hash(v1, v2 *NominalVar) Goal` for freshness constraints (v1 ≠ v2)
+        - [ ] Implement freshness propagation in constraint store
+        - [ ] Handle freshness in unification
+    - [ ] **Success Criteria**: Binding and freshness constraints work correctly in isolation.
+    - **Example API**:
+        ```go
+        // Represent: λa. (λb. a)
+        NomFresh2(func(a, b *NominalVar) Goal {
+            return Eq(
+                q,
+                Lambda(Tie(a, Lambda(Tie(b, a)))),
+            )
+        })
+        ```
+
+- [ ] **Task 7.3: Implement Alpha-Equivalence**
+    - [ ] **Objective**: Make unification respect binding structure.
+    - [ ] **Action**:
+        - [ ] Extend unification to handle `Tie` structures
+        - [ ] Implement alpha-equivalence checking (renaming bound variables)
+        - [ ] Ensure freshness constraints are enforced during unification
+        - [ ] Test with lambda calculus examples
+    - [ ] **Success Criteria**: Terms that are alpha-equivalent unify; terms that differ modulo renaming don't.
+    - **Test Cases**:
+        - `λa.a` ≡ `λb.b` (alpha-equivalent)
+        - `λa.λb.a` ≡ `λx.λy.x` (alpha-equivalent)
+        - `λa.λb.a` ≢ `λa.λb.b` (different structure)
+
+- [ ] **Task 7.4: Applications and Examples**
+    - [ ] **Objective**: Demonstrate practical use of nominal logic.
+    - [ ] **Action**:
+        - [ ] Implement lambda calculus substitution without capture
+        - [ ] Implement simple type inference example
+        - [ ] Create compiler transformation examples
+        - [ ] Document common patterns
+    - [ ] **Success Criteria**: Examples show clear advantages over manual variable management.
+    - **Example Applications**:
+        - Beta reduction: `(λx.M) N → M[x:=N]` without capture
+        - Type inference for simply-typed lambda calculus
+        - Program transformation preserving alpha-equivalence
+
+- [ ] **Task 7.5: Testing and Documentation**
+    - [ ] **Objective**: Ensure correctness of nominal logic implementation.
+    - [ ] **Action**:
+        - [ ] Test freshness constraint propagation
+        - [ ] Test alpha-equivalence in various contexts
+        - [ ] Test substitution without capture
+        - [ ] Create comprehensive examples
+        - [ ] Document nominal logic concepts for Go users
+    - [ ] **Success Criteria**: All nominal logic tests pass; examples are clear and correct.
+
+**Phase 7 Success Criteria**:
+- Nominal variables and binding work correctly
+- Alpha-equivalence is properly implemented
+- Lambda calculus substitution works without capture
+- Examples demonstrate meta-programming capabilities
+- Documentation explains when nominal logic is useful
+
+**Phase 7 Priority Note**: This phase has lower priority (LOW-MEDIUM) as it serves specialized use cases (compilers, meta-programming). Implement only if these use cases arise in practice.
+
+---
+
+### Phase 8: API and Usability
 
 **Objective**: Create a polished, user-friendly, and declarative public API.
 
-- [ ] **Task 5.1: Design and Implement a High-Level Declarative API**
+- [ ] **Task 8.1: Design and Implement a High-Level Declarative API**
     - [ ] **Objective**: Abstract away the complexities of the underlying solver framework.
     - [ ] **Action**:
         - [ ] Create a new API package (`gokando/clp`?) for defining models.
         - [ ] Implement a builder pattern or functional options for creating variables and constraints declaratively.
     - [ ] **Success Criteria**: Users can define complex constraint problems with minimal boilerplate, focusing on the "what," not the "how."
 
-- [ ] **Task 5.2: Comprehensive Documentation and Examples**
+- [ ] **Task 8.2: Comprehensive Documentation and Examples**
     - [ ] **Objective**: Ensure the new system is well-documented and easy to learn.
     - [ ] **Action**:
         - [ ] Write narrative documentation for the new API and features.
