@@ -289,6 +289,11 @@ type SubgoalEntry struct {
 	// WFS-aware iterators but remain in the underlying trie to preserve
 	// insertion order and avoid structural mutation.
 	retracted map[int]struct{}
+
+	// WFS truth state for this subgoal (optional metadata). Defaults to
+	// TruthUndefined. This is separate from evaluation Status to avoid
+	// mixing lifecycle with semantics.
+	wfsTruth atomic.Int32
 }
 
 // NewSubgoalEntry creates a new subgoal entry with the given call pattern.
@@ -308,6 +313,7 @@ func NewSubgoalEntry(pattern *CallPattern) *SubgoalEntry {
 	// Initialize start channel
 	entry.startedCh = make(chan struct{})
 	entry.retracted = make(map[int]struct{})
+	entry.wfsTruth.Store(int32(TruthUndefined))
 	return entry
 }
 
@@ -422,6 +428,16 @@ func (se *SubgoalEntry) Dependencies() []*SubgoalEntry {
 	result := make([]*SubgoalEntry, len(se.dependencies))
 	copy(result, se.dependencies)
 	return result
+}
+
+// WfsTruth returns the current WFS truth value for this subgoal.
+func (se *SubgoalEntry) WfsTruth() TruthValue {
+	return TruthValue(se.wfsTruth.Load())
+}
+
+// SetWfsTruth sets the WFS truth value for this subgoal.
+func (se *SubgoalEntry) SetWfsTruth(tv TruthValue) {
+	se.wfsTruth.Store(int32(tv))
 }
 
 // ConsumptionCount returns the number of times answers were consumed.

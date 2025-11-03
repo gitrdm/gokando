@@ -62,14 +62,25 @@ type SLGEngine struct {
 	strata   map[string]int
 
 	// Reverse dependency index: child pattern hash -> set of parent entries
-	revMu       sync.RWMutex
 	reverseDeps sync.Map // map[uint64]*parentSet
+
+	// Dependency graph (for unfounded set detection): parent -> child edges with polarity.
+	depMu  sync.RWMutex
+	depAdj map[uint64]map[uint64]*edgePolarity
+
+	// Cached set of nodes detected as part of SCCs containing a negative edge
+	negMu        sync.RWMutex
+	negUndefined map[uint64]bool
 }
 
 type parentSet struct {
 	mu  sync.RWMutex
 	set map[*SubgoalEntry]struct{}
 }
+
+// edgePolarity tracks whether a dependency edge is positive and/or negative.
+// An edge can be both (if established via different paths). We mark both flags accordingly.
+type edgePolarity struct{ pos, neg bool }
 
 func (ps *parentSet) add(p *SubgoalEntry) {
 	ps.mu.Lock()
@@ -114,6 +125,219 @@ func (e *SLGEngine) getReverseParents(child uint64) []*SubgoalEntry {
 	return nil
 }
 
+// addPositiveEdge records a positive dependency parent->child for unfounded set analysis.
+func (e *SLGEngine) addPositiveEdge(parent, child uint64) {
+	e.depMu.Lock()
+	adj := e.depAdj[parent]
+	if adj == nil {
+		adj = make(map[uint64]*edgePolarity)
+		e.depAdj[parent] = adj
+	}
+	ep := adj[child]
+	if ep == nil {
+		ep = &edgePolarity{}
+		adj[child] = ep
+	}
+	ep.pos = true
+	e.depMu.Unlock()
+}
+
+// addNegativeEdge records a negative dependency parent->child for unfounded set analysis.
+func (e *SLGEngine) addNegativeEdge(parent, child uint64) {
+	e.depMu.Lock()
+	adj := e.depAdj[parent]
+	if adj == nil {
+		adj = make(map[uint64]*edgePolarity)
+		e.depAdj[parent] = adj
+	}
+	ep := adj[child]
+	if ep == nil {
+		ep = &edgePolarity{}
+		adj[child] = ep
+	}
+	ep.neg = true
+	e.depMu.Unlock()
+	// Recompute undefined SCCs conservatively after adding a negative edge.
+	go e.computeUndefinedSCCs()
+}
+
+// computeUndefinedSCCs runs Tarjan's SCC and marks subgoals in SCCs containing
+// at least one negative edge as WFS undefined.
+func (e *SLGEngine) computeUndefinedSCCs() {
+	// Snapshot adjacency under read lock
+	e.depMu.RLock()
+	adj := make(map[uint64]map[uint64]*edgePolarity, len(e.depAdj))
+	for u, m := range e.depAdj {
+		mm := make(map[uint64]*edgePolarity, len(m))
+		for v, ep := range m {
+			cp := *ep
+			mm[v] = &cp
+		}
+		adj[u] = mm
+	}
+	e.depMu.RUnlock()
+
+	// Tarjan's algorithm
+	index := 0
+	indices := make(map[uint64]int)
+	lowlink := make(map[uint64]int)
+	onstack := make(map[uint64]bool)
+	stack := make([]uint64, 0, 16)
+
+	var sccs [][]uint64
+	var strongConnect func(v uint64)
+	strongConnect = func(v uint64) {
+		indices[v] = index
+		lowlink[v] = index
+		index++
+		stack = append(stack, v)
+		onstack[v] = true
+
+		for w := range adj[v] {
+			if _, ok := indices[w]; !ok {
+				strongConnect(w)
+				if lowlink[w] < lowlink[v] {
+					lowlink[v] = lowlink[w]
+				}
+			} else if onstack[w] {
+				if indices[w] < lowlink[v] {
+					lowlink[v] = indices[w]
+				}
+			}
+		}
+
+		if lowlink[v] == indices[v] {
+			// start a new SCC
+			var comp []uint64
+			for {
+				w := stack[len(stack)-1]
+				stack = stack[:len(stack)-1]
+				onstack[w] = false
+				comp = append(comp, w)
+				if w == v {
+					break
+				}
+			}
+			sccs = append(sccs, comp)
+		}
+	}
+
+	// Visit all nodes (include those only reachable as children)
+	seen := make(map[uint64]bool)
+	var visitAll func(u uint64)
+	visitAll = func(u uint64) {
+		if seen[u] {
+			return
+		}
+		seen[u] = true
+		if _, ok := indices[u]; !ok {
+			strongConnect(u)
+		}
+		for v := range adj[u] {
+			if !seen[v] {
+				visitAll(v)
+			}
+		}
+	}
+	for u := range adj {
+		visitAll(u)
+	}
+
+	// For each SCC, check if any internal edge is negative
+	newUndefined := make(map[uint64]bool)
+	for _, comp := range sccs {
+		if len(comp) == 1 {
+			// A self-loop counts as SCC; check for negative self-edge
+			u := comp[0]
+			if ep, ok := adj[u][u]; !ok || !ep.neg {
+				continue
+			}
+		}
+		// Determine if SCC contains any negative edge among members
+		member := make(map[uint64]bool, len(comp))
+		for _, u := range comp {
+			member[u] = true
+		}
+		hasNeg := false
+		for _, u := range comp {
+			for v, ep := range adj[u] {
+				if member[v] && ep.neg {
+					hasNeg = true
+					break
+				}
+			}
+			if hasNeg {
+				break
+			}
+		}
+		if !hasNeg {
+			continue
+		}
+		// Mark all members as undefined truth (in cache)
+		for _, u := range comp {
+			newUndefined[u] = true
+		}
+	}
+	e.negMu.Lock()
+	e.negUndefined = newUndefined
+	e.negMu.Unlock()
+}
+
+// isInNegativeSCC reports whether the given subgoal hash is currently known
+// to be in an SCC that contains at least one negative edge.
+func (e *SLGEngine) isInNegativeSCC(hash uint64) bool {
+	e.negMu.RLock()
+	_, ok := e.negUndefined[hash]
+	e.negMu.RUnlock()
+	return ok
+}
+
+// hasNegativeIncoming reports whether any parent has a negative edge to this node.
+// This is a conservative heuristic useful when SCC computation hasn't yet converged.
+func (e *SLGEngine) hasNegativeIncoming(hash uint64) bool {
+	e.depMu.RLock()
+	defer e.depMu.RUnlock()
+	for _, children := range e.depAdj {
+		if ep, ok := children[hash]; ok && ep != nil && ep.neg {
+			return true
+		}
+	}
+	return false
+}
+
+// hasNegEdgeReachableFrom reports whether starting from 'hash' and following only
+// positive edges, we can reach any negative edge (u -neg-> v). This conservatively
+// detects potential unfounded-set cycles involving negation reachable from the inner goal.
+func (e *SLGEngine) hasNegEdgeReachableFrom(hash uint64) bool {
+	e.depMu.RLock()
+	defer e.depMu.RUnlock()
+	// BFS over positive edges
+	visited := make(map[uint64]bool)
+	queue := []uint64{hash}
+	visited[hash] = true
+	for len(queue) > 0 {
+		u := queue[0]
+		queue = queue[1:]
+		children := e.depAdj[u]
+		if children == nil {
+			continue
+		}
+		for v, ep := range children {
+			if ep == nil {
+				continue
+			}
+			if ep.neg {
+				return true
+			}
+			if ep.pos && !visited[v] {
+				visited[v] = true
+				queue = append(queue, v)
+			}
+		}
+	}
+	return false
+}
+
 // onChildHasAnswers is invoked when a child subgoal derives its first answer.
 // It retracts all conditional answers in parents that depend on this child.
 func (e *SLGEngine) onChildHasAnswers(child *SubgoalEntry) {
@@ -156,6 +380,16 @@ type SLGConfig struct {
 	// EnableSubsumptionChecking enables answer subsumption (future enhancement)
 	EnableSubsumptionChecking bool
 
+	// EnforceStratification controls whether negation is restricted by strata.
+	// When true (default), a predicate may only negate predicates in the same or
+	// lower stratum; negating a higher stratum is a violation and yields no answers.
+	// When false, general WFS with unfounded-set handling applies.
+	EnforceStratification bool
+
+	// DebugWFS enables verbose tracing for WFS/negation synchronization paths.
+	// Prefer enabling via environment variable GOKANDO_WFS_TRACE=1 when possible.
+	DebugWFS bool
+
 	// NegationPeekTimeout is deprecated and ignored.
 	// Negation now uses a timing-free, race-free event sequence + handshake,
 	// so no peek window is needed. This field is retained for backward
@@ -171,6 +405,7 @@ func DefaultSLGConfig() *SLGConfig {
 		MaxFixpointIterations:     1000,  // Prevent infinite loops
 		EnableParallelProducers:   false, // Sequential by default
 		EnableSubsumptionChecking: false, // Future enhancement
+		EnforceStratification:     true,  // Enforce by default; equal stratum allowed
 		// Deprecated: ignored (kept for backward compatibility)
 		// Default retained to avoid surprising behavior differences
 		NegationPeekTimeout: time.Millisecond,
@@ -182,10 +417,15 @@ func NewSLGEngine(config *SLGConfig) *SLGEngine {
 	if config == nil {
 		config = DefaultSLGConfig()
 	}
+	if config.DebugWFS {
+		enableWFSTrace()
+	}
 	return &SLGEngine{
-		subgoals: NewSubgoalTable(),
-		config:   config,
-		strata:   make(map[string]int),
+		subgoals:     NewSubgoalTable(),
+		config:       config,
+		strata:       make(map[string]int),
+		depAdj:       make(map[uint64]map[uint64]*edgePolarity),
+		negUndefined: make(map[uint64]bool),
 	}
 }
 
@@ -356,6 +596,8 @@ func (e *SLGEngine) Evaluate(ctx context.Context, pattern *CallPattern, evaluato
 	if parentRaw := ctx.Value(slgParentKey{}); parentRaw != nil {
 		if parent, ok := parentRaw.(*SubgoalEntry); ok && parent != entry {
 			parent.AddDependency(entry)
+			// Positive dependency for unfounded set analysis
+			e.addPositiveEdge(parent.Pattern().Hash(), entry.Pattern().Hash())
 		}
 	}
 

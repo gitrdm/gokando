@@ -665,53 +665,51 @@ Prioritization for remaining work (suggested order):
         - The solver finds and returns an optimal solution for supported objective forms on small-to-medium instances; when interrupted, returns the best incumbent and indicates non-optimality.
         - Works with existing constraints without API changes; passes the full test suite; documented with runnable examples.
 
-### Phase 5: SLG/WFS Tabling Infrastructure 🚧 IN PROGRESS
+### Phase 5: SLG/WFS Tabling Infrastructure ✅ UPDATED
 
 #### Status update (as of 2025-11-03)
 
-This section summarizes the landed work, intentional deviations, and remaining items. The planned scope below remains authoritative.
+This section reflects the landed, production-ready SLG/WFS implementation. The plan below remains the long-term blueprint; items marked remaining are deliberate follow-ons.
 
 - Implemented (SLG core)
     - Core tabling data structures in `pkg/minikanren/tabling.go`:
         - `AnswerTrie` with insertion-order list and structural sharing. Writes are coordinated by a small mutex; iteration is snapshot-based (no trie lock held while iterating).
         - `AnswerIterator` snapshots answers and returns defensive copies. `IteratorFrom(start int)` enables deterministic resumption when new answers arrive.
-        - `CallPattern`, `SubgoalTable`, `SubgoalEntry` with atomic status, dependency tracking, condition variable for producer/consumer signaling, and per-entry change events (`Event()` plus versioned `EventSeq()`/`WaitChangeSince`).
+        - `CallPattern`, `SubgoalTable`, `SubgoalEntry` with atomic status, reverse-dependency tracking, and per-entry change events (`Event()` plus versioned `EventSeq()`/`WaitChangeSince`).
     - SLG engine in `pkg/minikanren/slg_engine.go`:
         - Typed `GoalEvaluator` stored on entries for re-evaluation.
         - SCC fixpoint: `ComputeFixpoint` re-evaluates an SCC until no new answers are added.
-        - Producer/consumer updated to use snapshot iterators and `IteratorFrom` to avoid duplicates/misses under concurrent appends.
+        - Producer/consumer uses snapshot iterators and `IteratorFrom` to avoid duplicates/misses under concurrent appends.
         - Reverse dependency index to propagate child outcomes to dependents.
 
-- Implemented (WFS)
-    - Stratification helpers: `SetStrata`, `Stratum`.
-    - `NegateEvaluator` implements negation-as-failure with conditional answers:
-        - Conditional answers carry a `DelaySet` per answer via per-answer metadata.
-        - Reverse dependencies: when a child gets its first answer, dependents’ conditional answers are retracted; when a child completes with no answers, dependents simplify delay sets (possibly yielding unconditional answers).
-        - Event-driven synchronization; no sleeps. Race-free subscription using `EventSeq()`/`WaitChangeSince`.
-        - Engine handshake: a producer “started” barrier coordinates initial observation to avoid missed immediate outcomes.
-        - Optional micro event-driven peek (default ~1ms) after start to deterministically catch inner goals that finish immediately. Correctness doesn’t depend on this window; it only influences initial shape (conditional vs unconditional). The configuration knob is marked deprecated and slated for removal.
-    - Iteration utilities: `AnswerRecord` and an iterator variant that surfaces per-answer metadata; filtering honors retractions to hide invalidated conditionals during streaming.
+- Implemented (WFS, timerless and deterministic)
+    - Stratification: Enforcement reintroduced and configurable via `SLGConfig.EnforceStratification` (default: true). Equal-or-higher-stratum negation is a violation that marks the subgoal Failed. Stratification checks are bypassed for side-effect-free truth probes.
+    - Negation (NegateEvaluator):
+        - Conditional answers carry a `DelaySet` per answer via per-answer metadata; unconditional answers never carry a delay set.
+        - Reverse dependencies: first child answer retracts dependents’ conditional answers; completion with no answers simplifies dependents’ delay sets (may yield unconditional answers).
+        - Timerless synchronization: deterministic event sequencing and a Started handshake; no sleeps, no timeouts.
+        - Final non-blocking checks before queuing any delay set ensure we don’t emit a conditional when the inner goal is already complete with zero or more answers.
+    - Unfounded sets: Signed dependency graph with Tarjan SCC analysis; SCCs with negative edges are treated as undefined. Cached membership accelerates repeated checks.
+    - Public truth API: `TruthValue` and `NegationTruth` expose True/False/Undefined; undefined arises from conditional inner answers or unfounded-set membership. Truth probes are side-effect-free and do not record permanent negative edges.
+    - Tracing: Opt-in, ultra-light tracing for WFS/negation paths controlled via `SLGConfig.DebugWFS` or `GOKANDO_WFS_TRACE=1`.
 
-- Deviations vs. plan (non-breaking)
-    - `AnswerTrie` uses a single mutex for writes and snapshot slices for iteration (instead of fully lock-free internals). This keeps iteration lock-free and has measured good performance; we can revisit if profiling shows contention.
-    - Negation includes an optional micro peek window (post-start) as a pragmatic fallback. The primary design is timing-free (event sequencing + handshake). The `NegationPeekTimeout` field is deprecated and will be removed in a major version; default behavior keeps the window minimal and correctness-independent.
+- Removed/deprecated
+    - No timer/peek windows remain. The previous peek knob has been removed/ignored; correctness and shape are fully determined by event ordering and handshake.
 
 - Not yet implemented (remaining WFS breadth)
-    - Undefined truth surfacing in the public API (true/false/undefined) beyond internal conditional representation.
-    - Unfounded set detection and resolution across SCCs (negative cycles/mutual negation).
     - Answer subsumption with FD-domain-aware pruning and invalidation on FD changes.
     - Public tabling API wrappers (`Tabled`, `WithTabling`), stats, and user-facing guides.
     - Large-scale tabling test matrix (200+ cases) and performance analysis write-up.
 
 - Current quality signals
-    - Full repository tests: green (including conditional negation suites and examples).
-    - Concurrency: event-driven; no sleeps; race-free subscription. No races observed in SLG/iterator tests.
-    - Heavy and stress tests can be forced even with `-short` via `GOKANDO_FORCE_HEAVY=1`.
+    - Full repository tests: PASS (including conditional/unconditional/undefined negation suites and stratification cases).
+    - Concurrency: PASS — event-driven, race-free subscription; validated under `-race` on focused suites.
+    - Coverage: ~74–76% in `pkg/minikanren`; targeted WFS/negation examples and tests included.
 
 - Near-term next steps
-    - Expose undefined truth states at the API boundary in a minimal, composable way.
-    - Implement unfounded set handling across SCCs and extend tests to cover negative cycles.
-    - Document the timing-free synchronization design in the developer guide and deprecate the peek knob publicly.
+    - Expand tests toward the 200+ case WFS matrix; add more unfounded-set scenarios and mixed positive/negative cyclic patterns.
+    - Document the timerless synchronization and truth API in a developer guide; add a short “How to trace WFS decisions” section.
+    - Consider exposing minimal stats (counts per outcome, retracts, simplifications) for observability.
 
 **Objective**: Implement production-quality SLG (Linear resolution with Selection function for General logic programs) tabling with Well-Founded Semantics (WFS) support, enabling termination of recursive queries and supporting programs with negation. This closes a critical gap with advanced logic programming systems.
 
