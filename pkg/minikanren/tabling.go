@@ -279,6 +279,12 @@ type SubgoalEntry struct {
 	// Used with WaitChangeSince for race-free subscription.
 	changeSeq atomic.Uint64
 
+	// Producer start signal: closed exactly once when the producer goroutine
+	// for this entry has started and is ready to emit answers or status changes.
+	startMu    sync.Mutex
+	startedCh  chan struct{}
+	startFired bool
+
 	// Retracted answers (by index). Retracted answers are hidden from
 	// WFS-aware iterators but remain in the underlying trie to preserve
 	// insertion order and avoid structural mutation.
@@ -299,6 +305,8 @@ func NewSubgoalEntry(pattern *CallPattern) *SubgoalEntry {
 	entry.refCount.Store(1)
 	// Initialize event channel
 	entry.eventCh = make(chan struct{})
+	// Initialize start channel
+	entry.startedCh = make(chan struct{})
 	entry.retracted = make(map[int]struct{})
 	return entry
 }
@@ -378,6 +386,25 @@ func (se *SubgoalEntry) signalEvent() {
 	default:
 		close(se.eventCh)
 	}
+}
+
+// Started returns a channel that is closed when the producer goroutine for this
+// subgoal has started. It is closed exactly once.
+func (se *SubgoalEntry) Started() <-chan struct{} {
+	se.startMu.Lock()
+	ch := se.startedCh
+	se.startMu.Unlock()
+	return ch
+}
+
+// signalStarted closes the startedCh if not already closed.
+func (se *SubgoalEntry) signalStarted() {
+	se.startMu.Lock()
+	if !se.startFired {
+		close(se.startedCh)
+		se.startFired = true
+	}
+	se.startMu.Unlock()
 }
 
 // AddDependency records that this subgoal depends on another.

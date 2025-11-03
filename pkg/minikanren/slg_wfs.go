@@ -4,27 +4,22 @@
 // for stratified and general negation with conditional answers, delay sets, and
 // completion. It builds on the existing SLG Evaluate API and dependency tracking.
 //
-// About the small event-based peek in negation:
-//   - NegateEvaluator first uses a non-blocking fast path (draining innerCh if already
-//     closed or if an answer is already buffered). This handles the common immediate
-//     outcomes without waiting.
-//   - To make the “inner completes immediately with no answers” case deterministic,
-//     NegateEvaluator may optionally wait for a tiny, event-driven window
-//     (SLGConfig.NegationPeekTimeout, default 1ms) for the inner subgoal’s first
-//     state change (answer or completion). This is an event wait, not a sleep.
-//   - Correctness does not depend on this window. If it elapses with no event, we
-//     emit a conditional answer that will be simplified/retracted by the engine’s
-//     reverse-dependency mechanism as soon as the child’s outcome is known. The
-//     peek only influences the initial “shape” (conditional vs. unconditional), not
-//     the final semantics.
-//   - You can set NegationPeekTimeout to 0 for purely non-blocking behavior, or raise
-//     it slightly (e.g., a few milliseconds) on heavily loaded systems if you prefer
-//     more unconditional answers when inner goals finish immediately.
+// Synchronization approach (no sleeps/timers):
+//   - Non-blocking fast path: we first drain innerCh if it's already closed or has a
+//     buffered answer to catch immediate outcomes with zero wait.
+//   - Race-free subscription: we use a versioned event sequence (EventSeq/WaitChangeSince)
+//     to avoid missing just-fired events.
+//   - Engine handshake: we obtain a pre-start sequence and a Started() signal from the
+//     engine to deterministically handle the "inner completes immediately with no answers"
+//     case without any timers. We also prioritize real change events over the started signal.
+//   - Reverse-dependency propagation ensures conditional answers are simplified or
+//     retracted as soon as child outcomes are known.
 package minikanren
 
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // NegateEvaluator returns a GoalEvaluator that succeeds with an empty binding
@@ -60,16 +55,12 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 				currentPredicateID, currentStratum, innerPattern.PredicateID(), innerStratum)
 		}
 
-		// Evaluate the inner subgoal and consume its answers.
-		// This handles both new and existing subgoals correctly via the engine's
-		// standard producer/consumer mechanism.
-		innerCh, err := engine.Evaluate(ctx, innerPattern, innerEvaluator)
+		// Evaluate the inner subgoal with handshake information to enable
+		// deterministic initial shape without timers.
+		innerCh, innerEntry, preSeq, startedCh, err := engine.evaluateWithHandshake(ctx, innerPattern, innerEvaluator)
 		if err != nil {
 			return fmt.Errorf("negation inner evaluation failed: %w", err)
 		}
-
-		// Get the inner entry
-		innerEntry, _ := engine.subgoals.GetOrCreate(innerPattern)
 
 		// Fast path: non-blocking attempt to observe immediate inner outcome.
 		select {
@@ -132,10 +123,12 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 			return nil
 		}
 
-		// Race-free, zero-wait event check: subscribe and re-check using versioning.
-		// This ensures we don't miss a just-fired event and avoids any timers.
-		seq := innerEntry.EventSeq()
-		waitCh := innerEntry.WaitChangeSince(seq)
+		// Race-free, zero-wait event check using pre-start sequence captured
+		// before the producer was started (for new subgoals). This ensures we
+		// observe immediate completion or first answer deterministically.
+		waitCh := innerEntry.WaitChangeSince(preSeq)
+		// Handshake: prefer immediate change if available. First do a non-blocking
+		// check on waitCh to give priority to actual changes over the started signal.
 		select {
 		case <-waitCh:
 			// Some change occurred; re-evaluate status and count
@@ -160,7 +153,71 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 			}
 			// Still active: fall through to emit conditional
 		default:
-			// No immediate event; proceed to conditional answer
+			// If no immediate change, wait for either a change or producer start
+			select {
+			case <-waitCh:
+				st := innerEntry.Status()
+				cnt := innerEntry.Answers().Count()
+				if cnt > 0 {
+					go func() {
+						for range innerCh {
+						}
+					}()
+					return nil
+				}
+				if st == StatusComplete || st == StatusFailed {
+					answers <- map[int64]Term{}
+					go func() {
+						for range innerCh {
+						}
+					}()
+					return nil
+				}
+				// Still active: fall through to emit conditional
+			case <-startedCh:
+				// Producer is running but no immediate change; optionally wait a tiny
+				// event-driven window to catch an immediate completion/answer.
+				if engine.config != nil && engine.config.NegationPeekTimeout > 0 {
+					timer := time.NewTimer(engine.config.NegationPeekTimeout)
+					select {
+					case <-waitCh:
+						st := innerEntry.Status()
+						cnt := innerEntry.Answers().Count()
+						if cnt > 0 {
+							go func() {
+								for range innerCh {
+								}
+							}()
+							if !timer.Stop() {
+								<-timer.C
+							}
+							return nil
+						}
+						if st == StatusComplete || st == StatusFailed {
+							answers <- map[int64]Term{}
+							go func() {
+								for range innerCh {
+								}
+							}()
+							if !timer.Stop() {
+								<-timer.C
+							}
+							return nil
+						}
+						// Still active; fall through to emit conditional
+					case <-timer.C:
+						// timeout: proceed with conditional
+					case <-ctx.Done():
+						if !timer.Stop() {
+							<-timer.C
+						}
+						return ctx.Err()
+					}
+				}
+				// Emit conditional
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
 
 		// Inner is active with no answers yet: emit conditional answer

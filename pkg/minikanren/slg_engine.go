@@ -156,9 +156,10 @@ type SLGConfig struct {
 	// EnableSubsumptionChecking enables answer subsumption (future enhancement)
 	EnableSubsumptionChecking bool
 
-	// NegationPeekTimeout is the maximum duration NegateEvaluator will wait
-	// for an immediate inner subgoal event (first answer or completion) before
-	// emitting a conditional answer. Set to 0 to disable waiting.
+	// NegationPeekTimeout is deprecated and ignored.
+	// Negation now uses a timing-free, race-free event sequence + handshake,
+	// so no peek window is needed. This field is retained for backward
+	// compatibility and will be removed in a future major version.
 	NegationPeekTimeout time.Duration
 }
 
@@ -170,8 +171,8 @@ func DefaultSLGConfig() *SLGConfig {
 		MaxFixpointIterations:     1000,  // Prevent infinite loops
 		EnableParallelProducers:   false, // Sequential by default
 		EnableSubsumptionChecking: false, // Future enhancement
-		// Small event-driven peek to catch immediate completion/answers without races
-		// Keeps negation semantics intuitive (unconditional when inner completes immediately)
+		// Deprecated: ignored (kept for backward compatibility)
+		// Default retained to avoid surprising behavior differences
 		NegationPeekTimeout: time.Millisecond,
 	}
 }
@@ -374,6 +375,45 @@ func (e *SLGEngine) Evaluate(ctx context.Context, pattern *CallPattern, evaluato
 	return e.produceAndConsume(ctx, entry, evaluator), nil
 }
 
+// evaluateWithHandshake evaluates a subgoal and returns:
+// - the answer channel
+// - the subgoal entry
+// - the pre-start event sequence (captured before starting a new producer)
+// - the producer started channel
+// This enables race-free initial-shape decisions without timers.
+func (e *SLGEngine) evaluateWithHandshake(ctx context.Context, pattern *CallPattern, evaluator GoalEvaluator) (<-chan map[int64]Term, *SubgoalEntry, uint64, <-chan struct{}, error) {
+	if pattern == nil {
+		return nil, nil, 0, nil, fmt.Errorf("Evaluate: nil pattern")
+	}
+	if evaluator == nil {
+		return nil, nil, 0, nil, fmt.Errorf("Evaluate: nil evaluator")
+	}
+
+	e.totalEvaluations.Add(1)
+
+	// Get or create subgoal entry
+	entry, isNew := e.subgoals.GetOrCreate(pattern)
+
+	// Capture pre-start sequence before potentially starting producer
+	preSeq := entry.EventSeq()
+
+	if !isNew {
+		// Cache hit: consume existing answers
+		e.cacheHits.Add(1)
+		return e.consumeAnswers(ctx, entry), entry, preSeq, entry.Started(), nil
+	}
+
+	// Cache miss: need to evaluate
+	e.cacheMisses.Add(1)
+
+	// Store evaluator for potential re-evaluation during fixpoint
+	entry.evaluator = evaluator
+
+	// Start producer/consumer
+	ch := e.produceAndConsume(ctx, entry, evaluator)
+	return ch, entry, preSeq, entry.Started(), nil
+}
+
 // produceAndConsume starts producer and consumer goroutines for a new subgoal.
 // Producer: evaluates goal and inserts answers into trie
 // Consumer: reads from trie and streams to output channel
@@ -399,6 +439,57 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 			evalErr = evaluator(childCtx, producerChan)
 			close(evalDone)
 		}()
+
+		// Immediate, race-free first check: handle an immediate answer or completion
+		select {
+		case <-ctx.Done():
+			entry.SetStatus(StatusFailed)
+			entry.signalEvent()
+			entry.answerCond.Broadcast()
+			entry.signalStarted() // Unblock any waiters
+			return
+		case answer, ok := <-producerChan:
+			if !ok {
+				// Evaluator finished immediately
+				<-evalDone // Ensure evalErr is set
+				if evalErr != nil {
+					entry.SetStatus(StatusFailed)
+				} else {
+					entry.SetStatus(StatusComplete)
+				}
+				entry.signalEvent()
+				entry.answerCond.Broadcast()
+				if entry.Answers().Count() == 0 && evalErr == nil {
+					go e.onChildCompletedNoAnswers(entry)
+				}
+				entry.signalStarted()
+				return
+			}
+
+			// Received an immediate answer
+			wasNew := entry.Answers().Insert(answer)
+			if wasNew {
+				entry.derivationCount.Add(1)
+				e.totalAnswers.Add(1)
+
+				if pendingDS := entry.consumePendingDelaySet(); pendingDS != nil {
+					answerIndex := int(entry.Answers().Count() - 1)
+					entry.AttachDelaySet(answerIndex, pendingDS)
+				}
+
+				entry.signalEvent()
+				entry.answerCond.Broadcast()
+
+				if entry.Answers().Count() == 1 {
+					go e.onChildHasAnswers(entry)
+				}
+			}
+			// Producer is active; signal started and continue to normal loop
+			entry.signalStarted()
+		default:
+			// No immediate outcome; producer is started
+			entry.signalStarted()
+		}
 
 		// Receive answers from evaluator and insert into trie
 		for {
