@@ -19,6 +19,7 @@ package minikanren
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 // NegateEvaluator returns a GoalEvaluator that succeeds with an empty binding
@@ -86,8 +87,9 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 				return nil
 			}
 			// Channel closed with no answers: may be Undefined if inner is in a negative-edge SCC
-			wfsTracef("NegEval(%s <- %s): fast-path inner closed no answers", currentPredicateID, innerPattern.PredicateID())
-			if engine.isInNegativeSCC(innerPattern.Hash()) {
+			inNegSCC := engine.isInNegativeSCC(innerPattern.Hash())
+			wfsTracef("NegEval(%s <- %s): fast-path inner closed no answers, inNegSCC=%v hash=%d engine=%p", currentPredicateID, innerPattern.PredicateID(), inNegSCC, innerPattern.Hash(), engine)
+			if inNegSCC {
 				// Emit conditional (undefined) and register reverse dependency
 				if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
 					if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
@@ -107,6 +109,7 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 				return nil
 			}
 			// Otherwise: unconditional success (ensure no stale delay set is attached)
+			wfsTracef("NegEval(%s <- %s): unconditional success (not in neg SCC)", currentPredicateID, innerPattern.PredicateID())
 			if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
 				if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
 					parentEntry.consumePendingDelaySet()
@@ -131,7 +134,8 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 
 		initialStatus := innerEntry.Status()
 		initialCount := innerEntry.Answers().Count()
-		wfsTracef("NegEval(%s <- %s): initial status=%v count=%d", currentPredicateID, innerPattern.PredicateID(), initialStatus, initialCount)
+		inNegSCC2 := engine.isInNegativeSCC(innerPattern.Hash())
+		wfsTracef("NegEval(%s <- %s): initial status=%v count=%d inNegSCC=%v hash=%d", currentPredicateID, innerPattern.PredicateID(), initialStatus, initialCount, inNegSCC2, innerPattern.Hash())
 
 		if initialStatus == StatusComplete || initialStatus == StatusFailed {
 			// Inner is already complete - safe to drain channel
@@ -342,11 +346,46 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 					}()
 					return nil
 				}
-				// Still active: prefer an immediate change if available, else emit conditional
+				// Still active after started signal: give a very brief window to catch immediate completion
+				// Create a timeout channel for a tiny delay (1ms) to balance catching fast completions
+				// while not blocking indefinitely for truly active goals
+				timeout := make(chan struct{})
+				go func() {
+					select {
+					case <-ctx.Done():
+					case <-time.After(1 * time.Millisecond):
+						close(timeout)
+					}
+				}()
+
 				select {
+				case _, ok := <-innerCh:
+					if ok {
+						// Got an answer: negation fails
+						wfsTracef("NegEval(%s <- %s): got answer after started -> fail", currentPredicateID, innerPattern.PredicateID())
+						go func() {
+							for range innerCh {
+							}
+						}()
+						return nil
+					}
+					// Channel closed: unconditional success
+					wfsTracef("NegEval(%s <- %s): innerCh closed after started -> unconditional", currentPredicateID, innerPattern.PredicateID())
+					if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+						if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+							parentEntry.consumePendingDelaySet()
+						}
+					}
+					answers <- map[int64]Term{}
+					go func() {
+						for range innerCh {
+						}
+					}()
+					return nil
 				case <-waitCh:
 					st3 := innerEntry.Status()
 					cnt3 := innerEntry.Answers().Count()
+					wfsTracef("NegEval(%s <- %s): change after started st=%v cnt=%d", currentPredicateID, innerPattern.PredicateID(), st3, cnt3)
 					if cnt3 > 0 {
 						go func() {
 							for range innerCh {
@@ -361,6 +400,7 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 									ds := NewDelaySet()
 									ds.Add(innerPattern.Hash())
 									parentEntry.QueueDelaySetForNextAnswer(ds)
+									wfsTracef("NegEval(%s <- %s): queued delay set (started+change negative SCC)", currentPredicateID, innerPattern.PredicateID())
 									engine.addReverseDependency(innerPattern.Hash(), parentEntry)
 									engine.addNegativeEdge(parentEntry.Pattern().Hash(), innerEntry.Pattern().Hash())
 								}
@@ -372,6 +412,13 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 							}()
 							return nil
 						}
+						// Unconditional success
+						wfsTracef("NegEval(%s <- %s): started+change complete -> unconditional", currentPredicateID, innerPattern.PredicateID())
+						if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+							if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+								parentEntry.consumePendingDelaySet()
+							}
+						}
 						answers <- map[int64]Term{}
 						go func() {
 							for range innerCh {
@@ -379,9 +426,12 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 						}()
 						return nil
 					}
-					// Still active: fall through to emit conditional
-				default:
-					// no immediate change; emit conditional below
+					// Still active after change: fall through to emit conditional
+				case <-timeout:
+					// Brief timeout expired; proceed to emit conditional below if still active
+					wfsTracef("NegEval(%s <- %s): timeout after started, proceeding to conditional check", currentPredicateID, innerPattern.PredicateID())
+				case <-ctx.Done():
+					return ctx.Err()
 				}
 			case <-ctx.Done():
 				return ctx.Err()

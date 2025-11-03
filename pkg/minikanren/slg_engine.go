@@ -157,8 +157,12 @@ func (e *SLGEngine) addNegativeEdge(parent, child uint64) {
 	}
 	ep.neg = true
 	e.depMu.Unlock()
-	// Recompute undefined SCCs conservatively after adding a negative edge.
-	go e.computeUndefinedSCCs()
+	wfsTracef("addNegativeEdge: parent=%d -> child=%d (engine=%p)", parent, child, e)
+	// Recompute undefined SCCs synchronously to ensure deterministic behavior.
+	// The async version created race conditions where isInNegativeSCC checks
+	// could happen before or after the SCC computation completed, leading to
+	// flaky test failures and non-deterministic delay set attachments.
+	e.computeUndefinedSCCs()
 }
 
 // computeUndefinedSCCs runs Tarjan's SCC and marks subgoals in SCCs containing
@@ -274,13 +278,16 @@ func (e *SLGEngine) computeUndefinedSCCs() {
 			continue
 		}
 		// Mark all members as undefined truth (in cache)
+		wfsTracef("computeUndefinedSCCs: marking SCC with %d nodes as undefined", len(comp))
 		for _, u := range comp {
 			newUndefined[u] = true
+			wfsTracef("  - marking node %d as in negative SCC", u)
 		}
 	}
 	e.negMu.Lock()
 	e.negUndefined = newUndefined
 	e.negMu.Unlock()
+	wfsTracef("computeUndefinedSCCs: complete, %d nodes in negative SCCs", len(newUndefined))
 }
 
 // isInNegativeSCC reports whether the given subgoal hash is currently known
@@ -547,6 +554,18 @@ func (e *SLGEngine) Clear() {
 	e.strataMu.Lock()
 	e.strata = make(map[string]int)
 	e.strataMu.Unlock()
+
+	// Clear dependency tracking structures
+	e.reverseDeps.Range(func(key, value interface{}) bool {
+		e.reverseDeps.Delete(key)
+		return true
+	})
+	e.depMu.Lock()
+	e.depAdj = make(map[uint64]map[uint64]*edgePolarity)
+	e.depMu.Unlock()
+	e.negMu.Lock()
+	e.negUndefined = make(map[uint64]bool)
+	e.negMu.Unlock()
 }
 
 // GoalEvaluator is a function that evaluates a goal and returns answer bindings.
