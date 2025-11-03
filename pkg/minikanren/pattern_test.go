@@ -468,7 +468,7 @@ func TestPatternMatching_WithConstraints(t *testing.T) {
 
 	// Constrain x to be in {5, 6, 7}
 	domain := NewBitSetDomainFromValues(10, []int{5, 6, 7})
-	
+
 	store := NewUnifiedStore()
 	store, _ = store.SetDomain(x.ID(), domain)
 	adapter := NewUnifiedStoreAdapter(store)

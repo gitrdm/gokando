@@ -120,7 +120,7 @@ func ExampleNewClause() {
 func ExampleMatcheList() {
 	// Simple list pattern matching
 	list := List(NewAtom(1), NewAtom(2), NewAtom(3))
-	
+
 	result := Run(1, func(q *Var) Goal {
 		return MatcheList(list,
 			NewClause(Nil, Eq(q, NewAtom("empty"))),
