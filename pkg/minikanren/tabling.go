@@ -233,6 +233,10 @@ type SubgoalEntry struct {
 	// Answer trie containing all derived answers
 	answers *AnswerTrie
 
+	// Evaluator for re-evaluation during fixpoint computation
+	// Stored to enable re-derivation when dependencies change
+	evaluator interface{} // GoalEvaluator - stored as interface{} to avoid import cycle
+
 	// Current evaluation status (atomic access)
 	status atomic.Int32
 
@@ -421,6 +425,9 @@ type AnswerTrie struct {
 	// Root node of the trie
 	root *AnswerTrieNode
 
+	// Ordered list of answers for deterministic iteration
+	answers []map[int64]Term
+
 	// Cached answer count for O(1) size queries
 	count atomic.Int64
 
@@ -521,6 +528,14 @@ func (at *AnswerTrie) Insert(bindings map[int64]Term) bool {
 		return false // Duplicate answer
 	}
 	current.isAnswer = true
+
+	// Store answer in insertion order for deterministic iteration
+	answerCopy := make(map[int64]Term, len(bindings))
+	for k, v := range bindings {
+		answerCopy[k] = v
+	}
+	at.answers = append(at.answers, answerCopy)
+
 	at.count.Add(1)
 	return true
 }
@@ -531,34 +546,21 @@ func (at *AnswerTrie) Count() int64 {
 }
 
 // Iterator returns an iterator over all answers in the trie.
-// The iterator creates a snapshot of the trie structure to avoid
+// Answers are returned in insertion order for deterministic iteration.
+// The iterator creates a snapshot of the answer list to avoid
 // concurrent modification issues during iteration.
 func (at *AnswerTrie) Iterator() *AnswerIterator {
-	// Take snapshot under lock to ensure consistency
-	at.mu.Lock()
-	defer at.mu.Unlock()
-
 	return &AnswerIterator{
-		trie:  at,
-		stack: []*iteratorFrame{{node: at.root, bindings: make(map[int64]Term)}},
+		trie: at,
+		idx:  0,
 	}
 }
 
-// AnswerIterator iterates over answers in the trie.
-// The iterator takes a snapshot of child keys during frame creation to avoid
-// concurrent modification issues.
+// AnswerIterator iterates over answers in insertion order.
 type AnswerIterator struct {
-	trie  *AnswerTrie
-	stack []*iteratorFrame
-	mu    sync.Mutex // Protects stack modifications
-}
-
-type iteratorFrame struct {
-	node       *AnswerTrieNode
-	bindings   map[int64]Term
-	childIdx   int
-	childKeys  []nodeKey
-	childNodes []*AnswerTrieNode // Snapshot of child nodes
+	trie *AnswerTrie
+	idx  int
+	mu   sync.Mutex // Protects idx
 }
 
 // Next returns the next answer or nil if exhausted.
@@ -568,55 +570,16 @@ func (ai *AnswerIterator) Next() (map[int64]Term, bool) {
 	ai.mu.Lock()
 	defer ai.mu.Unlock()
 
-	for len(ai.stack) > 0 {
-		// Pop current frame
-		frame := ai.stack[len(ai.stack)-1]
-		node := frame.node
+	ai.trie.mu.Lock()
+	defer ai.trie.mu.Unlock()
 
-		// First visit: collect children snapshot
-		if frame.childKeys == nil {
-			// Take snapshot of children under trie lock
-			ai.trie.mu.Lock()
-			frame.childKeys = make([]nodeKey, 0, len(node.children))
-			frame.childNodes = make([]*AnswerTrieNode, 0, len(node.children))
-			for key, child := range node.children {
-				frame.childKeys = append(frame.childKeys, key)
-				frame.childNodes = append(frame.childNodes, child)
-			}
-			ai.trie.mu.Unlock()
-		}
-
-		// Check if this node is an answer
-		if node.isAnswer && frame.childIdx == 0 && node != ai.trie.root {
-			frame.childIdx++ // Mark as visited
-			return frame.bindings, true
-		}
-
-		// Process children
-		if frame.childIdx < len(frame.childNodes) {
-			child := frame.childNodes[frame.childIdx]
-			frame.childIdx++
-
-			// Create new bindings with this child's variable
-			newBindings := make(map[int64]Term, len(frame.bindings)+1)
-			for k, v := range frame.bindings {
-				newBindings[k] = v
-			}
-			newBindings[child.varID] = child.value
-
-			// Push child frame
-			ai.stack = append(ai.stack, &iteratorFrame{
-				node:     child,
-				bindings: newBindings,
-			})
-			continue
-		}
-
-		// No more children, pop frame
-		ai.stack = ai.stack[:len(ai.stack)-1]
+	if ai.idx >= len(ai.trie.answers) {
+		return nil, false
 	}
 
-	return nil, false
+	answer := ai.trie.answers[ai.idx]
+	ai.idx++
+	return answer, true
 }
 
 // hashTerm computes a hash for a term.
