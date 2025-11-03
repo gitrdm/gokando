@@ -13,7 +13,7 @@ import (
 // TestMemoryProfiling demonstrates Go's memory profiling capabilities
 // Run with: go test -run=TestMemoryProfiling -memprofile=mem.prof
 func TestMemoryProfiling(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping memory profiling test in short mode")
 	}
 
@@ -109,7 +109,7 @@ func TestMemoryProfiling(t *testing.T) {
 // TestCPUProfiling demonstrates CPU profiling
 // Run with: go test -run=TestCPUProfiling -cpuprofile=cpu.prof
 func TestCPUProfiling(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping CPU profiling test in short mode")
 	}
 
@@ -171,7 +171,7 @@ func TestCPUProfiling(t *testing.T) {
 
 // TestMemoryLeakDetection tests for potential memory leaks
 func TestMemoryLeakDetection(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping memory leak detection in short mode")
 	}
 
