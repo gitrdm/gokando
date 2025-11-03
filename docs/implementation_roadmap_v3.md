@@ -688,9 +688,19 @@ This section records current implementation progress without changing the planne
     - AnswerTrie concurrency: current implementation uses a single mutex for write coordination and takes a slice snapshot for iteration, rather than fully lock-free maps for children. This keeps the hot path (iteration) lock-free and has performed well in tests; we can evolve to finer-grained or lock-free structures if profiling warrants.
     - Iterator concurrency: order is globally deterministic by insertion, but distribution across concurrent callers of `Next()` depends on scheduling; documentation clarifies recommended single-consumer usage per iterator for deterministic delivery.
 
-- Not yet implemented (Phase 5 items still pending)
-    - Well-Founded Semantics (WFS) and stratification engine for negation.
-    - Answer subsumption with FD domain-aware pruning and cache invalidation on FD domain changes.
+- Implemented (WFS slice)
+    - Stratification helpers in the SLG engine (`SetStrata`, `Stratum`).
+    - `NegateEvaluator` enforcing stratification and implementing negation-as-failure; example and tests added; producer status semantics updated to mark subgoals Failed on evaluator errors.
+
+- In progress (current sprint)
+    - WFS scaffolding types: `DelaySet` and `AnswerRecord`; extending `AnswerTrie` with optional per-answer metadata (delay sets) and a parallel iterator that returns `AnswerRecord` while keeping the existing iterator stable.
+    - Conditional negation: when a negated inner subgoal is incomplete, produce a conditional (delayed) answer rather than immediate failure.
+
+- Not yet implemented (full WFS breadth)
+    - SLG operations for negation: delay and simplification, completion rules, and resolution of conditional answers as dependencies complete.
+    - Undefined truth handling (true/false/undefined) and API exposure for subgoal truth status.
+    - Unfounded set detection and resolution for negative cycles/mutual negation.
+    - Answer subsumption with FD domain-aware pruning and cache invalidation on FD changes.
     - Public tabling API wrappers (`Tabled`, `WithTabling`, stats surface) and user-facing guides.
     - Large-scale tabling test matrix (200+ cases) and performance analysis doc.
 
@@ -735,6 +745,13 @@ Following the established GoKanDo patterns, the tabling infrastructure must be:
 5. **Production-ready**: Comprehensive testing, clear APIs, literate documentation
 
 ---
+
+Scope for full WFS (deliverables):
+- Conditional answers with per-answer delay sets.
+- Delay and simplification operations; completion rules.
+- Undefined truth handling and API surfacing.
+- Unfounded set detection for negative cycles.
+- Backwards-compatible iterators (current map-based) and a parallel metadata-aware iterator returning AnswerRecord.
 
 #### **Task 5.1: Design Core Tabling Data Structures** ⏳
 
