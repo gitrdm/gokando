@@ -1282,28 +1282,64 @@ func ExampleTabled() {
         - **Total Implementation**: ~1,900 lines (helpers + constraints + rational arithmetic)
         - **Test Coverage**: 75.6% overall, all gap-related tests passing
 
-- [ ] **Task 6.7: Pattern Matching Operators** ⏳ PENDING
-    - [ ] **Objective**: Provide ergonomic pattern matching operators to reduce boilerplate in complex queries and rules.
-    - [ ] **Action**:
-        - [ ] Implement `Matche(term Term, clauses ...[]Goal) Goal` - Exhaustive pattern matching with multiple clauses
-        - [ ] Implement `Matcha(term Term, clauses ...[]Goal) Goal` - Pattern matching with committed choice (first match wins)
-        - [ ] Implement `Matchu(term Term, clauses ...[]Goal) Goal` - Pattern matching requiring unique match
-        - [ ] Add pattern syntax helpers for common structures (lists, tuples, atoms)
-        - [ ] Create examples demonstrating pattern matching with pldb queries
-        - [ ] Document pattern matching semantics and best practices
-    - [ ] **Success Criteria**:
-        - Pattern matching operators work correctly with all term types
-        - Matche explores all matching clauses, Matcha commits to first, Matchu requires uniqueness
-        - Examples show reduced boilerplate vs. manual Conde + Car/Cdr combinations
-        - Integration with pldb enables elegant rule definitions
+- [x] **Task 6.7: Pattern Matching Operators** ✅ COMPLETED
+    - [x] **Objective**: Provide ergonomic pattern matching operators to reduce boilerplate in complex queries and rules.
+    - [x] **Action**:
+        - [x] Implement `Matche(term Term, clauses ...PatternClause) Goal` - Exhaustive pattern matching with multiple clauses
+        - [x] Implement `Matcha(term Term, clauses ...PatternClause) Goal` - Pattern matching with committed choice (first match wins)
+        - [x] Implement `Matchu(term Term, clauses ...PatternClause) Goal` - Pattern matching requiring unique match
+        - [x] Add `MatcheList(list Term, clauses ...PatternClause) Goal` - List-specific convenience wrapper
+        - [x] Add `NewClause(pattern Term, goals ...Goal) PatternClause` - Clause constructor
+        - [x] Create 19 comprehensive tests covering all operators and edge cases
+        - [x] Create 11 examples demonstrating pattern matching with pldb, hybrid solver, and FD constraints
+        - [x] Document pattern matching semantics and best practices
+    - [x] **Success Criteria**:
+        - Pattern matching operators work correctly with all term types ✅
+        - Matche explores all matching clauses (uses Disj), Matcha commits to first, Matchu requires uniqueness ✅
+        - Examples show reduced boilerplate vs. manual Conde + Car/Cdr combinations ✅
+        - Integration with pldb enables elegant rule definitions ✅
+        - Integration with hybrid solver (Phase 3) verified ✅
+        - Integration with FD constraints (Phase 4) verified ✅
+    - **Implementation Details**:
+        - **Files**: `pkg/minikanren/pattern.go` (388 lines)
+        - **Tests**: `pkg/minikanren/pattern_test.go` (468 lines, 19 tests, 100% passing)
+        - **Examples**: `pkg/minikanren/pattern_example_test.go` (11 examples, all passing)
+        - **Coverage**: 9.6% of overall codebase (pattern tests + examples)
+        - **Key Components**:
+            - `PatternClause` struct with Pattern (Term) and Goals ([]Goal)
+            - `Matche` - exhaustive matching via Disj combination
+            - `Matcha` - committed choice via sequential evaluation
+            - `Matchu` - unique matching with pre-check validation
+            - `MatcheList` - list-specific patterns with validation
+        - **Integration Points**:
+            - Works with `UnifiedStore` (Phase 3 hybrid solver)
+            - Composes with `pldb` queries
+            - Works with FD constraints
+            - Uses existing primitives (Eq, Conj, Disj, Fresh)
+        - **Examples**:
+            - `ExampleMatche` - exhaustive list classification
+            - `ExampleMatcha` - safe head extraction with default
+            - `ExampleMatchu` - unique number classification
+            - `ExampleNewClause` - variable binding with multiple goals
+            - `ExampleMatcheList` - list pattern matching
+            - `ExampleMatche_listProcessing` - element extraction
+            - `ExampleMatcha_deterministicChoice` - data type dispatch
+            - `ExampleMatchu_validation` - category validation
+            - `ExamplePatternClause_nestedPatterns` - complex nested structures
+            - `ExampleMatche_withDatabase` - pldb integration
+            - `ExampleMatcha_withHybridSolver` - FD constraint integration
+        - **Test Results**: 30 test cases (19 tests + 11 examples), 100% pass rate
     - **Rationale**: Pattern matching is standard in core.logic and dramatically improves code readability for complex relational programs. Essential for readable pldb rules and tabling queries.
     - **Example Usage**:
         ```go
-        // Instead of nested Conde + Car/Cdr:
-        Matche(list,
-            []Goal{Eq(list, Nil), Eq(result, NewAtom(0))},  // empty list case
-            []Goal{Pairo(list), lengthRecursive(list, result)},  // non-empty case
-        )
+        // Ergonomic pattern matching with clauses
+        result := Run(5, func(q *Var) Goal {
+            return Matche(list,
+                NewClause(Nil, Eq(q, NewAtom("empty"))),
+                NewClause(NewPair(Fresh("_"), Nil), Eq(q, NewAtom("singleton"))),
+                NewClause(NewPair(Fresh("_"), NewPair(Fresh("_"), Fresh("_"))), Eq(q, NewAtom("multiple"))),
+            )
+        })
         ```
 
 - [ ] **Task 6.8: Advanced List Operations** ⏳ PENDING
