@@ -1,203 +1,244 @@
 package minikanren
 
-// fd_monitor.go: monitoring and statistics for FD solver
+// fd_monitor.go: lock-free monitoring and statistics for FD solver
 
 import (
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 )
 
-// SolverStats holds statistics about the FD solving process
+// SolverStats holds statistics about the FD solving process.
+// All fields use atomic operations for lock-free updates.
 type SolverStats struct {
 	// Search statistics
-	NodesExplored  int           // Number of search nodes explored
-	Backtracks     int           // Number of backtracks performed
-	SolutionsFound int           // Number of solutions found
+	NodesExplored  int64         // Number of search nodes explored
+	Backtracks     int64         // Number of backtracks performed
+	SolutionsFound int64         // Number of solutions found
 	SearchTime     time.Duration // Time spent in search
-	MaxDepth       int           // Maximum search depth reached
+	MaxDepth       int64         // Maximum search depth reached
 
 	// Propagation statistics
-	PropagationCount int           // Number of propagation operations
-	PropagationTime  time.Duration // Time spent in propagation
-	ConstraintsAdded int           // Number of constraints added
+	PropagationCount int64 // Number of propagation operations
+	PropagationTime  int64 // Time spent in propagation (nanoseconds)
+	ConstraintsAdded int64 // Number of constraints added
 
-	// Domain statistics
-	InitialDomains   []BitSet // Initial domain snapshots
-	FinalDomains     []BitSet // Final domain snapshots
-	DomainReductions []int    // Domain size reductions per variable
+	// Domain statistics (not used in Phase 1, will be implemented in Phase 2)
+	// InitialDomains   []BitSet // Initial domain snapshots
+	// FinalDomains     []BitSet // Final domain snapshots
+	// DomainReductions []int    // Domain size reductions per variable
 
 	// Memory statistics
-	PeakTrailSize int // Peak size of the undo trail
-	PeakQueueSize int // Peak size of the propagation queue
+	PeakTrailSize int64 // Peak size of the undo trail
+	PeakQueueSize int64 // Peak size of the propagation queue
 }
 
-// SolverMonitor provides monitoring capabilities for the FD solver
+// SolverMonitor provides lock-free monitoring capabilities for the FD solver.
+// All operations use atomic instructions for safe concurrent access without locks.
+// Designed to match the lock-free copy-on-write architecture of the solver.
 type SolverMonitor struct {
-	mu        sync.Mutex
-	stats     *SolverStats
+	stats     SolverStats
 	startTime time.Time
-	propStart time.Time
+	propStart atomic.Int64 // Propagation start time in nanoseconds (0 = not started)
 }
 
-// NewSolverMonitor creates a new solver monitor
+// NewSolverMonitor creates a new solver monitor.
+// Uses atomic operations for lock-free statistics collection.
 func NewSolverMonitor() *SolverMonitor {
 	return &SolverMonitor{
-		stats: &SolverStats{
-			InitialDomains:   make([]BitSet, 0),
-			FinalDomains:     make([]BitSet, 0),
-			DomainReductions: make([]int, 0),
-		},
 		startTime: time.Now(),
 	}
 }
 
-// GetStats returns a copy of the current statistics
+// GetStats returns a snapshot of the current statistics.
+// Returns nil if the monitor is nil.
+// Safe to call concurrently from multiple goroutines.
 func (m *SolverMonitor) GetStats() *SolverStats {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	stats := *m.stats
-	return &stats
+	if m == nil {
+		return nil
+	}
+	// Atomic loads to get consistent snapshot
+	return &SolverStats{
+		NodesExplored:    atomic.LoadInt64(&m.stats.NodesExplored),
+		Backtracks:       atomic.LoadInt64(&m.stats.Backtracks),
+		SolutionsFound:   atomic.LoadInt64(&m.stats.SolutionsFound),
+		SearchTime:       m.stats.SearchTime, // Only written once at end
+		MaxDepth:         atomic.LoadInt64(&m.stats.MaxDepth),
+		PropagationCount: atomic.LoadInt64(&m.stats.PropagationCount),
+		PropagationTime:  atomic.LoadInt64(&m.stats.PropagationTime),
+		ConstraintsAdded: atomic.LoadInt64(&m.stats.ConstraintsAdded),
+		PeakTrailSize:    atomic.LoadInt64(&m.stats.PeakTrailSize),
+		PeakQueueSize:    atomic.LoadInt64(&m.stats.PeakQueueSize),
+	}
 }
 
-// StartPropagation marks the beginning of a propagation operation
+// StartPropagation marks the beginning of a propagation operation.
+// Safe to call on nil monitor. Lock-free.
 func (m *SolverMonitor) StartPropagation() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.propStart = time.Now()
+	if m == nil {
+		return
+	}
+	m.propStart.Store(time.Now().UnixNano())
 }
 
-// EndPropagation marks the end of a propagation operation
+// EndPropagation marks the end of a propagation operation.
+// Safe to call on nil monitor. Lock-free.
 func (m *SolverMonitor) EndPropagation() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if !m.propStart.IsZero() {
-		m.stats.PropagationTime += time.Since(m.propStart)
-		m.stats.PropagationCount++
-		m.propStart = time.Time{}
+	if m == nil {
+		return
+	}
+	startNano := m.propStart.Load()
+	if startNano != 0 {
+		elapsed := time.Now().UnixNano() - startNano
+		atomic.AddInt64(&m.stats.PropagationTime, elapsed)
+		atomic.AddInt64(&m.stats.PropagationCount, 1)
+		m.propStart.Store(0)
 	}
 }
 
-// RecordBacktrack records a backtrack operation
+// RecordBacktrack records a backtrack operation.
+// Safe to call on nil monitor. Lock-free.
 func (m *SolverMonitor) RecordBacktrack() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.stats.Backtracks++
+	if m == nil {
+		return
+	}
+	atomic.AddInt64(&m.stats.Backtracks, 1)
 }
 
-// RecordNode records exploring a search node
+// RecordNode records exploring a search node.
+// Safe to call on nil monitor. Lock-free.
 func (m *SolverMonitor) RecordNode() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.stats.NodesExplored++
+	if m == nil {
+		return
+	}
+	atomic.AddInt64(&m.stats.NodesExplored, 1)
 }
 
-// RecordSolution records finding a solution
+// RecordSolution records finding a solution.
+// Safe to call on nil monitor. Lock-free.
 func (m *SolverMonitor) RecordSolution() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.stats.SolutionsFound++
+	if m == nil {
+		return
+	}
+	atomic.AddInt64(&m.stats.SolutionsFound, 1)
 }
 
-// RecordDepth records the current search depth
+// RecordDepth records the current search depth.
+// Safe to call on nil monitor. Lock-free using compare-and-swap.
 func (m *SolverMonitor) RecordDepth(depth int) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if depth > m.stats.MaxDepth {
-		m.stats.MaxDepth = depth
+	if m == nil {
+		return
 	}
-}
-
-// RecordConstraint records adding a constraint
-func (m *SolverMonitor) RecordConstraint() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.stats.ConstraintsAdded++
-}
-
-// RecordTrailSize records the current trail size
-func (m *SolverMonitor) RecordTrailSize(size int) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if size > m.stats.PeakTrailSize {
-		m.stats.PeakTrailSize = size
-	}
-}
-
-// RecordQueueSize records the current queue size
-func (m *SolverMonitor) RecordQueueSize(size int) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if size > m.stats.PeakQueueSize {
-		m.stats.PeakQueueSize = size
-	}
-}
-
-// CaptureInitialDomains captures the initial domain state
-func (m *SolverMonitor) CaptureInitialDomains(store *FDStore) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.stats.InitialDomains = make([]BitSet, len(store.vars))
-	for i, v := range store.vars {
-		m.stats.InitialDomains[i] = v.domain.Clone()
-	}
-}
-
-// CaptureFinalDomains captures the final domain state and computes reductions
-func (m *SolverMonitor) CaptureFinalDomains(store *FDStore) {
-	store.mu.Lock()
-	defer store.mu.Unlock()
-
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.stats.FinalDomains = make([]BitSet, len(store.vars))
-	m.stats.DomainReductions = make([]int, len(store.vars))
-
-	for i, v := range store.vars {
-		m.stats.FinalDomains[i] = v.domain.Clone()
-		if i < len(m.stats.InitialDomains) {
-			initialSize := m.stats.InitialDomains[i].Count()
-			finalSize := m.stats.FinalDomains[i].Count()
-			m.stats.DomainReductions[i] = initialSize - finalSize
+	depth64 := int64(depth)
+	// Atomic max update using compare-and-swap loop
+	for {
+		old := atomic.LoadInt64(&m.stats.MaxDepth)
+		if depth64 <= old {
+			break
+		}
+		if atomic.CompareAndSwapInt64(&m.stats.MaxDepth, old, depth64) {
+			break
 		}
 	}
 }
 
-// FinishSearch marks the end of the search process
-func (m *SolverMonitor) FinishSearch() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.stats.SearchTime = time.Since(m.startTime)
+// RecordConstraint records adding a constraint.
+// Safe to call on nil monitor. Lock-free.
+func (m *SolverMonitor) RecordConstraint() {
+	if m == nil {
+		return
+	}
+	atomic.AddInt64(&m.stats.ConstraintsAdded, 1)
 }
 
-// String returns a formatted string representation of the statistics
+// RecordTrailSize records the current trail size.
+// Safe to call on nil monitor. Lock-free using compare-and-swap.
+func (m *SolverMonitor) RecordTrailSize(size int) {
+	if m == nil {
+		return
+	}
+	size64 := int64(size)
+	// Atomic max update using compare-and-swap loop
+	for {
+		old := atomic.LoadInt64(&m.stats.PeakTrailSize)
+		if size64 <= old {
+			break
+		}
+		if atomic.CompareAndSwapInt64(&m.stats.PeakTrailSize, old, size64) {
+			break
+		}
+	}
+}
+
+// RecordQueueSize records the current queue size.
+// Safe to call on nil monitor. Lock-free using compare-and-swap.
+func (m *SolverMonitor) RecordQueueSize(size int) {
+	if m == nil {
+		return
+	}
+	size64 := int64(size)
+	// Atomic max update using compare-and-swap loop
+	for {
+		old := atomic.LoadInt64(&m.stats.PeakQueueSize)
+		if size64 <= old {
+			break
+		}
+		if atomic.CompareAndSwapInt64(&m.stats.PeakQueueSize, old, size64) {
+			break
+		}
+	}
+}
+
+// CaptureInitialDomains captures the initial domain state.
+// Safe to call on nil monitor.
+// Phase 2 implementation - currently a no-op.
+func (m *SolverMonitor) CaptureInitialDomains(store *FDStore) {
+	if m == nil {
+		return
+	}
+	// Phase 2: Will capture domain snapshots here
+}
+
+// CaptureFinalDomains captures the final domain state and computes reductions.
+// Safe to call on nil monitor.
+// Phase 2 implementation - currently a no-op.
+func (m *SolverMonitor) CaptureFinalDomains(store *FDStore) {
+	if m == nil {
+		return
+	}
+	// Phase 2: Will capture domain snapshots and compute reductions here
+}
+
+// FinishSearch marks the end of the search process.
+// Safe to call on nil monitor. Only called once at end, no synchronization needed.
+func (m *SolverMonitor) FinishSearch() {
+	if m == nil {
+		return
+	}
+	m.stats.SearchTime = time.Since(m.startTime)
+} // String returns a formatted string representation of the statistics.
 func (s *SolverStats) String() string {
 	return fmt.Sprintf(
 		"Solver Statistics:\n"+
-			"  Search: %d nodes, %d backtracks, %d solutions, %v time, max depth %d\n"+
-			"  Propagation: %d ops, %v time, %d constraints\n"+
-			"  Memory: peak trail %d, peak queue %d\n"+
-			"  Domains: %d variables, avg reduction %.1f",
-		s.NodesExplored, s.Backtracks, s.SolutionsFound, s.SearchTime, s.MaxDepth,
-		s.PropagationCount, s.PropagationTime, s.ConstraintsAdded,
-		s.PeakTrailSize, s.PeakQueueSize,
-		len(s.DomainReductions), s.averageReduction(),
+			"  Nodes Explored:  %d\n"+
+			"  Backtracks:      %d\n"+
+			"  Solutions:       %d\n"+
+			"  Max Depth:       %d\n"+
+			"  Search Time:     %v\n"+
+			"  Propagations:    %d\n"+
+			"  Prop Time:       %v\n"+
+			"  Constraints:     %d\n"+
+			"  Peak Trail:      %d\n"+
+			"  Peak Queue:      %d\n",
+		s.NodesExplored,
+		s.Backtracks,
+		s.SolutionsFound,
+		s.MaxDepth,
+		s.SearchTime,
+		s.PropagationCount,
+		time.Duration(s.PropagationTime),
+		s.ConstraintsAdded,
+		s.PeakTrailSize,
+		s.PeakQueueSize,
 	)
-}
-
-// averageReduction computes the average domain size reduction
-func (s *SolverStats) averageReduction() float64 {
-	if len(s.DomainReductions) == 0 {
-		return 0
-	}
-	total := 0
-	for _, r := range s.DomainReductions {
-		total += r
-	}
-	return float64(total) / float64(len(s.DomainReductions))
 }

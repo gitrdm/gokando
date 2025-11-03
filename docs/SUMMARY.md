@@ -23,3 +23,7 @@
 - [Guides Overview](guides/README.md)
 - [Contributing](guides/contributing.md)
 - [FAQ](guides/faq.md)
+
+## Performance Profiles
+
+- [Phase 4.1 Performance Summary](../profiles/PHASE4_PERFORMANCE_SUMMARY.md)

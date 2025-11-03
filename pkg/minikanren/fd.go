@@ -25,6 +25,9 @@ const (
 	HeuristicRandom
 	// HeuristicActivity uses constraint activity (not yet implemented)
 	HeuristicActivity
+	// HeuristicImpact uses objective impact for optimization problems
+	// Prefers variables that most affect the objective bounds when assigned
+	HeuristicImpact
 )
 
 // ValueOrderingHeuristic defines strategies for ordering values within a domain
@@ -39,6 +42,9 @@ const (
 	ValueOrderRandom
 	// ValueOrderMid starts from middle value outward
 	ValueOrderMid
+	// ValueOrderObjImproving tries objective-improving values first
+	// For minimize: try smaller values first; for maximize: try larger values first
+	ValueOrderObjImproving
 )
 
 // SolverConfig holds configuration for the FD solver
@@ -131,6 +137,24 @@ func (b BitSet) IterateValues(f func(v int)) {
 			w &^= t
 		}
 	}
+}
+
+// ToSlice returns all values in the domain as a pre-allocated slice.
+// This is more efficient than IterateValues when you need all values at once.
+func (b BitSet) ToSlice() []int {
+	count := b.Count()
+	if count == 0 {
+		return nil
+	}
+	result := make([]int, 0, count)
+	for i, w := range b.words {
+		for w != 0 {
+			off := bits.TrailingZeros64(w)
+			result = append(result, i*64+off+1)
+			w &^= (1 << off)
+		}
+	}
+	return result
 }
 
 // Intersect returns a new BitSet containing values present in both this and other BitSet

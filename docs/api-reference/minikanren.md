@@ -4,6 +4,106 @@ Complete API documentation for the minikanren package.
 
 **Import Path:** `github.com/gitrdm/gokando/pkg/minikanren`
 
+## Optimization API (Phase 4.4)
+
+Production-grade optimization is available via branch-and-bound over the FD solver with sequential and parallel execution.
+
+- Entry points:
+  - `SolveOptimal(ctx context.Context, obj *FDVariable, minimize bool) (solution []int, objVal int, err error)`
+  - `SolveOptimalWithOptions(ctx context.Context, obj *FDVariable, minimize bool, opts ...OptimizeOption) (solution []int, objVal int, err error)`
+
+- Options:
+  - `WithTimeLimit(d time.Duration)` — cancels search after deadline; returns incumbent with `ErrSearchLimitReached` if any
+  - `WithNodeLimit(n int)` — counts only explored leaves; guarantees anytime incumbent; returns `ErrSearchLimitReached` when limit reached
+  - `WithTargetObjective(val int)` — early-accept when objective reaches the target (direction-aware)
+  - `WithParallelWorkers(k int)` — parallel branch-and-bound with shared incumbent via atomics
+  - `WithHeuristics(h Heuristic)` — override variable/value ordering
+
+- Semantics and errors:
+  - Always returns the best found assignment and objective. If a limit/timeouts prevents proving optimality, `err == ErrSearchLimitReached` and the incumbent is returned.
+  - If no solution is found before a limit, returns `nil, 0, ErrSearchLimitReached`.
+
+- Lower bounds and pruning:
+  - Uses structural lower bounds when recognized, e.g., `LinearSum` totals: LB = Σ a[i]·min(x[i]) for non-negative coefficients.
+  - Tightens the objective variable's domain on improved incumbents to drive propagation.
+
+- Examples:
+  - `pkg/minikanren/optimization_example_test.go`: `ExampleSolver_SolveOptimal`, `ExampleSolver_SolveOptimalWithOptions`
+
+- Ergonomics:
+  - `FDVariable.Value()` panics if unbound by contract. A safe accessor is available: `FDVariable.TryValue() (int, error)`.
+
+## Global Constraints (additions in Phase 4.3)
+
+Two production global constraints were added with literate Go examples:
+
+- LinearSum — Weighted sum equality with non-negative coefficients enforcing Σ a[i]*x[i] = total with bounds-consistent propagation.
+  - Constructor: `NewLinearSum(vars []*FDVariable, coeffs []int, total *FDVariable) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewLinearSum` in `pkg/minikanren/sum_example_test.go`
+
+- ElementValues — Element constraint over a constant array enforcing `result = values[index]` with bidirectional pruning and index clamping.
+  - Constructor: `NewElementValues(index *FDVariable, values []int, result *FDVariable) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewElementValues` in `pkg/minikanren/element_example_test.go`
+
+- Circuit — Single Hamiltonian cycle over successors ensuring exactly one successor and predecessor per node and eliminating subtours via reified order constraints.
+  - Constructor: `NewCircuit(model *Model, succ []*FDVariable, startIndex int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewCircuit` in `pkg/minikanren/circuit_example_test.go`
+
+- Table — Extensional constraint enforcing that a tuple of variables matches one of the allowed rows; maintains generalized arc consistency over the fixed table.
+  - Constructor: `NewTable(vars []*FDVariable, rows [][]int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewTable` in `pkg/minikanren/table_example_test.go`
+
+- Regular — DFA (regular language) constraint enforcing that a sequence of variables forms a word accepted by a given DFA; uses forward/backward filtering for strong pruning.
+  - Constructor: `NewRegular(vars []*FDVariable, numStates int, start int, acceptStates []int, delta [][]int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewRegular` in `pkg/minikanren/regular_example_test.go`
+
+- Cumulative — Renewable resource constraint ensuring that at every time unit the sum of demands of running tasks does not exceed capacity. Implements time-table filtering using compulsory parts, plus energetic reasoning and edge-finding-like pruning for stronger propagation.
+  - Constructor: `NewCumulative(starts []*FDVariable, durations, demands []int, capacity int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewCumulative` in `pkg/minikanren/cumulative_example_test.go`
+
+- NoOverlap (Disjunctive) — Single-machine non-overlap scheduling: tasks with given durations must not overlap in time. Implemented as a validated wrapper over Cumulative with unit demands and capacity = 1.
+  - Constructor: `NewNoOverlap(starts []*FDVariable, durations []int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewNoOverlap` in `pkg/minikanren/nooverlap_example_test.go`
+
+- GlobalCardinality (GCC) — Bounds how many times each value can occur across a set of variables, with per-value min/max occurrence limits; performs bounds checks and prunes saturated values.
+  - Constructor: `NewGlobalCardinality(vars []*FDVariable, minCount, maxCount []int) (PropagationConstraint, error)`
+  - See usage: Example function `ExampleNewGlobalCardinality` in `pkg/minikanren/gcc_example_test.go`
+
+- Min/Max of array — Link a result variable to the extremum of a list: R = min(vars) or R = max(vars), with safe bounds-consistent pruning.
+  - Constructors:
+    - `NewMin(vars []*FDVariable, result *FDVariable) (PropagationConstraint, error)`
+    - `NewMax(vars []*FDVariable, result *FDVariable) (PropagationConstraint, error)`
+  - See usage: Example functions `ExampleNewMin` and `ExampleNewMax` in `pkg/minikanren/minmax_example_test.go`
+
+- DistinctCount / NValue family — Count the number of distinct values taken by a set of variables using a composition of reified equalities and BoolSum; supports exact and at-most variants with safe bounds-consistent propagation.
+  - Constructors:
+    - `NewNValue(model *Model, vars []*FDVariable, nPlus1 *FDVariable) (*DistinctCount, error)`
+    - `NewAtMostNValues(model *Model, vars []*FDVariable, limitPlus1 *FDVariable) (*DistinctCount, error)`
+    - `NewAtLeastNValues(model *Model, vars []*FDVariable, minPlus1 *FDVariable) (*DistinctCount, error)`
+  - See usage: Example functions `ExampleNewAtMostNValues` and `ExampleNewNValue` in `pkg/minikanren/nvalue_example_test.go`
+
+- Diffn (2D non-overlap) — Ensures axis-aligned rectangles do not overlap: for each pair (i,j) enforce at least one axis separation using reified inequalities and a BoolSum disjunction.
+  - Constructor: `NewDiffn(model *Model, x, y []*FDVariable, w, h []int) (*Diffn, error)`
+  - See usage: Example function `ExampleNewDiffn` in `pkg/minikanren/diffn_example_test.go`
+
+- InSetReified — Reify set membership: b ↔ (v ∈ S) with bidirectional pruning.
+  - Constructor: `NewInSetReified(v *FDVariable, setValues []int, boolVar *FDVariable) (*InSetReified, error)`
+  - Used internally by higher-level constraints (e.g., Sequence) and available for modeling.
+
+- Sequence (sliding-window set counts) — For every window of length k over vars, the number of vars in S is between minCount and maxCount.
+  - Constructor: `NewSequence(model *Model, vars []*FDVariable, setValues []int, windowLen, minCount, maxCount int) (*Sequence, error)`
+  - See usage: Example function `ExampleNewSequence` in `pkg/minikanren/sequence_example_test.go`
+
+- Stretch — Run-length bounds per value across a sequence. For each value v, every maximal run of v has length in [minLen[v]..maxLen[v]]. Implemented via a DFA reduced to the Regular constraint for strong pruning.
+  - Constructor: `NewStretch(model *Model, vars []*FDVariable, values []int, minLen []int, maxLen []int) (*Stretch, error)`
+  - See usage: Example function `ExampleNewStretch` in `pkg/minikanren/stretch_example_test.go`
+
+- BinPacking — Assign each item to one of m bins such that the weighted load of items in each bin does not exceed its capacity. Implemented by reifying assignments (x[i]==k) to booleans and enforcing per-bin weighted sums with a load+1 encoding via Arithmetic.
+  - Constructor: `NewBinPacking(model *Model, items []*FDVariable, sizes []int, capacities []int) (*BinPacking, error)`
+  - See usage: Example function `ExampleNewBinPacking` in `pkg/minikanren/bin_packing_example_test.go`
+
+These examples are runnable via `go test` and documented inline to illustrate typical modeling and the resulting propagation.
+
 ## Package Documentation
 
 Package minikanren provides constraint system infrastructure for order-independent

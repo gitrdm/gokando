@@ -302,6 +302,160 @@ Region Coloring:
 ✅ Valid 3-coloring found
 ```
 
+### Small TSP (Hamiltonian Cycle with Circuit)
+
+**Path:** `examples/tsp-small/`
+
+Demonstrates the new Circuit global constraint on a small symmetric TSP instance (n=5). Builds a successor permutation forming a single Hamiltonian cycle and enumerates tours, reporting the best cost found.
+
+**Run:**
+```bash
+cd examples/tsp-small
+go run main.go
+```
+
+**Features demonstrated:**
+- Circuit global constraint: exactly-one successor and predecessor per node
+- Subtour elimination using reified order constraints
+- Enumerating and scoring Hamiltonian cycles; printing the best tour
+
+**Sample Output:**
+```
+=== Small TSP with Circuit (n=5) ===
+Found 12 unique tours. Best cost = 17
+Best cycle: 1 -> 2 -> 5 -> 3 -> 4 -> 1
+```
+
+### Table Constraint Demo (Extensional Constraint)
+
+**Path:** `examples/table-demo/`
+
+Demonstrates the Table global constraint over enumerated variables by restricting (Color, Pet, Drink) tuples to a small allowed set and enumerating all satisfying assignments.
+
+**Run:**
+```bash
+cd examples/table-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- Table (extensional) constraint over multiple variables
+- Enumerated domains with 1-based encoding
+- Solving and printing all allowed tuples
+
+**Sample Output:**
+```
+=== Table Constraint Demo (Color, Pet, Drink) ===
+Found 4 solutions:
+    Color=Red, Pet=Dog, Drink=Coffee
+    Color=Green, Pet=Bird, Drink=Tea
+    Color=Blue, Pet=Cat, Drink=Water
+    Color=Blue, Pet=Dog, Drink=Tea
+```
+
+### Regular Constraint Demo (DFA pattern checker)
+
+**Path:** `examples/regular-demo/`
+
+Demonstrates the Regular global constraint using a simple DFA over the alphabet {A=1, B=2} that accepts exactly the strings that end with A. Shows strong pruning and enumerates all accepted sequences of fixed length.
+
+**Run:**
+```bash
+cd examples/regular-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- DFA-based Regular constraint with forward/backward filtering
+- Enumerated symbols mapped to friendly names (A/B)
+- Solving and printing all accepted sequences of a given length
+
+**Sample Output:**
+```
+=== Regular Constraint Demo (DFA: ends with A) ===
+Found 4 accepted sequences (length=3):
+A A A
+A B A
+B A A
+B B A
+```
+
+### Cumulative Constraint Demo (Resource scheduling)
+
+**Path:** `examples/cumulative-demo/`
+
+Demonstrates the Cumulative global constraint for renewable resource scheduling. Three tasks with fixed durations and demands share a resource with capacity 3; the demo enumerates feasible start-time assignments.
+
+**Run:**
+```bash
+cd examples/cumulative-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- Time-table filtering using compulsory parts
+- Discrete time modeling with 1-based domains
+- Enumerating and printing feasible schedules
+
+**Sample Output:**
+```
+=== Cumulative Constraint Demo (capacity=3) ===
+Found N feasible schedules (showing up to 50):
+S1=1 S2=1 S3=1
+...
+```
+
+### Global Cardinality (GCC) Demo
+
+**Path:** `examples/gcc-demo/`
+
+Demonstrates the GlobalCardinality constraint with per-value occurrence bounds. Three variables over {1,2,3}, with value 1 used exactly once and value 2 at most twice.
+
+**Run:**
+```bash
+cd examples/gcc-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- Per-value min/max occurrence bounds
+- Pruning when a value's max count is saturated
+- Enumerating and printing feasible assignments
+
+**Sample Output:**
+```
+=== Global Cardinality Constraint Demo ===
+Found N feasible assignments (showing up to 50):
+X1=1 X2=2 X3=2
+...
+```
+
+### Lexicographic Ordering Demo
+
+**Path:** `examples/lex-demo/`
+
+Demonstrates the Lexicographic ordering constraint with non-strict ordering X ≤lex Y over two-length vectors, showing bounds pruning on the first component.
+
+**Run:**
+```bash
+cd examples/lex-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- Bounds-consistent lexicographic pruning
+- Symmetry breaking building block for sequences and permutations
+- Prints pruned domains after propagation
+
+**Sample Output:**
+```
+=== Lexicographic Constraint Demo (X ≤lex Y) ===
+x1: {2..4}
+x2: {1..3}
+y1: {3..5}
+y2: {2..4}
+```
+
 ### Zebra Puzzle (Einstein's Riddle)
 
 **Path:** `examples/zebra/`

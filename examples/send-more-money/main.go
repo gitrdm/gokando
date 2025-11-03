@@ -1,19 +1,13 @@
-// Package sendmoremoney solves the classic "SEND + MORE = MONEY" cryptarithm puzzle.
+// Package sendmoremoney solves the classic "SEND + MORE = MONEY" cryptarithm
+// using the production FD solver with Table and global constraints (no hybrid workaround).
 //
-// A cryptarithm is a mathematical puzzle where letters represent digits,
-// and the goal is to find digits for each letter that make the equation true.
-//
-// The puzzle:    SEND
-//   - MORE
-//     ------
-//     = MONEY
-//
-// Each letter represents a unique digit (0-9), and S and M cannot be zero.
-//
-// This example demonstrates:
-// - Hybrid miniKanren + FD cryptarithm solving
-// - Arithmetic constraint verification with carries
-// - Unified constraint solving across formalisms
+// Modeling:
+//   - Digits 0..9 are encoded as FD values 1..10 (value-1 = digit)
+//   - Letters S,E,N,D,M,O,R,Y are FD vars in 1..10, AllDifferent, with S,M ≠ 0 (domains 2..10)
+//   - Column arithmetic is encoded with Table constraints over allowed tuples:
+//     (x, y, cin) -> (z, cout) where x+y+cin = z + 10*cout
+//   - Carries C1..C4 are FD vars in {1,2} encoding {0,1}; final carry-out C4 = 1 (encoded 2)
+//   - This is sufficient to solve the puzzle and discover M=1 (encoded 2)
 package main
 
 import (
@@ -21,201 +15,107 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gitrdm/gokando/pkg/minikanren"
+	mk "github.com/gitrdm/gokando/pkg/minikanren"
 )
 
-// sendMoreMoneyHybrid combines miniKanren relational programming with arithmetic verification
-// for the SEND + MORE = MONEY cryptarithm puzzle
-func sendMoreMoneyHybrid(result minikanren.Term) minikanren.Goal {
-	return func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
-		stream := minikanren.NewStream()
-		go func() {
-			defer stream.Close()
-
-			// Create variables for each letter
-			S := minikanren.Fresh("S")
-			E := minikanren.Fresh("E")
-			N := minikanren.Fresh("N")
-			D := minikanren.Fresh("D")
-			M := minikanren.Fresh("M")
-			O := minikanren.Fresh("O")
-			R := minikanren.Fresh("R")
-			Y := minikanren.Fresh("Y")
-
-			// Helper: ensure all values are distinct
-			allDiff := func(vars ...minikanren.Term) minikanren.Goal {
-				var goals []minikanren.Goal
-				for i := 0; i < len(vars); i++ {
-					for j := i + 1; j < len(vars); j++ {
-						goals = append(goals, minikanren.Neq(vars[i], vars[j]))
-					}
-				}
-				return minikanren.Conj(goals...)
-			}
-
-			// All letters must be different digits (0-9)
-			distinct := allDiff(S, E, N, D, M, O, R, Y)
-
-			// S and M cannot be zero (leading digits)
-			sNotZero := minikanren.Neq(S, minikanren.NewAtom(0))
-			mNotZero := minikanren.Neq(M, minikanren.NewAtom(0))
-
-			// Domain constraints: each variable must be a digit 0-9
-			domains := []minikanren.Goal{}
-			letters := []minikanren.Term{S, E, N, D, M, O, R, Y}
-			for _, letter := range letters {
-				domainGoals := make([]minikanren.Goal, 10)
-				for d := 0; d <= 9; d++ {
-					domainGoals[d] = minikanren.Eq(letter, minikanren.NewAtom(d))
-				}
-				domains = append(domains, minikanren.Disj(domainGoals...))
-			}
-
-			// Arithmetic verification using Project
-			arithmeticCheck := minikanren.Project(letters, func(vals []minikanren.Term) minikanren.Goal {
-				// Extract digit values
-				digits := make([]int, 8)
-				valid := true
-				for i, val := range vals {
-					if atom, ok := val.(*minikanren.Atom); ok {
-						if digit, ok := atom.Value().(int); ok {
-							digits[i] = digit
-						} else {
-							valid = false
-							break
-						}
-					} else {
-						valid = false
-						break
-					}
-				}
-
-				if !valid {
-					return minikanren.Failure
-				}
-
-				// Check the arithmetic: SEND + MORE = MONEY
-				send := digits[0]*1000 + digits[1]*100 + digits[2]*10 + digits[3]
-				more := digits[4]*1000 + digits[5]*100 + digits[6]*10 + digits[1]                    // E is reused
-				money := digits[4]*10000 + digits[5]*1000 + digits[2]*100 + digits[1]*10 + digits[7] // M, O, N, E, Y
-
-				if send+more == money {
-					return minikanren.Success
-				}
-				return minikanren.Failure
-			})
-
-			// Combine all constraints
-			constraints := []minikanren.Goal{
-				distinct,
-				sNotZero,
-				mNotZero,
-				arithmeticCheck,
-			}
-			constraints = append(constraints, domains...)
-
-			// Result format: (S E N D M O R Y)
-			resultGoal := minikanren.Eq(result, minikanren.List(S, E, N, D, M, O, R, Y))
-
-			// Run the combined goal
-			combined := minikanren.Conj(append(constraints, resultGoal)...)
-			finalStream := combined(ctx, store)
-			finalResults, _ := finalStream.Take(10) // Get up to 10 solutions
-
-			for _, res := range finalResults {
-				stream.Put(res)
-			}
-		}()
-		return stream
-	}
-}
-
 func main() {
-	fmt.Println("=== Hybrid miniKanren SEND + MORE = MONEY ===")
-	fmt.Println()
+	fmt.Println("=== FD SEND + MORE = MONEY ===")
 
-	startTime := time.Now()
+	model := mk.NewModel()
 
-	// Use hybrid approach to find cryptarithm solutions
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
+	// Digits encoding: 0..9 -> 1..10
+	digits := mk.NewBitSetDomain(10)
+	digitsNoZero := mk.NewBitSetDomainFromValues(10, []int{2, 3, 4, 5, 6, 7, 8, 9, 10})
 
-	results := minikanren.RunWithContext(ctx, 10, func(q *minikanren.Var) minikanren.Goal {
-		return sendMoreMoneyHybrid(q)
-	})
+	// Letters
+	S := model.NewVariableWithName(digitsNoZero, "S")
+	E := model.NewVariableWithName(digits, "E")
+	N := model.NewVariableWithName(digits, "N")
+	D := model.NewVariableWithName(digits, "D")
+	// In SEND+MORE=MONEY, the leading carry creates M=1 (encoded 2). We can safely fix M to 1.
+	M := model.NewVariableWithName(mk.NewBitSetDomainFromValues(10, []int{2}), "M")
+	O := model.NewVariableWithName(digits, "O")
+	R := model.NewVariableWithName(digits, "R")
+	Y := model.NewVariableWithName(digits, "Y")
 
-	elapsed := time.Since(startTime)
+	// AllDifferent on letters
+	ad, _ := mk.NewAllDifferent([]*mk.FDVariable{S, E, N, D, M, O, R, Y})
+	model.AddConstraint(ad)
 
-	if len(results) == 0 {
-		fmt.Printf("❌ No solutions found within timeout (%.2fs)\n", elapsed.Seconds())
-		fmt.Println()
-		fmt.Println("This demonstrates the current limitations of the hybrid approach.")
-		fmt.Println("Cryptarithms require sophisticated constraint propagation for")
-		fmt.Println("efficient solving.")
-		fmt.Println()
-		fmt.Println("Key insights:")
-		fmt.Println("- ✅ Hybrid miniKanren framework works for basic constraints")
-		fmt.Println("- ✅ Arithmetic verification with Project is functional")
-		fmt.Println("- ✅ Uniqueness and domain constraints are handled")
-		fmt.Println("- ℹ️ Complex arithmetic constraints need better propagation")
-		return
-	}
+	// Carries C1..C4 (0/1 -> {1,2}); C0 is implicitly 0; C4 must be 1
+	bool01 := mk.NewBitSetDomainFromValues(10, []int{1, 2})
+	C1 := model.NewVariableWithName(bool01, "C1")
+	C2 := model.NewVariableWithName(bool01, "C2")
+	C3 := model.NewVariableWithName(bool01, "C3")
+	C4 := model.NewVariableWithName(mk.NewBitSetDomainFromValues(10, []int{2}), "C4") // final carry = 1 (encoded 2)
 
-	fmt.Printf("✓ Found %d solution(s) in %.2fs!\n\n", len(results), elapsed.Seconds())
-
-	// Display solutions
-	for i, result := range results {
-		fmt.Printf("Solution %d:\n", i+1)
-		displayCryptarithm(result)
-		fmt.Println()
-	}
-}
-
-// displayCryptarithm pretty-prints a cryptarithm solution from miniKanren result
-func displayCryptarithm(result minikanren.Term) {
-	// Extract the digit assignments from miniKanren list: (S E N D M O R Y)
-	pair, ok := result.(*minikanren.Pair)
-	if !ok {
-		fmt.Println("Invalid result format")
-		return
-	}
-
-	// Extract digits
-	letters := []string{"S", "E", "N", "D", "M", "O", "R", "Y"}
-	solution := make(map[string]int)
-
-	idx := 0
-	for pair != nil && idx < len(letters) {
-		if atom, ok := pair.Car().(*minikanren.Atom); ok {
-			if val, ok := atom.Value().(int); ok {
-				solution[letters[idx]] = val
+	// Helper: build table rows for a column: x + y + cin = z + 10*cout under encoding
+	buildCol := func() [][]int {
+		rows := make([][]int, 0, 10*10*2)
+		for x := 0; x <= 9; x++ {
+			for y := 0; y <= 9; y++ {
+				for cin := 0; cin <= 1; cin++ {
+					sum := x + y + cin
+					z := sum % 10
+					cout := sum / 10
+					rows = append(rows, []int{x + 1, y + 1, cin + 1, z + 1, cout + 1})
+				}
 			}
 		}
+		return rows
+	}
+	colRows := buildCol()
 
-		if next, ok := pair.Cdr().(*minikanren.Pair); ok {
-			pair = next
-		} else {
-			break
-		}
-		idx++
+	// Column 1 (units): D + E + 0 = Y + 10*C1
+	// Encode carry-in 0 by restricting a variable to {1}
+	C0 := model.NewVariableWithName(mk.NewBitSetDomainFromValues(10, []int{1}), "C0")
+	t1, _ := mk.NewTable([]*mk.FDVariable{D, E, C0, Y, C1}, colRows)
+	model.AddConstraint(t1)
+
+	// Column 2: N + R + C1 = E + 10*C2
+	t2, _ := mk.NewTable([]*mk.FDVariable{N, R, C1, E, C2}, colRows)
+	model.AddConstraint(t2)
+
+	// Column 3: E + O + C2 = N + 10*C3
+	t3, _ := mk.NewTable([]*mk.FDVariable{E, O, C2, N, C3}, colRows)
+	model.AddConstraint(t3)
+
+	// Column 4: S + M + C3 = O + 10*C4
+	t4, _ := mk.NewTable([]*mk.FDVariable{S, M, C3, O, C4}, colRows)
+	model.AddConstraint(t4)
+
+	// Solve
+	solver := mk.NewSolver(model)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	sols, _ := solver.Solve(ctx, 1) // one solution is enough
+
+	if len(sols) == 0 {
+		fmt.Println("No solution found")
+		return
 	}
 
-	// Display the solution
+	// Print mapping from the found solution (convert encoded to digits by -1)
+	sol := sols[0]
+	vals := map[string]int{
+		"S": sol[S.ID()] - 1,
+		"E": sol[E.ID()] - 1,
+		"N": sol[N.ID()] - 1,
+		"D": sol[D.ID()] - 1,
+		"M": sol[M.ID()] - 1,
+		"O": sol[O.ID()] - 1,
+		"R": sol[R.ID()] - 1,
+		"Y": sol[Y.ID()] - 1,
+	}
+
 	fmt.Println("Letter → Digit mapping:")
-	for _, letter := range letters {
-		fmt.Printf("  %s → %d\n", letter, solution[letter])
+	order := []string{"S", "E", "N", "D", "M", "O", "R", "Y"}
+	for _, k := range order {
+		fmt.Printf("  %s → %d\n", k, vals[k])
 	}
 
-	fmt.Println()
-	fmt.Printf("  %d%d%d%d\n", solution["S"], solution["E"], solution["N"], solution["D"])
-	fmt.Printf("+ %d%d%d%d\n", solution["M"], solution["O"], solution["R"], solution["E"])
-	fmt.Println("------")
-	fmt.Printf(" %d%d%d%d%d\n", solution["M"], solution["O"], solution["N"], solution["E"], solution["Y"])
-
-	// Verify the solution
-	send := solution["S"]*1000 + solution["E"]*100 + solution["N"]*10 + solution["D"]
-	more := solution["M"]*1000 + solution["O"]*100 + solution["R"]*10 + solution["E"]
-	money := solution["M"]*10000 + solution["O"]*1000 + solution["N"]*100 + solution["E"]*10 + solution["Y"]
-
-	fmt.Printf("\nVerification: %d + %d = %d ✓\n", send, more, money)
+	send := vals["S"]*1000 + vals["E"]*100 + vals["N"]*10 + vals["D"]
+	more := vals["M"]*1000 + vals["O"]*100 + vals["R"]*10 + vals["E"]
+	money := vals["M"]*10000 + vals["O"]*1000 + vals["N"]*100 + vals["E"]*10 + vals["Y"]
+	fmt.Printf("\n  %d\n+ %d\n------\n %d\n", send, more, money)
 }

@@ -1,0 +1,36 @@
+package minikanren
+
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
+// ExampleNewAmong demonstrates basic pruning with the Among constraint.
+// We model S={1,2,3} over three variables. x1 is already restricted to S,
+// and we set K to encode exactly 1 counted variable. The constraint then
+// forces all other variables that could take values in S to be OUT of S.
+func ExampleNewAmong() {
+	model := NewModel()
+
+	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
+	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{2, 3}), "x2")
+	x3 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{3, 4}), "x3")
+	// K encodes count+1; here we want exactly 1 variable in S → K={2}
+	k := model.NewVariableWithName(NewBitSetDomainFromValues(4, []int{2}), "K")
+
+	// S = {1,2}. With K=1 (encoded 2) and x1⊆S, x2 is forced OUT of S
+	c, _ := NewAmong([]*FDVariable{x1, x2, x3}, []int{1, 2}, k)
+	model.AddConstraint(c)
+
+	solver := NewSolver(model)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	_, _ = solver.Solve(ctx, 0)
+
+	fmt.Printf("x2: %s\n", solver.GetDomain(nil, x2.ID()))
+	fmt.Printf("x3: %s\n", solver.GetDomain(nil, x3.ID()))
+	// Output:
+	// x2: {3}
+	// x3: {3..4}
+}

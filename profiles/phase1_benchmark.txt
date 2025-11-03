@@ -1,0 +1,80 @@
+goos: linux
+goarch: amd64
+pkg: github.com/gitrdm/gokando/pkg/minikanren
+cpu: AMD Ryzen 9 9950X 16-Core Processor            
+BenchmarkFresh
+BenchmarkFresh-32                         	 2554225	       462.3 ns/op	       0 B/op	       0 allocs/op
+BenchmarkUnification
+BenchmarkUnification-32                   	  534714	      2249 ns/op	     288 B/op	       3 allocs/op
+BenchmarkRun
+BenchmarkRun-32                           	   55465	     23684 ns/op	    2190 B/op	      29 allocs/op
+BenchmarkDisjunction
+BenchmarkDisjunction-32                   	    7597	    163958 ns/op	   88754 B/op	     213 allocs/op
+BenchmarkBitSetDomain_Has
+BenchmarkBitSetDomain_Has-32              	 6589128	       169.2 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBitSetDomain_Remove
+BenchmarkBitSetDomain_Remove-32           	 1593523	       726.1 ns/op	      48 B/op	       2 allocs/op
+BenchmarkBitSetDomain_Intersect
+BenchmarkBitSetDomain_Intersect-32        	 3754362	       324.8 ns/op	       0 B/op	       0 allocs/op
+BenchmarkBitSetDomain_IterateValues
+BenchmarkBitSetDomain_IterateValues-32    	  332215	      3874 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFDSolveNQueens
+BenchmarkFDSolveNQueens/N4
+BenchmarkFDSolveNQueens/N4-32             	     952	   1197228 ns/op	   80688 B/op	    1155 allocs/op
+BenchmarkFDSolveNQueens/N8
+BenchmarkFDSolveNQueens/N8-32             	      99	  11287164 ns/op	  450856 B/op	    5729 allocs/op
+BenchmarkFDSolveNQueens/N10
+BenchmarkFDSolveNQueens/N10-32            	      48	  26180442 ns/op	  726576 B/op	    8934 allocs/op
+BenchmarkMemoryAllocations
+BenchmarkMemoryAllocations/Variable_Creation
+BenchmarkMemoryAllocations/Variable_Creation-32         	 6859516	       176.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkMemoryAllocations/Goal_Execution
+BenchmarkMemoryAllocations/Goal_Execution-32            	   44314	     24650 ns/op	    2285 B/op	      29 allocs/op
+BenchmarkMemoryAllocations/Complex_Goal
+BenchmarkMemoryAllocations/Complex_Goal-32              	   11384	    110352 ns/op	    7647 B/op	     115 allocs/op
+BenchmarkMemoryAllocations/Parallel_Execution
+BenchmarkMemoryAllocations/Parallel_Execution-32        	   10125	    136598 ns/op	   78701 B/op	      81 allocs/op
+BenchmarkConstraintBusStrategies
+BenchmarkConstraintBusStrategies/Original_NewBusPerRun
+BenchmarkConstraintBusStrategies/Original_NewBusPerRun-32         	   29604	     40932 ns/op	   76533 B/op	      33 allocs/op
+BenchmarkConstraintBusStrategies/Optimized_SharedBus
+BenchmarkConstraintBusStrategies/Optimized_SharedBus-32           	   43647	     24983 ns/op	    1463 B/op	      22 allocs/op
+BenchmarkConstraintBusStrategies/Optimized_PooledBus
+BenchmarkConstraintBusStrategies/Optimized_PooledBus-32           	   44168	     27770 ns/op	   20160 B/op	      28 allocs/op
+BenchmarkConstraintBusStrategies/StandardRun_After_Optimization
+BenchmarkConstraintBusStrategies/StandardRun_After_Optimization-32         	   42076	     29128 ns/op	    2542 B/op	      29 allocs/op
+BenchmarkConstraintBusStrategies/IsolatedRun
+BenchmarkConstraintBusStrategies/IsolatedRun-32                            	   35288	     38721 ns/op	   20824 B/op	      35 allocs/op
+BenchmarkMemoryAllocation
+BenchmarkMemoryAllocation/SharedBus
+BenchmarkMemoryAllocation/SharedBus-32                                     	   42286	     27192 ns/op	    1858 B/op	      29 allocs/op
+BenchmarkMemoryAllocation/PooledBus
+BenchmarkMemoryAllocation/PooledBus-32                                     	   27270	     38349 ns/op	   20681 B/op	      35 allocs/op
+BenchmarkParallelRun
+BenchmarkParallelRun-32                                                    	    8644	    151781 ns/op	   78787 B/op	      81 allocs/op
+BenchmarkParallelDisjunction
+BenchmarkParallelDisjunction-32                                            	    5156	    231150 ns/op	   89059 B/op	     206 allocs/op
+BenchmarkSequentialVsParallel
+BenchmarkSequentialVsParallel/Sequential
+BenchmarkSequentialVsParallel/Sequential-32                                	     828	   1522101 ns/op	  105157 B/op	     462 allocs/op
+BenchmarkSequentialVsParallel/Parallel
+BenchmarkSequentialVsParallel/Parallel-32                                  	     789	   1563692 ns/op	  103837 B/op	     426 allocs/op
+BenchmarkSolver_SetDomain
+BenchmarkSolver_SetDomain-32                                               	 1287694	      1018 ns/op	      12 B/op	       0 allocs/op
+BenchmarkSolver_GetDomain
+BenchmarkSolver_GetDomain-32                                               	 2124495	       523.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkSolver_Solve_Small
+BenchmarkSolver_Solve_Small-32                                             	   15170	     75624 ns/op	    5654 B/op	      26 allocs/op
+BenchmarkFDVariable_ID
+BenchmarkFDVariable_ID-32                                                  	 6217611	       183.6 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFDVariable_Domain
+BenchmarkFDVariable_Domain-32                                              	 6388006	       181.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFDVariable_IsBound
+BenchmarkFDVariable_IsBound-32                                             	 2733016	       711.4 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFDVariable_Value
+BenchmarkFDVariable_Value-32                                               	 1000000	      1223 ns/op	       0 B/op	       0 allocs/op
+BenchmarkFDVariable_String
+BenchmarkFDVariable_String-32                                              	  207006	      6282 ns/op	     439 B/op	      10 allocs/op
+PASS
+coverage: 39.2% of statements
+ok  	github.com/gitrdm/gokando/pkg/minikanren	133.768s
