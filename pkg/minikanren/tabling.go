@@ -275,6 +275,10 @@ type SubgoalEntry struct {
 	eventMu sync.Mutex
 	eventCh chan struct{}
 
+	// Monotonic change sequence incremented on every signalEvent.
+	// Used with WaitChangeSince for race-free subscription.
+	changeSeq atomic.Uint64
+
 	// Retracted answers (by index). Retracted answers are hidden from
 	// WFS-aware iterators but remain in the underlying trie to preserve
 	// insertion order and avoid structural mutation.
@@ -329,10 +333,38 @@ func (se *SubgoalEntry) Event() <-chan struct{} {
 	return ch
 }
 
+// EventSeq returns the current change sequence.
+// Each call to signalEvent() increments this value.
+func (se *SubgoalEntry) EventSeq() uint64 {
+	return se.changeSeq.Load()
+}
+
+// WaitChangeSince returns a channel that will be closed when a change
+// occurs with sequence strictly greater than 'since'. This method is
+// race-free: it registers for the current event channel under lock and
+// re-checks the sequence while still holding the lock to avoid missing
+// an event between registration and check. If a change has already
+// occurred (EventSeq() > since), it returns an already-closed channel.
+func (se *SubgoalEntry) WaitChangeSince(since uint64) <-chan struct{} {
+	se.eventMu.Lock()
+	// If change already occurred, return a closed channel immediately
+	if se.changeSeq.Load() > since {
+		se.eventMu.Unlock()
+		done := make(chan struct{})
+		close(done)
+		return done
+	}
+	ch := se.eventCh
+	se.eventMu.Unlock()
+	return ch
+}
+
 // signalEvent closes the current event channel (if not already closed)
 // and replaces it with a new channel to signal future events.
 func (se *SubgoalEntry) signalEvent() {
 	se.eventMu.Lock()
+	// Increment change sequence under the same lock to maintain ordering
+	se.changeSeq.Add(1)
 	// Safely close current channel (recover if already closed)
 	defer func() {
 		// Replace with a fresh channel for the next event

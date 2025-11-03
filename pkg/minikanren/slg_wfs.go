@@ -25,7 +25,6 @@ package minikanren
 import (
 	"context"
 	"fmt"
-	"time"
 )
 
 // NegateEvaluator returns a GoalEvaluator that succeeds with an empty binding
@@ -133,91 +132,35 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 			return nil
 		}
 
-		// Try to detect immediate completion or new answers via event channel.
-		// Optionally wait for a short, configurable grace period to catch
-		// immediate completion/answers without racing on scheduling.
-		if engine.config.NegationPeekTimeout > 0 {
-			waitCh := innerEntry.Event()
-			// Try an immediate, zero-allocation check first; only allocate a timer if needed
-			select {
-			case <-waitCh:
-				// Some change occurred; re-evaluate status and count
-				st := innerEntry.Status()
-				cnt := innerEntry.Answers().Count()
-				if cnt > 0 {
-					// Now has answers: negation fails
-					go func() {
-						for range innerCh {
-						}
-					}()
-					return nil
-				}
-				if st == StatusComplete || st == StatusFailed {
-					// Completed with no answers: unconditional success
-					answers <- map[int64]Term{}
-					go func() {
-						for range innerCh {
-						}
-					}()
-					return nil
-				}
-				// Still active: fall through to conditional
-			default:
-				timer := time.NewTimer(engine.config.NegationPeekTimeout)
-				defer timer.Stop()
-				select {
-				case <-waitCh:
-					// Some change occurred; re-evaluate status and count
-					st := innerEntry.Status()
-					cnt := innerEntry.Answers().Count()
-					if cnt > 0 {
-						// Now has answers: negation fails
-						go func() {
-							for range innerCh {
-							}
-						}()
-						return nil
+		// Race-free, zero-wait event check: subscribe and re-check using versioning.
+		// This ensures we don't miss a just-fired event and avoids any timers.
+		seq := innerEntry.EventSeq()
+		waitCh := innerEntry.WaitChangeSince(seq)
+		select {
+		case <-waitCh:
+			// Some change occurred; re-evaluate status and count
+			st := innerEntry.Status()
+			cnt := innerEntry.Answers().Count()
+			if cnt > 0 {
+				// Now has answers: negation fails
+				go func() {
+					for range innerCh {
 					}
-					if st == StatusComplete || st == StatusFailed {
-						// Completed with no answers: unconditional success
-						answers <- map[int64]Term{}
-						go func() {
-							for range innerCh {
-							}
-						}()
-						return nil
+				}()
+				return nil
+			}
+			if st == StatusComplete || st == StatusFailed {
+				// Completed with no answers: unconditional success
+				answers <- map[int64]Term{}
+				go func() {
+					for range innerCh {
 					}
-					// Still active: fall through to conditional
-				case <-timer.C:
-					// No immediate event; treat as still active
-				case <-ctx.Done():
-					return ctx.Err()
-				}
+				}()
+				return nil
 			}
-		} else {
-			// Non-blocking peek only
-			select {
-			case <-innerEntry.Event():
-				st := innerEntry.Status()
-				cnt := innerEntry.Answers().Count()
-				if cnt > 0 {
-					go func() {
-						for range innerCh {
-						}
-					}()
-					return nil
-				}
-				if st == StatusComplete || st == StatusFailed {
-					answers <- map[int64]Term{}
-					go func() {
-						for range innerCh {
-						}
-					}()
-					return nil
-				}
-			default:
-				// No event; proceed to emit conditional
-			}
+			// Still active: fall through to emit conditional
+		default:
+			// No immediate event; proceed to conditional answer
 		}
 
 		// Inner is active with no answers yet: emit conditional answer
