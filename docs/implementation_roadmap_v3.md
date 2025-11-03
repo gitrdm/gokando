@@ -1204,12 +1204,116 @@ func ExampleTabled() {
         - Company hierarchy queries
         - Tabled transitive closure
 
-**Phase 6 Success Criteria**: ✅ ALL MET
+- [ ] **Task 6.6: Hybrid Solver Integration** ⏳ PENDING
+    - [ ] **Objective**: Enable pldb queries to work seamlessly with Phase 3/4 hybrid solver (UnifiedStore) and FD constraints.
+    - [ ] **Action**:
+        - [ ] Create tests demonstrating `Database.Query()` with `UnifiedStore`
+        - [ ] Add examples combining pldb queries with FD constraints
+        - [ ] Implement hybrid usage patterns (e.g., "Find person X where parent(Y, X) AND age(X) in 20..30")
+        - [ ] Document hybrid integration in `docs/guides/pldb.md`
+        - [ ] Verify bidirectional propagation works with pldb queries
+        - [ ] Test pldb with global constraints from Phase 4
+    - [ ] **Success Criteria**: 
+        - pldb queries work correctly with `UnifiedStore` instead of `LocalConstraintStore`
+        - Examples demonstrate mixing relational facts with FD domain constraints
+        - Bidirectional propagation between pldb bindings and FD domains is validated
+        - Documentation explains when and how to use hybrid pldb + FD patterns
+    - **Current Gap (as of 2025-11-03)**:
+        - All pldb code uses Phase 1 API: `NewLocalConstraintStore(NewGlobalConstraintBus())`
+        - Zero usage of `UnifiedStore` from Phase 3 hybrid solver
+        - No tests combining pldb queries with FD constraints
+        - No examples showing hybrid usage patterns
+        - `Database.Query()` signature is compatible (uses `ConstraintStore` interface) but never tested with `UnifiedStore`
+    - **Integration Pattern** (proposed):
+        ```go
+        // Example: Find people whose age is in a specific range
+        store := NewUnifiedStore()
+        
+        // Set FD domain for age variable
+        age := Fresh("age")
+        store, _ = store.SetDomain(age.ID(), NewBitSetDomain(20, 30))
+        
+        // Query pldb for person with that age
+        name := Fresh("name")
+        stream := db.Query(person, name, age)(ctx, store)
+        
+        // Results respect both relational facts AND FD constraints
+        ```
+    - **Implementation Notes**:
+        - `Database.Query()` already accepts `ConstraintStore` interface (polymorphic)
+        - `UnifiedStore` implements `ConstraintStore` interface
+        - Should work without API changes to pldb
+        - Need validation tests and usage examples
+        - Documentation should explain hybrid patterns and performance implications
+
+- [ ] **Task 6.7: Pattern Matching Operators** ⏳ PENDING
+    - [ ] **Objective**: Provide ergonomic pattern matching operators to reduce boilerplate in complex queries and rules.
+    - [ ] **Action**:
+        - [ ] Implement `Matche(term Term, clauses ...[]Goal) Goal` - Exhaustive pattern matching with multiple clauses
+        - [ ] Implement `Matcha(term Term, clauses ...[]Goal) Goal` - Pattern matching with committed choice (first match wins)
+        - [ ] Implement `Matchu(term Term, clauses ...[]Goal) Goal` - Pattern matching requiring unique match
+        - [ ] Add pattern syntax helpers for common structures (lists, tuples, atoms)
+        - [ ] Create examples demonstrating pattern matching with pldb queries
+        - [ ] Document pattern matching semantics and best practices
+    - [ ] **Success Criteria**:
+        - Pattern matching operators work correctly with all term types
+        - Matche explores all matching clauses, Matcha commits to first, Matchu requires uniqueness
+        - Examples show reduced boilerplate vs. manual Conde + Car/Cdr combinations
+        - Integration with pldb enables elegant rule definitions
+    - **Rationale**: Pattern matching is standard in core.logic and dramatically improves code readability for complex relational programs. Essential for readable pldb rules and tabling queries.
+    - **Example Usage**:
+        ```go
+        // Instead of nested Conde + Car/Cdr:
+        Matche(list,
+            []Goal{Eq(list, Nil), Eq(result, NewAtom(0))},  // empty list case
+            []Goal{Pairo(list), lengthRecursive(list, result)},  // non-empty case
+        )
+        ```
+
+- [ ] **Task 6.8: Advanced List Operations** ⏳ PENDING
+    - [ ] **Objective**: Provide comprehensive relational list operations for pldb queries and recursive rules.
+    - [ ] **Action**:
+        - [ ] Implement `Rembero(element, inputList, outputList Term) Goal` - Remove element from list
+        - [ ] Implement `Reverso(list, reversed Term) Goal` - Reverse list relationally
+        - [ ] Implement `Permuteo(list, permutation Term) Goal` - Generate/check permutations
+        - [ ] Implement `Subseto(subset, superset Term) Goal` - Subset relation
+        - [ ] Implement `Lengthо(list, length Term) Goal` - List length relation
+        - [ ] Create examples combining list operations with pldb queries
+        - [ ] Add performance notes for large lists
+    - [ ] **Success Criteria**:
+        - All list operations work bidirectionally (can generate or check)
+        - Operations compose cleanly with pldb queries and tabling
+        - Examples demonstrate practical use cases (list processing in databases)
+        - Performance is acceptable for lists up to ~1000 elements
+    - **Rationale**: These operations are foundational for many logic programming tasks and frequently needed when working with pldb query results. Currently users must implement them manually.
+
+- [ ] **Task 6.9: Term Utilities and Type Constraints** ⏳ PENDING
+    - [ ] **Objective**: Provide utilities for term manipulation and extended type checking.
+    - [ ] **Action**:
+        - [ ] Implement `CopyTerm(term, fresh Term) Goal` - Copy term with fresh variables
+        - [ ] Implement `Ground(term Term) Goal` - Check if term is fully ground
+        - [ ] Implement `Stringo(term Term) Goal` - String type constraint
+        - [ ] Implement `Booleano(term Term) Goal` - Boolean type constraint
+        - [ ] Implement `Vectoro(term Term) Goal` - Vector/array type constraint
+        - [ ] Add helper functions for term inspection (arity, functor, etc.)
+        - [ ] Document when to use type constraints vs. pattern matching
+    - [ ] **Success Criteria**:
+        - CopyTerm creates independent copies with fresh variables
+        - Ground correctly identifies fully instantiated terms
+        - Type constraints integrate with existing constraint system
+        - Utilities work correctly with pldb facts and query results
+    - **Rationale**: These utilities are commonly needed for meta-programming tasks and data validation in pldb applications. CopyTerm is particularly important for implementing certain tabling patterns.
+
+**Phase 6 Success Criteria**: ⚠️ MOSTLY COMPLETE (Tasks 6.6-6.9 pending)
 - ✅ Relations can be defined with arbitrary arities and indexes
 - ✅ Fact storage and retrieval is efficient (sub-linear with indexes)
 - ✅ Clean integration with existing miniKanren API
 - ✅ Comprehensive examples demonstrate practical applications
 - ✅ Documentation explains when pldb is preferable to constraints
+- ⏳ **Pending**: Integration with Phase 3/4 hybrid solver (UnifiedStore + FD constraints)
+- ⏳ **Pending**: Pattern matching operators (Matche, Matcha, Matchu)
+- ⏳ **Pending**: Advanced list operations (Rembero, Reverso, Permuteo, etc.)
+- ⏳ **Pending**: Term utilities and extended type constraints
 
 **Documentation**:
 - User Guide: `docs/guides/pldb.md` - Complete guide with usage patterns
@@ -1218,13 +1322,115 @@ func ExampleTabled() {
 
 ---
 
-### Phase 7: Nominal Logic Programming ⏳ PLANNED
+### Phase 7: Core Language Extensions ⏳ PLANNED
+
+**Objective**: Extend the core miniKanren language with foundational operators and utilities that enhance expressiveness before implementing nominal logic.
+
+**Background**: While GoKanDo has excellent constraint programming capabilities, it lacks some fundamental relational operators present in mature miniKanren implementations. These operators improve code clarity, reduce boilerplate, and enable more natural expression of relational programs.
+
+**Priority**: These extensions should be implemented before nominal logic (Phase 7.1+) as they provide foundational capabilities that nominal logic may depend on and they're useful independently for general logic programming.
+
+---
+
+#### **Phase 7.0: Foundational Relational Operators** ⏳ PLANNED
+
+- [ ] **Task 7.0.1: Relational Arithmetic Operators** ⏳ PENDING
+    - [ ] **Objective**: Provide bidirectional arithmetic relations over natural numbers (Peano numerals or direct integers).
+    - [ ] **Action**:
+        - [ ] Implement `Pluso(x, y, z Term) Goal` - Addition relation (x + y = z)
+        - [ ] Implement `Minuso(x, y, z Term) Goal` - Subtraction relation (x - y = z)
+        - [ ] Implement `Timeso(x, y, z Term) Goal` - Multiplication relation (x × y = z)
+        - [ ] Implement `Divo(x, y, z Term) Goal` - Division relation (x ÷ y = z)
+        - [ ] Implement `Logo(base, exp, result Term) Goal` - Logarithm relation
+        - [ ] Implement `Expo(base, exp, result Term) Goal` - Exponentiation relation
+        - [ ] Implement `LessThanо(x, y Term) Goal` - Relational less-than
+        - [ ] Implement `GreaterThanо(x, y Term) Goal` - Relational greater-than
+        - [ ] Document when to use relational arithmetic vs. FD constraints
+        - [ ] Add performance notes and limits
+    - [ ] **Success Criteria**:
+        - All operations work bidirectionally (can solve for any argument)
+        - Operations compose with other relational goals
+        - Clear documentation explains FD vs. relational arithmetic trade-offs
+        - Examples demonstrate practical use cases
+    - **Rationale**: While FD constraints handle most arithmetic needs, relational arithmetic is fundamental to pure logic programming and enables certain patterns that FD constraints don't support well. Important for educational examples and some meta-programming tasks.
+    - **Design Note**: Can use Peano numerals for true relational arithmetic or hybrid approach with bounds. Should integrate with existing FD arithmetic where beneficial.
+
+- [ ] **Task 7.0.2: Advanced Control Flow Operators** ⏳ PENDING
+    - [ ] **Objective**: Provide additional control flow mechanisms for complex search strategies.
+    - [ ] **Action**:
+        - [ ] Implement `Ifa(condition, thenGoal, elseGoal Goal) Goal` - If-then-else with all solutions
+        - [ ] Implement `Ifte(condition, thenGoal, elseGoal Goal) Goal` - If-then-else with early commitment
+        - [ ] Implement `SoftCut(goal Goal) Goal` - Prolog-style soft cut (*->)
+        - [ ] Implement `CallGoal(goalTerm Term) Goal` - Meta-call for indirect goal invocation
+        - [ ] Document control flow semantics and search behavior
+        - [ ] Add examples comparing different control flow operators
+    - [ ] **Success Criteria**:
+        - Control flow operators have well-defined semantics
+        - Clear documentation explains when to use each operator
+        - Examples demonstrate advantages over manual goal construction
+        - Integration with existing Conda/Condu is clean
+    - **Rationale**: These operators provide fine-grained control over search strategy, which is important for optimization and implementing certain algorithms efficiently. Complement existing Conda/Condu.
+
+- [ ] **Task 7.0.3: Constraint Extensions** ⏳ PENDING
+    - [ ] **Objective**: Fill gaps in FD constraint coverage for specialized applications.
+    - [ ] **Action**:
+        - [ ] Implement `IntervalArithmetic(intervals, operations, result)` - Interval constraint propagation
+        - [ ] Implement `Scale(x, k, y *FDVariable) PropagationConstraint` - Scaling constraint (X = k*Y)
+        - [ ] Implement `Modulo(x, m, r *FDVariable) PropagationConstraint` - Modular arithmetic (X mod M = R)
+        - [ ] Implement `Absolute(x, abs *FDVariable) PropagationConstraint` - Absolute value constraint
+        - [ ] Document constraint semantics and propagation strength
+        - [ ] Add examples for each constraint type
+    - [ ] **Success Criteria**:
+        - Constraints integrate with existing propagation framework
+        - Bidirectional propagation where feasible
+        - Examples demonstrate practical applications
+        - Performance is competitive with manual constraint composition
+    - **Rationale**: These constraints fill specific gaps in the FD constraint library. Scale and Modulo are particularly common in scheduling and resource allocation problems. Interval arithmetic enables robust numerical reasoning.
+
+- [ ] **Task 7.0.4: Tabling Extensions** ⏳ PENDING
+    - [ ] **Objective**: Add advanced tabling features for specialized use cases.
+    - [ ] **Action**:
+        - [ ] Implement `AbolishTable(predicateID string)` - Clear specific table entries
+        - [ ] Implement `AbolishAllTables()` - Clear all cached answers
+        - [ ] Implement `GetTableStatistics(predicateID string) *TableStats` - Query detailed stats
+        - [ ] Implement `VariantTabling` mode (if not default) - Exact argument matching
+        - [ ] Implement `SubsumptiveTabling` mode - Subsumption-based answer reuse
+        - [ ] Add configuration for table size limits and eviction policies
+        - [ ] Document tabling modes and their trade-offs
+    - [ ] **Success Criteria**:
+        - Table management functions work correctly
+        - Statistics provide actionable performance insights
+        - Tabling modes are well-documented with examples
+        - Table size limits prevent memory exhaustion
+    - **Rationale**: Advanced tabling features improve debuggability, enable dynamic program modification, and provide control over memory usage. Important for long-running applications and incremental computation.
+
+**Phase 7.0 Success Criteria**:
+- Relational arithmetic operators work bidirectionally for common use cases
+- Advanced control flow provides fine-grained search control
+- Constraint extensions fill gaps in FD constraint coverage
+- Tabling extensions enable advanced use cases and better observability
+- All operators integrate cleanly with existing infrastructure
+- Comprehensive documentation with performance guidance
+
+**Phase 7.0 Priority Notes**:
+- **Task 7.0.1** (Relational Arithmetic): MEDIUM - Useful for pure logic programming and education
+- **Task 7.0.2** (Control Flow): LOW-MEDIUM - Nice to have, existing operators cover most cases
+- **Task 7.0.3** (Constraint Extensions): MEDIUM-HIGH - Scale and Modulo are commonly needed
+- **Task 7.0.4** (Tabling Extensions): MEDIUM - Important for production use and debugging
+
+---
+
+### Phase 7.1: Nominal Logic Programming ⏳ PLANNED
+
+### Phase 7.1: Nominal Logic Programming ⏳ PLANNED
 
 **Objective**: Enable reasoning about variable binding and scope (alpha-equivalence), supporting meta-programming and compiler applications.
 
 **Background**: Nominal logic (αKanren) extends miniKanren with special support for reasoning about binders in syntax trees, making it easier to implement type checkers, interpreters, and program transformations without worrying about variable capture.
 
-- [ ] **Task 7.1: Design Nominal Variable System**
+**Prerequisites**: Phase 7.0 foundational operators should be complete, as nominal logic may leverage relational arithmetic and advanced control flow patterns.
+
+- [ ] **Task 7.1.1: Design Nominal Variable System**
     - [ ] **Objective**: Create the foundation for nominal variables and binding.
     - [ ] **Action**:
         - [ ] Define `NominalVar` type distinct from regular logic variables
@@ -1237,7 +1443,7 @@ func ExampleTabled() {
         - Freshness is a constraint, not a structural property
         - Need efficient freshness constraint propagation
 
-- [ ] **Task 7.2: Implement Binding and Freshness**
+- [ ] **Task 7.1.2: Implement Binding and Freshness**
     - [ ] **Objective**: Support name binding and freshness constraints.
     - [ ] **Action**:
         - [ ] Implement `Tie(v *NominalVar, body Term) *Tie` for λ-abstraction style binding
@@ -1256,7 +1462,7 @@ func ExampleTabled() {
         })
         ```
 
-- [ ] **Task 7.3: Implement Alpha-Equivalence**
+- [ ] **Task 7.1.3: Implement Alpha-Equivalence**
     - [ ] **Objective**: Make unification respect binding structure.
     - [ ] **Action**:
         - [ ] Extend unification to handle `Tie` structures
@@ -1269,7 +1475,7 @@ func ExampleTabled() {
         - `λa.λb.a` ≡ `λx.λy.x` (alpha-equivalent)
         - `λa.λb.a` ≢ `λa.λb.b` (different structure)
 
-- [ ] **Task 7.4: Applications and Examples**
+- [ ] **Task 7.1.4: Applications and Examples**
     - [ ] **Objective**: Demonstrate practical use of nominal logic.
     - [ ] **Action**:
         - [ ] Implement lambda calculus substitution without capture
@@ -1282,7 +1488,7 @@ func ExampleTabled() {
         - Type inference for simply-typed lambda calculus
         - Program transformation preserving alpha-equivalence
 
-- [ ] **Task 7.5: Testing and Documentation**
+- [ ] **Task 7.1.5: Testing and Documentation**
     - [ ] **Objective**: Ensure correctness of nominal logic implementation.
     - [ ] **Action**:
         - [ ] Test freshness constraint propagation
@@ -1292,14 +1498,29 @@ func ExampleTabled() {
         - [ ] Document nominal logic concepts for Go users
     - [ ] **Success Criteria**: All nominal logic tests pass; examples are clear and correct.
 
-**Phase 7 Success Criteria**:
+**Phase 7.1 Success Criteria**:
 - Nominal variables and binding work correctly
 - Alpha-equivalence is properly implemented
 - Lambda calculus substitution works without capture
 - Examples demonstrate meta-programming capabilities
 - Documentation explains when nominal logic is useful
 
-**Phase 7 Priority Note**: This phase has lower priority (LOW-MEDIUM) as it serves specialized use cases (compilers, meta-programming). Implement only if these use cases arise in practice.
+**Phase 7 Overall Priority Notes**:
+- **Phase 7.0** (Foundational Operators): MEDIUM-HIGH priority
+  - Task 7.0.1 (Relational Arithmetic): MEDIUM - Useful for pure logic programming and education
+  - Task 7.0.2 (Control Flow): LOW-MEDIUM - Nice to have, existing operators cover most cases
+  - Task 7.0.3 (Constraint Extensions): MEDIUM-HIGH - Scale and Modulo are commonly needed
+  - Task 7.0.4 (Tabling Extensions): MEDIUM - Important for production use and debugging
+- **Phase 7.1** (Nominal Logic): MEDIUM priority for PL/compiler applications, LOW otherwise
+  - Implement when type checkers, interpreters, or program transformation tools are needed
+  - Foundation (7.0) should be complete first as it provides generally useful capabilities
+
+**Phase 7 Success Criteria** (Overall):
+- All foundational operators (7.0) integrate cleanly with existing infrastructure
+- Nominal logic (7.1) enables meta-programming applications
+- Comprehensive documentation with performance guidance
+- Examples demonstrate practical use cases for each capability
+- No performance regressions in existing functionality
 
 ---
 
