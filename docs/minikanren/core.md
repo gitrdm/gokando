@@ -14,6 +14,16 @@ Key features:
 - **Thread-safe** concurrent execution
 - **Parallel evaluation** with configurable worker pools
 
+## Tabling & WFS (SLG)
+
+For recursive relations and negation, GoKanDo includes a production SLG tabling engine implementing Well‑Founded Semantics (WFS):
+
+- What it is and when to use it: see `docs/minikanren/tabling.md`.
+- How to call it ergonomically: use the wrappers in `pkg/minikanren/slg_wrappers.go` (examples in `pkg/minikanren/slg_wrappers_example_test.go`).
+- Core implementation: `pkg/minikanren/slg_engine.go`, `pkg/minikanren/slg_wfs.go`, and `pkg/minikanren/tabling.go`.
+
+This documentation avoids duplicating code; the source files above are the authority.
+
 ## Core Concepts
 
 ### Terms

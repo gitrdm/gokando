@@ -106,7 +106,12 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 				}()
 				return nil
 			}
-			// Otherwise: unconditional success
+			// Otherwise: unconditional success (ensure no stale delay set is attached)
+			if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+				if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+					parentEntry.consumePendingDelaySet()
+				}
+			}
 			answers <- map[int64]Term{}
 			go func() {
 				for range innerCh {
@@ -157,7 +162,12 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 				}()
 				return nil
 			}
-			// Otherwise: unconditional success
+			// Otherwise: unconditional success (ensure no stale delay set is attached)
+			if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+				if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+					parentEntry.consumePendingDelaySet()
+				}
+			}
 			answers <- map[int64]Term{}
 			go func() {
 				for range innerCh {
@@ -216,7 +226,12 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 					}()
 					return nil
 				}
-				// Otherwise: unconditional success
+				// Otherwise: unconditional success (ensure no stale delay set is attached)
+				if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+					if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+						parentEntry.consumePendingDelaySet()
+					}
+				}
 				answers <- map[int64]Term{}
 				go func() {
 					for range innerCh {
@@ -250,12 +265,24 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 								engine.addNegativeEdge(parentEntry.Pattern().Hash(), innerEntry.Pattern().Hash())
 							}
 						}
+						// Unconditional success (ensure no stale delay set is attached)
+						if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+							if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+								parentEntry.consumePendingDelaySet()
+							}
+						}
 						answers <- map[int64]Term{}
 						go func() {
 							for range innerCh {
 							}
 						}()
 						return nil
+					}
+					// Unconditional success (ensure no stale delay set is attached)
+					if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+						if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+							parentEntry.consumePendingDelaySet()
+						}
 					}
 					answers <- map[int64]Term{}
 					go func() {
@@ -289,12 +316,24 @@ func NegateEvaluator(engine *SLGEngine, currentPredicateID string, innerPattern 
 								engine.addNegativeEdge(parentEntry.Pattern().Hash(), innerEntry.Pattern().Hash())
 							}
 						}
+						// Unconditional success (ensure no stale delay set is attached)
+						if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+							if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+								parentEntry.consumePendingDelaySet()
+							}
+						}
 						answers <- map[int64]Term{}
 						go func() {
 							for range innerCh {
 							}
 						}()
 						return nil
+					}
+					// Unconditional success (ensure no stale delay set is attached)
+					if parentRaw := ctx.Value(slgProducerEntryKey{}); parentRaw != nil {
+						if parentEntry, ok := parentRaw.(*SubgoalEntry); ok {
+							parentEntry.consumePendingDelaySet()
+						}
 					}
 					answers <- map[int64]Term{}
 					go func() {
