@@ -317,7 +317,7 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 		var lastCount int64 = 0
 
 		for {
-			// Try to consume from iterator
+			// Drain current snapshot
 			for {
 				answer, ok := iter.Next()
 				if !ok {
@@ -333,23 +333,23 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 				}
 			}
 
-			// Check if production is complete
+			// If new answers have been added, refresh iterator and continue
+			currentCount := entry.Answers().Count()
+			if currentCount > lastCount {
+				iter = entry.Answers().IteratorFrom(int(lastCount))
+				continue
+			}
+
+			// If producer completed and we've consumed all answers, we're done
 			status := entry.Status()
 			if status == StatusComplete || status == StatusFailed {
 				return
 			}
 
-			// Wait for more answers
+			// Otherwise wait for more answers to arrive
 			entry.answerMu.Lock()
 			entry.answerCond.Wait()
 			entry.answerMu.Unlock()
-
-			// Check for new answers
-			currentCount := entry.Answers().Count()
-			if currentCount > lastCount {
-				// Refresh iterator to get new answers
-				iter = entry.Answers().Iterator()
-			}
 		}
 	}()
 
@@ -364,31 +364,41 @@ func (e *SLGEngine) consumeAnswers(ctx context.Context, entry *SubgoalEntry) <-c
 		defer close(answerChan)
 
 		iter := entry.Answers().Iterator()
+		var consumed int64 = 0
 		for {
-			// Try to get next answer
-			if answer, ok := iter.Next(); ok {
-				entry.consumptionCount.Add(1)
-				select {
-				case answerChan <- answer:
-					continue
-				case <-ctx.Done():
-					return
+			// Drain current snapshot
+			for {
+				if answer, ok := iter.Next(); ok {
+					consumed++
+					entry.consumptionCount.Add(1)
+					select {
+					case answerChan <- answer:
+						continue
+					case <-ctx.Done():
+						return
+					}
+				} else {
+					break
 				}
 			}
 
-			// Check status
+			// If new answers have appeared, refresh iterator
+			current := entry.Answers().Count()
+			if current > consumed {
+				iter = entry.Answers().IteratorFrom(int(consumed))
+				continue
+			}
+
+			// If complete and no new answers pending, we're done
 			status := entry.Status()
 			if status == StatusComplete || status == StatusFailed {
 				return
 			}
 
-			// Wait for more answers (if producer still active)
+			// Otherwise wait for more answers
 			entry.answerMu.Lock()
 			entry.answerCond.Wait()
 			entry.answerMu.Unlock()
-
-			// Refresh iterator after new answers
-			iter = entry.Answers().Iterator()
 		}
 	}()
 
@@ -554,11 +564,6 @@ func (e *SLGEngine) ComputeFixpoint(ctx context.Context, scc *SCC) error {
 				continue // No evaluator stored, skip
 			}
 
-			evaluator, ok := node.evaluator.(GoalEvaluator)
-			if !ok {
-				continue // Invalid evaluator type, skip
-			}
-
 			// Re-evaluate to derive new answers based on updated dependencies
 			// Don't reset the trie - we want to accumulate answers
 			answerChan := make(chan map[int64]Term, 100)
@@ -567,7 +572,7 @@ func (e *SLGEngine) ComputeFixpoint(ctx context.Context, scc *SCC) error {
 			go func(eval GoalEvaluator, ch chan<- map[int64]Term) {
 				defer close(ch)
 				eval(ctx, ch)
-			}(evaluator, answerChan)
+			}(node.evaluator, answerChan)
 
 			// Insert new answers into existing trie
 			for answer := range answerChan {

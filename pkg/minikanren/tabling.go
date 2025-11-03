@@ -235,7 +235,7 @@ type SubgoalEntry struct {
 
 	// Evaluator for re-evaluation during fixpoint computation
 	// Stored to enable re-derivation when dependencies change
-	evaluator interface{} // GoalEvaluator - stored as interface{} to avoid import cycle
+	evaluator GoalEvaluator
 
 	// Current evaluation status (atomic access)
 	status atomic.Int32
@@ -419,8 +419,11 @@ func (st *SubgoalTable) TotalSubgoals() int64 {
 // AnswerTrie represents a trie of answer substitutions for a tabled subgoal.
 // Uses structural sharing to minimize memory overhead.
 //
-// Thread safety: The trie is immutable; modifications create new nodes.
-// Concurrent reads are safe. Writes are synchronized externally (e.g., via SubgoalEntry).
+// Thread safety: The trie supports concurrent reads, and writes are coordinated
+// via an internal mutex to ensure safety. Iteration returns copies of stored
+// answers to prevent external mutation. In typical usage, writes are also
+// coordinated at a higher level (e.g., by SubgoalEntry) to avoid unnecessary
+// contention.
 type AnswerTrie struct {
 	// Root node of the trie
 	root *AnswerTrieNode
@@ -550,34 +553,69 @@ func (at *AnswerTrie) Count() int64 {
 // The iterator creates a snapshot of the answer list to avoid
 // concurrent modification issues during iteration.
 func (at *AnswerTrie) Iterator() *AnswerIterator {
+	// Take a snapshot of current answers under the trie's lock
+	at.mu.Lock()
+	snapshot := make([]map[int64]Term, len(at.answers))
+	copy(snapshot, at.answers)
+	at.mu.Unlock()
+
 	return &AnswerIterator{
-		trie: at,
-		idx:  0,
+		snapshot: snapshot,
+		idx:      0,
+	}
+}
+
+// IteratorFrom returns an iterator starting at the given index over a snapshot
+// of the current answers. If start >= len(snapshot), the iterator is exhausted.
+// Use this to resume iteration without re-reading already-consumed answers
+// when new answers may have been appended concurrently.
+func (at *AnswerTrie) IteratorFrom(start int) *AnswerIterator {
+	at.mu.Lock()
+	snapshot := make([]map[int64]Term, len(at.answers))
+	copy(snapshot, at.answers)
+	at.mu.Unlock()
+
+	if start < 0 {
+		start = 0
+	}
+	if start > len(snapshot) {
+		start = len(snapshot)
+	}
+
+	return &AnswerIterator{
+		snapshot: snapshot,
+		idx:      start,
 	}
 }
 
 // AnswerIterator iterates over answers in insertion order.
 type AnswerIterator struct {
-	trie *AnswerTrie
-	idx  int
-	mu   sync.Mutex // Protects idx
+	// snapshot holds a point-in-time copy of the trie's answer slice headers.
+	// Individual answers are still copied on return by Next() to prevent external mutation.
+	// To observe new answers appended after iterator creation, construct a new iterator.
+	snapshot []map[int64]Term
+	idx      int
+	mu       sync.Mutex // Protects idx
 }
 
 // Next returns the next answer or nil if exhausted.
-// Thread safety: This method is NOT thread-safe. Each iterator should be used
-// by a single goroutine.
+// Thread safety: This method uses internal locks and is safe to call from
+// multiple goroutines, but using a single goroutine per iterator preserves
+// deterministic ordering and minimizes contention.
 func (ai *AnswerIterator) Next() (map[int64]Term, bool) {
 	ai.mu.Lock()
 	defer ai.mu.Unlock()
 
-	ai.trie.mu.Lock()
-	defer ai.trie.mu.Unlock()
-
-	if ai.idx >= len(ai.trie.answers) {
+	if ai.idx >= len(ai.snapshot) {
 		return nil, false
 	}
 
-	answer := ai.trie.answers[ai.idx]
+	// Return a copy to prevent external mutation of stored answers
+	stored := ai.snapshot[ai.idx]
+	answer := make(map[int64]Term, len(stored))
+	for k, v := range stored {
+		answer[k] = v
+	}
 	ai.idx++
 	return answer, true
 }
