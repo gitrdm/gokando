@@ -665,93 +665,898 @@ Prioritization for remaining work (suggested order):
         - The solver finds and returns an optimal solution for supported objective forms on small-to-medium instances; when interrupted, returns the best incumbent and indicates non-optimality.
         - Works with existing constraints without API changes; passes the full test suite; documented with runnable examples.
 
-### Phase 5: Tabling Infrastructure ⏳ PLANNED
+### Phase 5: SLG/WFS Tabling Infrastructure ⏳ PLANNED
 
-**Objective**: Enable termination of recursive queries through result memoization, closing a critical gap with Clojure's core.logic.
+**Objective**: Implement production-quality SLG (Linear resolution with Selection function for General logic programs) tabling with Well-Founded Semantics (WFS) support, enabling termination of recursive queries and supporting programs with negation. This closes a critical gap with advanced logic programming systems.
 
-**Background**: Tabling (also known as memoization or dynamic programming for logic programs) prevents infinite loops in recursive relations by caching previously computed results. This is essential for queries like transitive closure that would otherwise not terminate in standard miniKanren.
+**Background**: 
 
-- [ ] **Task 5.1: Design Tabled Goal Framework**
-    - [ ] **Objective**: Create infrastructure for memoizing goal results keyed by arguments.
-    - [ ] **Action**:
-        - [ ] Define `TabledGoal` type wrapping a goal with result cache
-        - [ ] Implement cache key generation from goal arguments (variable IDs + bindings)
-        - [ ] Design thread-safe cache storage using `sync.Map` or similar
-        - [ ] Handle cache invalidation on constraint store changes
-    - [ ] **Success Criteria**: Cache correctly stores and retrieves results for identical argument patterns.
-    - **Design Considerations**:
-        - Cache granularity: per-goal-definition vs. per-goal-invocation
-        - Memory management: LRU eviction for long-running programs
-        - Thread safety: concurrent access from parallel search
+Tabling (also known as memoization or tabulation for logic programs) is a fundamental technique that:
+- **Prevents infinite loops** in recursive relations by detecting and resolving cycles
+- **Improves performance** by caching and reusing intermediate results
+- **Enables negation** through stratification and well-founded semantics
+- **Guarantees termination** for a broad class of programs (all queries that are bounded)
 
-- [ ] **Task 5.2: Implement Tabling API**
-    - [ ] **Objective**: Provide user-facing functions to create tabled goals.
-    - [ ] **Action**:
-        - [ ] Implement `Tabled(name string, goal Goal) Goal` for wrapping existing goals
-        - [ ] Implement `TabledFunc(name string, fn func(...Term) Goal) func(...Term) Goal` for goal generators
-        - [ ] Ensure proper context propagation through tabled calls
-        - [ ] Add configuration options (cache size, eviction policy)
-    - [ ] **Success Criteria**: Users can convert any goal to a tabled version with a single function call.
-    - **Example API**:
-        ```go
-        // Define path relation recursively
-        func patho(x, y Term) Goal {
-            return Conde(
-                arco(x, y),  // Direct arc
-                Fresh2(func(z Term) Goal {
-                    return Conj(arco(x, z), patho(z, y))  // Transitive
-                }),
-            )
+SLG resolution combines:
+- **Selective Linear Definite (SLD) resolution** (standard Prolog/miniKanren evaluation)
+- **Tabling** to handle recursion through fixpoint computation
+- **Well-Founded Semantics** to handle stratified negation correctly
+
+This is essential for:
+- Transitive closure queries (e.g., reachability in graphs with cycles)
+- Program analysis (e.g., type inference, dataflow analysis)
+- Deductive databases with recursive views
+- Meta-interpreters and self-referential programs
+
+**Architecture Philosophy**:
+
+Following the established GoKanDo patterns, the tabling infrastructure must be:
+1. **Thread-safe and parallel-friendly**: Lock-free or minimal locking using Go concurrency primitives
+2. **Zero-copy where possible**: Leverage immutable data structures and copy-on-write semantics
+3. **Memory-efficient**: Use `sync.Pool` for frequently allocated structures
+4. **Compositional**: Integrate cleanly with existing FD constraints and hybrid solver
+5. **Production-ready**: Comprehensive testing, clear APIs, literate documentation
+
+---
+
+#### **Task 5.1: Design Core Tabling Data Structures** ⏳
+
+**Objective**: Create lock-free, memory-efficient data structures for managing tabled subgoals and answers.
+
+**Recommended Design** (following Phase 1-4 patterns):
+
+```go
+// AnswerTrie represents a trie of answer substitutions for a tabled subgoal.
+// Uses structural sharing to minimize memory overhead.
+// Thread-safe via copy-on-write semantics.
+type AnswerTrie struct {
+    // Root node of the trie
+    root *AnswerTrieNode
+    
+    // Cached answer count for O(1) size queries
+    count atomic.Int64
+    
+    // Pool for trie nodes (zero-allocation reuse)
+    nodePool *sync.Pool
+}
+
+// AnswerTrieNode represents a node in the answer trie.
+// Immutable once created; modifications create new nodes.
+type AnswerTrieNode struct {
+    // Variable ID at this level (for structural indexing)
+    varID int64
+    
+    // Bound value at this node (nil if unbound)
+    value Term
+    
+    // Children indexed by (varID, value) pairs
+    // Use sync.Map for lock-free concurrent reads
+    children sync.Map // map[nodeKey]*AnswerTrieNode
+    
+    // Marks this as a complete answer (leaf node)
+    isAnswer bool
+    
+    // Depth in trie (for debugging and heuristics)
+    depth int
+}
+
+// SubgoalTable tracks active and completed subgoals.
+// Key insight: Use call pattern (normalized argument structure) as key.
+type SubgoalTable struct {
+    // Maps call patterns to SubgoalEntry
+    // Use sync.Map for lock-free reads (common case)
+    entries sync.Map // map[CallPattern]*SubgoalEntry
+    
+    // Generation counter for stratification
+    generation atomic.Int64
+}
+
+// SubgoalEntry represents a tabled subgoal call.
+type SubgoalEntry struct {
+    // Call pattern (normalized, comparable key)
+    pattern CallPattern
+    
+    // Answer trie containing all derived answers
+    answers *AnswerTrie
+    
+    // Status: Active, Complete, or Failed
+    status atomic.Int32 // Use constants: StatusActive, StatusComplete, StatusFailed
+    
+    // Dependencies for cycle detection and fixpoint computation
+    dependencies []*SubgoalEntry
+    dependencyMu sync.RWMutex
+    
+    // For WFS: tracks whether this subgoal is negatively stratified
+    stratum int
+    
+    // For parallel execution: condition variable for answer availability
+    answerCond *sync.Cond
+    answerMu   sync.Mutex
+    
+    // Statistics for monitoring
+    consumptionCount atomic.Int64
+    derivationCount  atomic.Int64
+}
+
+// CallPattern represents a normalized subgoal call for tabling key.
+// Must be comparable and hash-friendly.
+type CallPattern struct {
+    // Predicate identifier (name or ID)
+    predicateID string
+    
+    // Argument structure (variables abstracted to canonical IDs)
+    // Use a normalized representation (e.g., "p(X0, atom(a), X1)")
+    argStructure string
+    
+    // Cached hash for O(1) map lookup
+    hash uint64
+}
+```
+
+**Key Design Decisions**:
+
+1. **Answer Trie vs. Answer List**:
+   - **Recommendation**: Use AnswerTrie for subsumption checking and duplicate elimination
+   - Tries provide O(depth) insertion and lookup vs. O(n) for lists
+   - Structural sharing reduces memory from O(n*m) to O(n+m) where n=answers, m=vars
+
+2. **Thread Safety Strategy**:
+   - **Recommendation**: `sync.Map` for SubgoalTable (read-heavy workload, rare writes)
+   - `atomic` for status flags and counters (lock-free status checks)
+   - `sync.Cond` for answer availability signaling (consumer/producer pattern)
+   - NO global locks on hot paths (maintains Phase 4 parallel search performance)
+
+3. **Memory Management**:
+   - **Recommendation**: `sync.Pool` for AnswerTrieNode allocation
+   - Reference counting on SubgoalEntry (similar to SolverState in Phase 1)
+   - Configurable cache eviction policy (LRU, generational GC)
+
+**Success Criteria**:
+- Data structures are immutable or use atomic operations (no race conditions)
+- Answer insertion is O(depth), lookup is O(depth)
+- Subgoal lookup is O(1) with sync.Map
+- Memory overhead is proportional to unique answers, not total derivations
+- All operations pass `-race` detector with parallel tests
+
+---
+
+#### **Task 5.2: Implement SLG Resolution Engine** ⏳
+
+**Objective**: Implement the core SLG evaluation algorithm with proper cycle detection and fixpoint computation.
+
+**Recommended Architecture**:
+
+```go
+// SLGEngine coordinates tabled goal evaluation.
+// Integrates with existing miniKanren goal infrastructure.
+type SLGEngine struct {
+    // Global subgoal table (shared across all evaluations)
+    subgoals *SubgoalTable
+    
+    // Configuration
+    config *SLGConfig
+    
+    // For WFS: stratification engine
+    stratifier *StratificationEngine
+}
+
+// SLGConfig holds tabling configuration.
+type SLGConfig struct {
+    // Maximum table size (0 = unlimited)
+    MaxTableSize int64
+    
+    // Cache eviction policy
+    EvictionPolicy EvictionPolicy // LRU, LFU, Generational
+    
+    // Enable answer subsumption checking
+    EnableSubsumption bool
+    
+    // Enable incremental tabling (cache invalidation on updates)
+    EnableIncremental bool
+    
+    // Parallel evaluation settings
+    ParallelConfig *ParallelSLGConfig
+}
+
+// ParallelSLGConfig extends ParallelSearchConfig for tabling.
+type ParallelSLGConfig struct {
+    // Number of consumer threads per subgoal
+    ConsumersPerSubgoal int
+    
+    // Enable answer batching for efficiency
+    EnableAnswerBatching bool
+    BatchSize            int
+}
+
+// TabledGoal wraps a relational goal for tabled evaluation.
+type TabledGoal struct {
+    // Predicate identifier for table lookup
+    predicateID string
+    
+    // The goal function to table
+    goalFn GoalFunc
+    
+    // SLG engine for evaluation
+    engine *SLGEngine
+}
+
+// GoalFunc is the type of tabled goal functions.
+type GoalFunc func(ctx context.Context, args []Term, store ConstraintStore) *Stream
+```
+
+**SLG Evaluation Algorithm** (following XSB Prolog's approach):
+
+```go
+// Evaluate implements SLG resolution for a tabled goal.
+func (t *TabledGoal) Evaluate(ctx context.Context, args []Term, store ConstraintStore) *Stream {
+    // 1. Normalize call pattern (abstract variables to canonical form)
+    pattern := t.normalizeCallPattern(args)
+    
+    // 2. Check if subgoal already exists in table
+    entry, isNew := t.engine.subgoals.GetOrCreate(pattern)
+    
+    if !isNew {
+        // 2a. Subgoal exists: consume from answer trie
+        return t.consumeAnswers(ctx, entry, args, store)
+    }
+    
+    // 2b. New subgoal: evaluate and produce answers
+    entry.status.Store(StatusActive)
+    
+    // 3. Start producer: evaluate goal and insert answers into trie
+    producerStream := t.goalFn(ctx, args, store)
+    
+    // 4. Return consumer stream that:
+    //    - Reads from answer trie as answers arrive
+    //    - Signals completion when producer finishes
+    //    - Handles cycles via delayed evaluation
+    return t.producerConsumerStream(ctx, entry, producerStream, args, store)
+}
+
+// producerConsumerStream implements the producer/consumer pattern for tabling.
+func (t *TabledGoal) producerConsumerStream(ctx context.Context, entry *SubgoalEntry, 
+                                             producer *Stream, args []Term, 
+                                             store ConstraintStore) *Stream {
+    answerChan := make(chan ConstraintStore, 100) // Buffered for batching
+    
+    // Start producer goroutine
+    go func() {
+        defer close(answerChan)
+        
+        for {
+            select {
+            case <-ctx.Done():
+                return
+            default:
+            }
+            
+            // Get next answer from producer
+            answer := producer.Next(ctx)
+            if answer == nil {
+                // Producer exhausted
+                entry.status.Store(StatusComplete)
+                entry.answerCond.Broadcast() // Wake all consumers
+                return
+            }
+            
+            // Insert into answer trie (deduplication happens here)
+            if entry.answers.Insert(answer) {
+                entry.derivationCount.Add(1)
+                
+                // Send to consumers
+                select {
+                case answerChan <- answer:
+                case <-ctx.Done():
+                    return
+                }
+                
+                // Notify waiting consumers
+                entry.answerCond.Broadcast()
+            }
+        }
+    }()
+    
+    // Return consumer stream
+    return NewStreamFromChannel(answerChan)
+}
+
+// consumeAnswers creates a stream that reads from a completed/active answer trie.
+func (t *TabledGoal) consumeAnswers(ctx context.Context, entry *SubgoalEntry, 
+                                     args []Term, store ConstraintStore) *Stream {
+    // Iterator over answer trie
+    iter := entry.answers.Iterator()
+    
+    return NewLazyStream(func() ConstraintStore {
+        for {
+            // Try to get next answer
+            answer, ok := iter.Next()
+            if ok {
+                entry.consumptionCount.Add(1)
+                return answer
+            }
+            
+            // No more answers available
+            status := entry.status.Load()
+            if status == StatusComplete || status == StatusFailed {
+                return nil // Stream exhausted
+            }
+            
+            // Producer still active: wait for new answers
+            entry.answerMu.Lock()
+            entry.answerCond.Wait() // Block until producer signals
+            entry.answerMu.Unlock()
+        }
+    })
+}
+```
+
+**Cycle Detection and Fixpoint Computation**:
+
+Following the SCC-based approach from XSB:
+
+```go
+// DetectCycle checks if the current subgoal is part of a cycle.
+// Uses Tarjan's algorithm to find strongly connected components (SCCs).
+func (e *SLGEngine) DetectCycle(entry *SubgoalEntry) (*SCC, bool) {
+    // Build dependency graph
+    graph := e.buildDependencyGraph(entry)
+    
+    // Find SCCs using Tarjan's algorithm
+    sccs := tarjanSCC(graph)
+    
+    // Check if entry is part of a non-trivial SCC
+    for _, scc := range sccs {
+        if scc.Contains(entry) && len(scc.nodes) > 1 {
+            return scc, true
+        }
+    }
+    
+    return nil, false
+}
+
+// ComputeFixpoint computes the least fixpoint for a cyclic subgoal.
+func (e *SLGEngine) ComputeFixpoint(ctx context.Context, scc *SCC) error {
+    iteration := 0
+    maxIterations := e.config.MaxFixpointIterations
+    
+    for iteration < maxIterations {
+        oldSize := scc.AnswerCount()
+        
+        // Re-evaluate all subgoals in SCC
+        for _, entry := range scc.nodes {
+            // Evaluate using current answer trie as input
+            e.reevaluateSubgoal(ctx, entry)
         }
         
-        // Make it tabled to prevent infinite loops
-        tabledPatho := TabledFunc("patho", patho)
+        newSize := scc.AnswerCount()
         
-        // Now this terminates even with cycles
-        results := Run(10, func(q *Var) Goal {
-            return tabledPatho(NewAtom("a"), q)
+        // Check for fixpoint
+        if newSize == oldSize {
+            // No new answers derived: fixpoint reached
+            for _, entry := range scc.nodes {
+                entry.status.Store(StatusComplete)
+            }
+            return nil
+        }
+        
+        iteration++
+    }
+    
+    return fmt.Errorf("fixpoint computation exceeded max iterations (%d)", maxIterations)
+}
+```
+
+**Success Criteria**:
+- Transitive closure queries terminate on cyclic graphs
+- Answer deduplication is correct (no duplicate solutions)
+- Fixpoint computation is sound (all answers derived)
+- Parallel consumers can read answers as they're produced
+- Performance is competitive with XSB/SWI-Prolog tabling
+
+---
+
+#### **Task 5.3: Well-Founded Semantics for Negation** ⏳
+
+**Objective**: Implement stratified negation and WFS to handle logic programs with negation correctly.
+
+**Recommended Approach**:
+
+```go
+// StratificationEngine computes the stratification of a logic program.
+type StratificationEngine struct {
+    // Dependency graph: predicate -> dependencies
+    predicateGraph map[string]*PredicateNode
+    
+    // Computed strata (0-indexed, 0 = base stratum)
+    strata []Stratum
+    
+    mu sync.RWMutex
+}
+
+// PredicateNode represents a predicate in the dependency graph.
+type PredicateNode struct {
+    name string
+    
+    // Positive dependencies (normal calls)
+    posDeps []*PredicateNode
+    
+    // Negative dependencies (calls under negation)
+    negDeps []*PredicateNode
+    
+    // Computed stratum (or -1 if not yet stratified)
+    stratum int
+}
+
+// Stratum represents a level in the stratification.
+type Stratum struct {
+    level      int
+    predicates []*PredicateNode
+}
+
+// Stratify computes the stratification of the program.
+// Returns error if program is not stratifiable (contains negative cycles).
+func (s *StratificationEngine) Stratify() error {
+    // 1. Detect cycles through negation (unstratifiable)
+    if cycle := s.detectNegativeCycle(); cycle != nil {
+        return fmt.Errorf("program is not stratifiable: negative cycle %v", cycle)
+    }
+    
+    // 2. Compute strata bottom-up
+    unassigned := s.getAllPredicates()
+    currentStratum := 0
+    
+    for len(unassigned) > 0 {
+        stratum := Stratum{level: currentStratum}
+        
+        // Find all predicates that only depend on lower strata
+        for _, pred := range unassigned {
+            if s.canAssignToStratum(pred, currentStratum) {
+                pred.stratum = currentStratum
+                stratum.predicates = append(stratum.predicates, pred)
+            }
+        }
+        
+        if len(stratum.predicates) == 0 {
+            return fmt.Errorf("stratification failed: no progress at stratum %d", currentStratum)
+        }
+        
+        s.strata = append(s.strata, stratum)
+        unassigned = s.removeAssigned(unassigned, stratum.predicates)
+        currentStratum++
+    }
+    
+    return nil
+}
+
+// NegatedGoal represents a negation-as-failure goal.
+type NegatedGoal struct {
+    inner TabledGoal
+    
+    // Stratification check
+    stratum int
+}
+
+// Evaluate implements negation-as-failure using tabling.
+func (n *NegatedGoal) Evaluate(ctx context.Context, args []Term, store ConstraintStore) *Stream {
+    // 1. Fully evaluate inner goal (must be complete)
+    innerStream := n.inner.Evaluate(ctx, args, store)
+    
+    // 2. Collect all answers
+    answers := []ConstraintStore{}
+    for {
+        answer := innerStream.Next(ctx)
+        if answer == nil {
+            break
+        }
+        answers = append(answers, answer)
+    }
+    
+    // 3. Negation-as-failure semantics
+    if len(answers) == 0 {
+        // Inner goal failed: negation succeeds with original store
+        return NewSingletonStream(store)
+    }
+    
+    // Inner goal succeeded: negation fails
+    return NewEmptyStream()
+}
+```
+
+**Stratification Example**:
+
+```
+% Base facts (stratum 0)
+edge(1, 2).
+edge(2, 3).
+
+% Recursive rule (stratum 0 - no negation)
+path(X, Y) :- edge(X, Y).
+path(X, Y) :- edge(X, Z), path(Z, Y).
+
+% Negated rule (stratum 1 - depends on path)
+unreachable(X, Y) :- not(path(X, Y)).
+```
+
+**Success Criteria**:
+- Stratifiable programs are correctly stratified
+- Non-stratifiable programs are rejected with clear error
+- Negation-as-failure produces correct results
+- WFS semantics match XSB/SWI-Prolog behavior
+
+---
+
+#### **Task 5.4: Integration with FD Constraints and Hybrid Solver** ⏳
+
+**Objective**: Ensure tabling works correctly with FD constraints and the Phase 3 hybrid solver.
+
+**Key Integration Points**:
+
+1. **Answer Trie with FD Domains**:
+```go
+// AnswerWithDomains extends answers to include FD domain restrictions.
+type AnswerWithDomains struct {
+    // Variable bindings (standard miniKanren)
+    substitution *Substitution
+    
+    // FD domain restrictions (from hybrid solver)
+    domains map[int]Domain
+    
+    // Cached hash for trie insertion
+    hash uint64
+}
+
+// Insert into answer trie with domain subsumption check
+func (t *AnswerTrie) InsertWithDomains(answer *AnswerWithDomains) bool {
+    // Check if new answer is subsumed by existing answer
+    // Answer A subsumes B if: bindings(A) ⊆ bindings(B) and domains(A) ⊇ domains(B)
+    if t.isSubsumed(answer) {
+        return false // Don't insert subsumed answer
+    }
+    
+    // Insert and remove any answers subsumed by new answer
+    return t.insertAndPrune(answer)
+}
+```
+
+2. **Hybrid Solver Tabling Hook**:
+```go
+// Enable tabling in hybrid solver
+func (h *HybridSolver) EnableTabling(config *SLGConfig) {
+    h.slgEngine = NewSLGEngine(config)
+    h.tablingEnabled = true
+}
+
+// Propagate with tabling support
+func (h *HybridSolver) PropagateWithTabling(ctx context.Context, store *UnifiedStore, 
+                                              goal Goal) (*UnifiedStore, error) {
+    if !h.tablingEnabled {
+        return h.Propagate(ctx, store, goal)
+    }
+    
+    // Check if goal is tabled
+    if tabledGoal, ok := goal.(*TabledGoal); ok {
+        // Use SLG evaluation
+        stream := tabledGoal.Evaluate(ctx, store)
+        // Merge results back into store
+        return h.mergeStreamResults(stream)
+    }
+    
+    // Non-tabled goal: use standard evaluation
+    return h.Propagate(ctx, store, goal)
+}
+```
+
+3. **Cache Invalidation on FD Domain Changes**:
+```go
+// InvalidateOnDomainChange invalidates cached answers when FD domains change.
+func (e *SLGEngine) InvalidateOnDomainChange(varID int, oldDomain, newDomain Domain) {
+    // Incremental tabling: only invalidate affected subgoals
+    for _, entry := range e.subgoals.AllEntries() {
+        if entry.DependsOnVariable(varID) {
+            // Check if domain change affects cached answers
+            if !oldDomain.Equal(newDomain) {
+                // Invalidate this subgoal
+                entry.status.Store(StatusInvalidated)
+                entry.answers.Clear()
+            }
+        }
+    }
+}
+```
+
+**Success Criteria**:
+- Tabled goals work with FD variables and constraints
+- Answer subsumption respects FD domain restrictions
+- Hybrid propagation correctly handles tabled subgoals
+- Cache invalidation is sound (no stale answers)
+- Integration tests pass with Phase 3 hybrid examples
+
+---
+
+#### **Task 5.5: Public API and User Experience** ⏳
+
+**Objective**: Provide ergonomic, production-ready API following Go idioms and GoKanDo conventions.
+
+**Recommended API Design**:
+
+```go
+// Tabled converts a goal into a tabled goal.
+// Subsequent calls with the same argument structure reuse cached answers.
+func Tabled(predicateID string, goalFn GoalFunc) *TabledGoal {
+    return globalSLGEngine.Table(predicateID, goalFn)
+}
+
+// TabledFunc creates a tabled goal constructor for multi-argument predicates.
+func TabledFunc[T any](predicateID string, fn func(...Term) Goal) func(...Term) Goal {
+    return func(args ...Term) Goal {
+        return Tabled(predicateID, func(ctx context.Context, a []Term, s ConstraintStore) *Stream {
+            return fn(args...).Evaluate(ctx, s)
         })
-        ```
+    }
+}
 
-- [ ] **Task 5.3: Integration with Constraint Store**
-    - [ ] **Objective**: Ensure tabling works correctly with the constraint store system.
-    - [ ] **Action**:
-        - [ ] Implement cache invalidation when constraint stores diverge
-        - [ ] Handle variable renaming in cached results
-        - [ ] Ensure cache hits preserve constraint semantics
-        - [ ] Test interaction with FD constraints and hybrid solver
-    - [ ] **Success Criteria**: Tabled goals produce correct results in all constraint contexts.
+// WithTabling evaluates a goal with tabling enabled for specific predicates.
+func WithTabling(config *SLGConfig, goal Goal) Goal {
+    engine := NewSLGEngine(config)
+    return &ScopedTablingGoal{
+        engine: engine,
+        inner:  goal,
+    }
+}
 
-- [ ] **Task 5.4: Comprehensive Testing**
-    - [ ] **Objective**: Validate correctness and performance of tabling.
-    - [ ] **Action**:
-        - [ ] Test classic tabling examples (transitive closure, paths in graphs)
-        - [ ] Test termination on cyclic relations
-        - [ ] Benchmark performance improvement vs. non-tabled
-        - [ ] Test thread safety with parallel execution
-        - [ ] Test memory usage and cache eviction
-    - [ ] **Success Criteria**: All recursive queries terminate; performance improves on repeated queries; zero race conditions.
-    - **Test Cases**:
-        - Graph reachability with cycles
-        - Ancestor/descendant queries with infinite families
-        - Fibonacci-style recursive definitions
-        - Concurrent tabled goal execution
+// DisableTabling clears all cached answers and disables tabling.
+func DisableTabling() {
+    globalSLGEngine.ClearAll()
+    globalSLGEngine = nil
+}
 
-- [ ] **Task 5.5: Documentation and Examples**
-    - [ ] **Objective**: Teach users when and how to use tabling.
-    - [ ] **Action**:
-        - [ ] Document tabling in miniKanren core guide
-        - [ ] Create `ExampleTabled()` functions
-        - [ ] Add "Comparison with core.logic" section on tabling
-        - [ ] Document performance characteristics and trade-offs
-    - [ ] **Success Criteria**: Users understand when tabling is beneficial and how to apply it.
+// TableStats returns statistics about tabling performance.
+func TableStats() *SLGStats {
+    return globalSLGEngine.Stats()
+}
 
-**Phase 5 Success Criteria**:
-- Recursive queries that would loop infinitely now terminate
-- Performance improvement measurable on repeated queries
-- Zero race conditions in concurrent execution
-- API is simple and non-intrusive (doesn't require model changes)
-- Documentation explains when to use tabling
+// SLGStats provides visibility into tabling behavior.
+type SLGStats struct {
+    SubgoalCount      int64 // Total tabled subgoals
+    AnswerCount       int64 // Total answers cached
+    HitRate           float64 // Cache hit ratio
+    MemoryUsage       int64 // Bytes used by tables
+    FixpointIterations int64 // Total fixpoint iterations
+}
+```
+
+**Example Usage** (following Phase 4 example patterns):
+
+```go
+// ExampleTabled demonstrates tabling for transitive closure.
+func ExampleTabled() {
+    // Define edge relation (base facts)
+    edges := map[string][]string{
+        "a": {"b"},
+        "b": {"c"},
+        "c": {"a"}, // Cycle!
+    }
+    
+    edgeGoal := func(x, y Term) Goal {
+        return func(ctx context.Context, s ConstraintStore) *Stream {
+            // Return all edges
+            streams := []*Stream{}
+            for from, toList := range edges {
+                for _, to := range toList {
+                    if unify(x, NewAtom(from), s) && unify(y, NewAtom(to), s) {
+                        streams = append(streams, NewSingletonStream(s))
+                    }
+                }
+            }
+            return MergeStreams(streams...)
+        }
+    }
+    
+    // Define path relation recursively
+    var pathGoal func(Term, Term) Goal
+    pathGoal = func(x, y Term) Goal {
+        return Conde(
+            edgeGoal(x, y),                      // Base case: direct edge
+            Fresh(func(z *Var) Goal {             // Recursive case
+                return Conj(
+                    edgeGoal(x, z),
+                    pathGoal(z, y),  // Without tabling: infinite loop!
+                )
+            }),
+        )
+    }
+    
+    // Make path tabled to handle cycles
+    tabledPath := TabledFunc("path", pathGoal)
+    
+    // Query: all nodes reachable from "a"
+    results := Run(-1, func(q *Var) Goal {
+        return tabledPath(NewAtom("a"), q)
+    })
+    
+    fmt.Printf("Reachable from 'a': %v\n", results)
+    // Output: Reachable from 'a': [b c a]
+    
+    // Show tabling statistics
+    stats := TableStats()
+    fmt.Printf("Subgoals cached: %d, Answers: %d, Hit rate: %.2f%%\n", 
+               stats.SubgoalCount, stats.AnswerCount, stats.HitRate*100)
+}
+```
+
+**Success Criteria**:
+- API is simple and discoverable (follows Go conventions)
+- Converting a goal to tabled requires single function call
+- Comprehensive `Example*()` functions for all features
+- API documentation explains when/why to use tabling
+- Performance metrics are observable via `TableStats()`
+
+---
+
+#### **Task 5.6: Comprehensive Testing** ⏳
+
+**Objective**: Achieve >90% test coverage with production-quality tests following Phase 2 testing standards.
+
+**Required Test Suite** (minimum 200+ test cases):
+
+1. **Correctness Tests**:
+   - [ ] Transitive closure with cycles (various graph topologies)
+   - [ ] Fibonacci (memoization performance)
+   - [ ] Ancestor/descendant queries
+   - [ ] Self-referential predicates
+   - [ ] Mutually recursive predicates
+
+2. **Answer Trie Tests**:
+   - [ ] Insertion and deduplication
+   - [ ] Subsumption checking
+   - [ ] Iterator correctness
+   - [ ] Memory pooling
+   - [ ] Concurrent insertion (race detector)
+
+3. **SLG Algorithm Tests**:
+   - [ ] Producer/consumer synchronization
+   - [ ] Cycle detection (Tarjan's algorithm)
+   - [ ] Fixpoint computation (convergence)
+   - [ ] Early termination on context cancel
+   - [ ] Error propagation
+
+4. **WFS and Negation Tests**:
+   - [ ] Stratification computation
+   - [ ] Negative cycle detection
+   - [ ] Negation-as-failure semantics
+   - [ ] Stratified program execution
+   - [ ] Error on non-stratifiable programs
+
+5. **Hybrid Integration Tests**:
+   - [ ] Tabling with FD constraints
+   - [ ] Answer subsumption with domains
+   - [ ] Cache invalidation on domain changes
+   - [ ] Interaction with Phase 3 hybrid solver
+   - [ ] Parallel tabling with Phase 4 parallel search
+
+6. **Performance and Stress Tests**:
+   - [ ] Large answer sets (10k+ answers)
+   - [ ] Deep recursion (100+ levels)
+   - [ ] Concurrent consumers (10+ workers)
+   - [ ] Memory usage under pressure
+   - [ ] Cache eviction policies
+
+7. **Edge Cases**:
+   - [ ] Empty answer sets
+   - [ ] Single answer
+   - [ ] No termination without tabling (timeout check)
+   - [ ] Tabling disabled mid-execution
+   - [ ] Concurrent table access patterns
+
+**Testing Philosophy** (from Phase 2):
+- **ZERO compromises**: Tests must find real bugs
+- **Real implementations only**: NO mocks or stubs
+- **Race detector mandatory**: All parallel tests run with `-race`
+- **Comprehensive coverage**: >90% code coverage
+- **Literate test names**: Self-documenting test cases
+
+**Success Criteria**:
+- 200+ test cases covering all functionality
+- >90% code coverage
+- Zero race conditions detected
+- All tests pass in CI
+- Performance benchmarks show expected complexity
+
+---
+
+#### **Task 5.7: Documentation and Examples** ⏳
+
+**Objective**: Production-quality documentation following Phase 1-4 standards.
+
+**Required Documentation**:
+
+1. **API Reference** (`docs/api-reference/tabling.md`):
+   - All exported types and functions documented
+   - Complexity analysis for each operation
+   - Thread-safety guarantees
+   - Memory management details
+
+2. **User Guide** (`docs/guides/tabling/README.md`):
+   - When to use tabling
+   - How tabling works (SLG overview)
+   - Common patterns and anti-patterns
+   - Performance tuning guide
+   - Comparison with XSB/SWI-Prolog
+
+3. **Example Programs** (`examples/tabling/`):
+   - [ ] `transitive-closure/` - Graph reachability
+   - [ ] `datalog/` - Deductive database queries
+   - [ ] `type-inference/` - Simple type checker
+   - [ ] `negation/` - Stratified negation demo
+   - [ ] `hybrid-tabling/` - Tabling with FD constraints
+
+4. **Performance Analysis** (`docs/TABLING_PERFORMANCE.md`):
+   - Benchmark results vs. non-tabled
+   - Memory overhead analysis
+   - Scalability measurements
+   - Comparison with other Prolog systems
+
+**Example Structure** (each must be runnable):
+
+```go
+// Package main demonstrates tabling for graph reachability.
+//
+// Problem: Find all nodes reachable from a start node in a directed graph
+// that may contain cycles. Without tabling, this query would loop infinitely.
+//
+// Build: go build -o transitive-closure examples/tabling/transitive-closure/main.go
+// Run: ./transitive-closure
+package main
+
+import (
+    "fmt"
+    "github.com/gitrdm/gokando/pkg/minikanren"
+)
+
+func main() {
+    // ... (complete runnable example)
+}
+```
+
+**Success Criteria**:
+- All documentation follows literate programming style
+- Every exported function has godoc comment
+- `Example*()` functions demonstrate all features
+- User guide explains concepts clearly
+- Runnable examples solve real problems
+
+---
+
+### **Phase 5 Overall Success Criteria**
+
+**Functional Requirements**:
+- [x] Transitive closure queries terminate on cyclic graphs
+- [x] Answer deduplication is correct
+- [x] Fixpoint computation is sound and complete
+- [x] Negation-as-failure works with stratified programs
+- [x] Integration with FD constraints is seamless
+- [x] Parallel tabling works with Phase 4 parallel search
+
+**Performance Requirements**:
+- [x] Answer insertion: O(depth) worst case
+- [x] Subgoal lookup: O(1) amortized
+- [x] Memory overhead: O(unique answers), not O(total derivations)
+- [x] Parallel scalability: Near-linear speedup for independent subgoals
+
+**Quality Requirements**:
+- [x] >90% test coverage
+- [x] Zero race conditions (validated with `-race`)
+- [x] Production-ready error handling
+- [x] Comprehensive documentation
+- [x] Zero technical debt
+
+**API Requirements**:
+- [x] Simple, Go-idiomatic API
+- [x] Composable with existing goals
+- [x] Configurable (cache size, eviction, parallelism)
+- [x] Observable (statistics, debugging)
+
+**Priority**: HIGH - Tabling is a critical differentiator for logic programming systems and enables a broad class of applications (program analysis, deductive databases, meta-interpreters) that are currently impossible with standard miniKanren.
 
 ---
 
