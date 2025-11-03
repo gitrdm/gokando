@@ -99,50 +99,41 @@ func QueryEvaluator(query Goal, varIDs ...int64) GoalEvaluator {
 // TabledQuery wraps a pldb query with SLG tabling for recursive evaluation.
 // This is the primary integration point between pldb and the SLG engine.
 //
-// IMPORTANT LIMITATION: TabledQuery is designed for top-level recursive predicates,
-// not for use within Conj/Disj with shared variables. The SLG tabling system works
-// with isolated answer substitutions, which don't compose well with miniKanren's
-// threaded ConstraintStore model when joining.
+// TabledQuery properly composes with Conj/Disj by:
+//   - Walking variables in the incoming ConstraintStore to get current bindings
+//   - Using bound values as ground terms in the tabled query
+//   - Only caching based on the effective query pattern after instantiation
+//   - Unifying remaining unbound variables with tabled results
 //
-// Use TabledQuery for:
-//   - Top-level queries that need caching
-//   - Recursive predicates (transitive closure, reachability, etc.)
-//   - Independent queries without variable sharing
+// This enables tabled queries to work correctly in joins:
 //
-// Use regular Database.Query() for:
-//   - Joins with Conj where variables are shared between subgoals
-//   - Complex queries mixing pldb with other goals
-//   - Non-recursive queries
+//	Conj(
+//	    TabledQuery(db, parent, "parent", gp, p),    // p unbound, will be bound by results
+//	    TabledQuery(db, parent, "parent", p, gc),    // p now bound, used as ground term
+//	)
 //
 // The function:
-//  1. Constructs a CallPattern from the predicate ID and query arguments
-//  2. Creates a GoalEvaluator from the pldb query
-//  3. Evaluates via the global SLG engine
-//  4. Returns a Goal that unifies results with the original pattern
+//  1. Walks all argument variables to get current bindings from store
+//  2. Constructs a CallPattern from the instantiated arguments
+//  3. Creates a GoalEvaluator from the pldb query
+//  4. Evaluates via the global SLG engine with caching
+//  5. Returns a Goal that unifies results with remaining unbound variables
 //
 // Parameters:
 //   - db: The pldb database to query
 //   - rel: The relation to query
 //   - predicateID: Unique identifier for tabling (e.g., "edge", "path")
-//   - args: Query pattern (may contain variables)
+//   - args: Query pattern (may contain variables or ground terms)
 //
-// Example (correct usage):
+// Example:
 //
-//	// Top-level tabled query
+//	// Tabled transitive closure
 //	goal := TabledQuery(db, edge, "path", x, y)
 //
-// Example (incorrect - use regular Query instead):
-//
-//	// DON'T do this - shared variable p won't unify correctly:
-//	Conj(
+//	// Tabled join (works correctly now)
+//	goal := Conj(
 //	    TabledQuery(db, parent, "parent", gp, p),
-//	    TabledQuery(db, parent, "parent", p, gc),  // p won't be bound from first goal
-//	)
-//
-//	// DO this instead:
-//	Conj(
-//	    db.Query(parent, gp, p),
-//	    db.Query(parent, p, gc),
+//	    TabledQuery(db, parent, "parent", p, gc),
 //	)
 func TabledQuery(db *Database, rel *Relation, predicateID string, args ...Term) Goal {
 	if db == nil || rel == nil {
@@ -154,22 +145,31 @@ func TabledQuery(db *Database, rel *Relation, predicateID string, args ...Term) 
 	}
 
 	return func(ctx context.Context, store ConstraintStore) *Stream {
-		// Collect variable IDs from the argument pattern
-		varIDs := make([]int64, 0, len(args))
-		for _, arg := range args {
-			if v, ok := arg.(*Var); ok {
-				varIDs = append(varIDs, v.id)
+		// Walk all arguments to get their current bindings from the store
+		// This is crucial for correct composition in Conj/Disj
+		instantiatedArgs := make([]Term, len(args))
+		unboundVars := make([]int64, 0, len(args))
+
+		for i, arg := range args {
+			walked := store.GetSubstitution().Walk(arg)
+			instantiatedArgs[i] = walked
+
+			// Track which variables are still unbound after walking
+			if v, ok := walked.(*Var); ok {
+				unboundVars = append(unboundVars, v.id)
 			}
 		}
 
-		// Build the pldb query
-		query := db.Query(rel, args...)
+		// Build the pldb query with instantiated arguments
+		// If a variable was bound in the store, it's now a ground term
+		query := db.Query(rel, instantiatedArgs...)
 
-		// Wrap as a GoalEvaluator
-		evaluator := QueryEvaluator(query, varIDs...)
+		// Wrap as a GoalEvaluator - only extract bindings for unbound vars
+		evaluator := QueryEvaluator(query, unboundVars...)
 
-		// Build call pattern for SLG tabling
-		pattern := NewCallPattern(predicateID, args)
+		// Build call pattern from instantiated arguments
+		// This ensures cache hits when the same ground query is repeated
+		pattern := NewCallPattern(predicateID, instantiatedArgs)
 
 		// Evaluate via SLG engine
 		engine := GlobalEngine()
@@ -181,7 +181,8 @@ func TabledQuery(db *Database, rel *Relation, predicateID string, args ...Term) 
 		}
 
 		// Create stream from tabled results
-		return streamFromAnswers(ctx, store, resultChan, args)
+		// Only unify the variables that were unbound when we started
+		return streamFromAnswers(ctx, store, resultChan, instantiatedArgs)
 	}
 }
 

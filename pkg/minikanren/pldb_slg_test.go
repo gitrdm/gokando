@@ -453,12 +453,9 @@ func TestStreamFromAnswers(t *testing.T) {
 	})
 }
 
-// TestTabledQuery_Limitation documents the known limitation with shared variables in Conj.
-func TestTabledQuery_Limitation(t *testing.T) {
-	t.Run("shared variables in Conj don't work correctly", func(t *testing.T) {
-		// This test documents the known limitation: TabledQuery doesn't
-		// properly compose with shared variables in Conj
-
+// TestTabledQuery_Join verifies that TabledQuery correctly handles shared variables in Conj.
+func TestTabledQuery_Join(t *testing.T) {
+	t.Run("shared variables in Conj work correctly", func(t *testing.T) {
 		InvalidateAll()
 
 		parent, _ := DbRel("parent", 2, 0, 1)
@@ -470,10 +467,10 @@ func TestTabledQuery_Limitation(t *testing.T) {
 		gc := Fresh("gc")
 		p := Fresh("p")
 
-		// This DOES NOT work correctly - shared variable p won't unify
+		// TabledQuery should work correctly with shared variable p
 		goal := Conj(
-			TabledQuery(db, parent, "parent_limit", gp, p),
-			TabledQuery(db, parent, "parent_limit", p, gc),
+			TabledQuery(db, parent, "parent_join_test", gp, p),
+			TabledQuery(db, parent, "parent_join_test", p, gc),
 		)
 
 		ctx := context.Background()
@@ -481,31 +478,88 @@ func TestTabledQuery_Limitation(t *testing.T) {
 		stream := goal(ctx, store)
 		results, _ := stream.Take(10)
 
-		// Due to the limitation, we get incomplete results
-		// (This is expected behavior documenting the limitation)
-		t.Logf("TabledQuery in Conj with shared vars returned %d results (incomplete)", len(results))
+		// Should find exactly 1 grandparent: alice->bob->charlie
+		if len(results) != 1 {
+			t.Errorf("Expected 1 grandparent relationship, got %d", len(results))
+		}
 
-		// Verify that regular Query works correctly
+		// Verify all variables are properly bound
+		if len(results) > 0 {
+			gpVal := results[0].GetBinding(gp.ID())
+			gcVal := results[0].GetBinding(gc.ID())
+			pVal := results[0].GetBinding(p.ID())
+
+			if gpVal == nil {
+				t.Errorf("Missing gp binding")
+			}
+			if gcVal == nil {
+				t.Errorf("Missing gc binding")
+			}
+			if pVal == nil {
+				t.Errorf("Missing p binding")
+			}
+
+			// Verify correct values
+			if atom, ok := gpVal.(*Atom); ok {
+				if atom.Value() != "alice" {
+					t.Errorf("Expected gp=alice, got %v", atom.Value())
+				}
+			}
+			if atom, ok := gcVal.(*Atom); ok {
+				if atom.Value() != "charlie" {
+					t.Errorf("Expected gc=charlie, got %v", atom.Value())
+				}
+			}
+			if atom, ok := pVal.(*Atom); ok {
+				if atom.Value() != "bob" {
+					t.Errorf("Expected p=bob, got %v", atom.Value())
+				}
+			}
+		}
+	})
+
+	t.Run("compare with regular Query", func(t *testing.T) {
+		InvalidateAll()
+
+		parent, _ := DbRel("parent", 2, 0, 1)
+		db := NewDatabase()
+		db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
+		db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("charlie"))
+		db, _ = db.AddFact(parent, NewAtom("charlie"), NewAtom("diana"))
+
+		gp := Fresh("gp")
+		gc := Fresh("gc")
+		p := Fresh("p")
+
+		// TabledQuery join
+		goal1 := Conj(
+			TabledQuery(db, parent, "parent_cmp", gp, p),
+			TabledQuery(db, parent, "parent_cmp", p, gc),
+		)
+
+		ctx := context.Background()
+		store1 := NewLocalConstraintStore(NewGlobalConstraintBus())
+		stream1 := goal1(ctx, store1)
+		results1, _ := stream1.Take(10)
+
+		// Regular Query join
 		goal2 := Conj(
 			db.Query(parent, gp, p),
 			db.Query(parent, p, gc),
 		)
 
-		stream2 := goal2(ctx, store)
+		store2 := NewLocalConstraintStore(NewGlobalConstraintBus())
+		stream2 := goal2(ctx, store2)
 		results2, _ := stream2.Take(10)
 
-		if len(results2) != 1 {
-			t.Errorf("Regular Query should find 1 grandparent, got %d", len(results2))
+		// Both should return same number of results
+		if len(results1) != len(results2) {
+			t.Errorf("TabledQuery returned %d results, regular Query returned %d", len(results1), len(results2))
 		}
 
-		// Verify the correct result has all variables bound
-		if len(results2) > 0 {
-			if results2[0].GetBinding(gp.ID()) == nil {
-				t.Errorf("Missing gp binding in regular query")
-			}
-			if results2[0].GetBinding(gc.ID()) == nil {
-				t.Errorf("Missing gc binding in regular query")
-			}
+		// Should find 2 grandparents: alice->charlie, bob->diana
+		if len(results1) != 2 {
+			t.Errorf("Expected 2 grandparent relationships, got %d", len(results1))
 		}
 	})
 }

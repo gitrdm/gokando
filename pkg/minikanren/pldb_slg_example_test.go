@@ -154,9 +154,9 @@ func ExampleWithTabledDatabase_mutation() {
 	// Found 3 edges after additions
 }
 
-// ExampleTabledQuery_join demonstrates that TabledQuery is designed for
-// top-level queries, not for joining within Conj. For joins, use regular
-// Database.Query() instead.
+// ExampleTabledQuery_join demonstrates joining tabled relations.
+// TabledQuery now correctly handles shared variables in Conj by walking
+// the incoming ConstraintStore to instantiate bound variables.
 func ExampleTabledQuery_join() {
 	InvalidateAll()
 
@@ -166,14 +166,14 @@ func ExampleTabledQuery_join() {
 	db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("charlie"))
 	db, _ = db.AddFact(parent, NewAtom("charlie"), NewAtom("diana"))
 
-	// For joins, use regular Query (not TabledQuery)
+	// TabledQuery now works correctly in joins with shared variables
 	gp := Fresh("gp")
 	gc := Fresh("gc")
 	p := Fresh("p")
 
 	goal := Conj(
-		db.Query(parent, gp, p),
-		db.Query(parent, p, gc),
+		TabledQuery(db, parent, "parent_join_ex", gp, p),
+		TabledQuery(db, parent, "parent_join_ex", p, gc),
 	)
 
 	ctx := context.Background()
