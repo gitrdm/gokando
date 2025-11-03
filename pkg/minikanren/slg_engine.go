@@ -55,6 +55,10 @@ type SLGEngine struct {
 
 	// Mutex for engine-level operations
 	mu sync.RWMutex
+
+	// Optional stratification map: predicateID -> stratum (0 = base)
+	strataMu sync.RWMutex
+	strata   map[string]int
 }
 
 // SLGConfig holds configuration for the SLG engine.
@@ -94,6 +98,7 @@ func NewSLGEngine(config *SLGConfig) *SLGEngine {
 	return &SLGEngine{
 		subgoals: NewSubgoalTable(),
 		config:   config,
+		strata:   make(map[string]int),
 	}
 }
 
@@ -193,6 +198,9 @@ func (e *SLGEngine) Clear() {
 	e.totalAnswers.Store(0)
 	e.cacheHits.Store(0)
 	e.cacheMisses.Store(0)
+	e.strataMu.Lock()
+	e.strata = make(map[string]int)
+	e.strataMu.Unlock()
 }
 
 // GoalEvaluator is a function that evaluates a goal and returns answer bindings.
@@ -204,6 +212,32 @@ func (e *SLGEngine) Clear() {
 //   - Respect context cancellation
 //   - Return any error encountered
 type GoalEvaluator func(ctx context.Context, answers chan<- map[int64]Term) error
+
+// stratification accessors
+// SetStrata sets fixed predicate strata for WFS enforcement where lower strata
+// must not depend negatively on same-or-higher strata. Keys are predicate IDs
+// as used by CallPattern.PredicateID(). Missing keys default to stratum 0.
+func (e *SLGEngine) SetStrata(strata map[string]int) {
+	e.strataMu.Lock()
+	defer e.strataMu.Unlock()
+	e.strata = make(map[string]int, len(strata))
+	for k, v := range strata {
+		e.strata[k] = v
+	}
+}
+
+// Stratum returns the configured stratum for a predicate, or 0 if unspecified.
+func (e *SLGEngine) Stratum(predicateID string) int {
+	e.strataMu.RLock()
+	defer e.strataMu.RUnlock()
+	if s, ok := e.strata[predicateID]; ok {
+		return s
+	}
+	return 0
+}
+
+// internal context key for parent subgoal entry for dependency tracking
+type slgParentKey struct{}
 
 // Evaluate evaluates a tabled goal using SLG resolution.
 //
@@ -231,6 +265,13 @@ func (e *SLGEngine) Evaluate(ctx context.Context, pattern *CallPattern, evaluato
 	// Check if subgoal already exists
 	entry, isNew := e.subgoals.GetOrCreate(pattern)
 
+	// If called within another evaluator, record dependency (parent -> entry)
+	if parentRaw := ctx.Value(slgParentKey{}); parentRaw != nil {
+		if parent, ok := parentRaw.(*SubgoalEntry); ok && parent != entry {
+			parent.AddDependency(entry)
+		}
+	}
+
 	if !isNew {
 		// Cache hit: consume existing answers
 		e.cacheHits.Add(1)
@@ -255,11 +296,6 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 
 	// Producer goroutine: evaluate and populate trie
 	go func() {
-		defer func() {
-			// Mark as complete when done producing
-			entry.SetStatus(StatusComplete)
-			entry.answerCond.Broadcast()
-		}()
 
 		// Channel for evaluator to send answers
 		producerChan := make(chan map[int64]Term, 100)
@@ -269,7 +305,10 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 		evalDone := make(chan struct{})
 		go func() {
 			defer close(producerChan)
-			evalErr = evaluator(ctx, producerChan)
+			// Provide child context carrying current entry so nested Evaluate()
+			// calls can register dependencies against this entry.
+			childCtx := context.WithValue(ctx, slgParentKey{}, entry)
+			evalErr = evaluator(childCtx, producerChan)
 			close(evalDone)
 		}()
 
@@ -278,6 +317,7 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 			select {
 			case <-ctx.Done():
 				entry.SetStatus(StatusFailed)
+				entry.answerCond.Broadcast()
 				return
 
 			case answer, ok := <-producerChan:
@@ -286,7 +326,10 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 					<-evalDone // Wait for evaluator to complete
 					if evalErr != nil {
 						entry.SetStatus(StatusFailed)
+					} else {
+						entry.SetStatus(StatusComplete)
 					}
+					entry.answerCond.Broadcast()
 					return
 				}
 
@@ -303,6 +346,7 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 				if e.config.MaxAnswersPerSubgoal > 0 &&
 					entry.Answers().Count() >= e.config.MaxAnswersPerSubgoal {
 					entry.SetStatus(StatusComplete)
+					entry.answerCond.Broadcast()
 					return
 				}
 			}

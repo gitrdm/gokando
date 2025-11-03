@@ -667,6 +667,43 @@ Prioritization for remaining work (suggested order):
 
 ### Phase 5: SLG/WFS Tabling Infrastructure ⏳ PLANNED
 
+#### Status update (as of 2025-11-02)
+
+This section records current implementation progress without changing the planned design. The plan below remains authoritative; items here document what’s landed, what deviates in implementation details, and what’s still pending.
+
+- Implemented
+    - Core tabling data structures in `pkg/minikanren/tabling.go`:
+        - `AnswerTrie` with insertion-order list and structural sharing; concurrent-safe writes guarded by a small mutex; iteration is snapshot-based to avoid holding the trie lock.
+        - `AnswerIterator` now snapshots answers at construction and returns defensive copies. Added `IteratorFrom(start int)` to resume consumption from an offset, preserving determinism when new answers arrive.
+        - `CallPattern`, `SubgoalTable`, and `SubgoalEntry` implemented with atomic status, dependencies, and condition variable for producer/consumer signaling.
+    - SLG evaluation engine in `pkg/minikanren/slg_engine.go`:
+        - Subgoal entries store a typed `GoalEvaluator` to enable re-evaluation.
+        - Real SCC fixpoint implemented: `ComputeFixpoint` iteratively re-evaluates subgoals in an SCC until no new answers are added (replacing prior placeholder logic).
+        - Consumers/producers updated to use snapshot iterators and refresh via `IteratorFrom(offset)` to avoid duplicate or missed answers under concurrent appends.
+    - Thread-safety and immutability tightened: iterators don’t hold trie locks; `Next()` serializes only local index access; answers returned are copies.
+    - Integration validated: Added an end-to-end test (`slg_hybrid_integration_test.go`) proving SLG-derived bindings flow into `UnifiedStore` and trigger `HybridSolver` propagation (Relational ↔ FD).
+    - Examples: Added `ExampleSLGEngine_ComputeFixpoint` and ensured SLG examples reflect snapshot iterator semantics.
+
+- Deviations vs. planned design (non-breaking; documented for review)
+    - AnswerTrie concurrency: current implementation uses a single mutex for write coordination and takes a slice snapshot for iteration, rather than fully lock-free maps for children. This keeps the hot path (iteration) lock-free and has performed well in tests; we can evolve to finer-grained or lock-free structures if profiling warrants.
+    - Iterator concurrency: order is globally deterministic by insertion, but distribution across concurrent callers of `Next()` depends on scheduling; documentation clarifies recommended single-consumer usage per iterator for deterministic delivery.
+
+- Not yet implemented (Phase 5 items still pending)
+    - Well-Founded Semantics (WFS) and stratification engine for negation.
+    - Answer subsumption with FD domain-aware pruning and cache invalidation on FD domain changes.
+    - Public tabling API wrappers (`Tabled`, `WithTabling`, stats surface) and user-facing guides.
+    - Large-scale tabling test matrix (200+ cases) and performance analysis doc.
+
+- Current quality signals
+    - Full repository tests pass; new SLG↔Hybrid integration test green.
+    - No races detected in concurrent AnswerTrie/iterator tests; examples pass.
+    - Coverage reported by `go test ./...`: ~77.3% overall.
+
+- Near-term next steps (no design changes)
+    - Add a user-facing fixpoint example demonstrating convergence on a recursive predicate (SCC) and iterator refresh via `IteratorFrom`.
+    - Add a negative-path integration test where an SLG-derived binding conflicts with FD constraints to validate error propagation.
+    - Profile AnswerTrie under heavy append to decide if moving children to lock-free maps is justified.
+
 **Objective**: Implement production-quality SLG (Linear resolution with Selection function for General logic programs) tabling with Well-Founded Semantics (WFS) support, enabling termination of recursive queries and supporting programs with negation. This closes a critical gap with advanced logic programming systems.
 
 **Background**: 
@@ -1766,9 +1803,9 @@ func main() {
 ## Quality gates (latest update)
 
 - Build: PASS (go build implicit via tests)
-- Tests: PASS (full suite green after adding optimization options and parallel BnB; coverage ~75.4%)
+- Tests: PASS (full suite green including SLG↔Hybrid integration; coverage ~77.3%)
 - Lint/Typecheck: PASS (no static errors observed in CI-local run)
-- Concurrency: PASS on parallel tests; design continues to avoid work-stealing; uses shared work-queue
+- Concurrency: PASS on parallel tests; design continues to avoid work-stealing; uses shared work-queue; SLG iterator snapshotting eliminates cross-structure contention during iteration
 
 ## Next steps (Phase 4.4)
 
