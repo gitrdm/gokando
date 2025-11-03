@@ -46,23 +46,30 @@ type AnswerRecordIterator struct {
 	inner         *AnswerIterator
 	startIndex    int
 	delayProvider func(index int) DelaySet // nil provider yields empty delay sets
+	include       func(index int) bool     // optional visibility filter; nil => include all
 }
 
 // Next returns the next AnswerRecord or ok=false when exhausted.
 func (it *AnswerRecordIterator) Next() (rec AnswerRecord, ok bool) {
-	bindings, ok := it.inner.Next()
-	if !ok {
-		return AnswerRecord{}, false
+	for {
+		bindings, ok := it.inner.Next()
+		if !ok {
+			return AnswerRecord{}, false
+		}
+		idx := it.startIndex
+		it.startIndex++
+		if it.include != nil && !it.include(idx) {
+			// Skip invisible/retracted answers
+			continue
+		}
+		var ds DelaySet
+		if it.delayProvider != nil {
+			ds = it.delayProvider(idx)
+		} else {
+			ds = nil
+		}
+		return AnswerRecord{Bindings: bindings, Delay: ds}, true
 	}
-	idx := it.startIndex
-	it.startIndex++
-	var ds DelaySet
-	if it.delayProvider != nil {
-		ds = it.delayProvider(idx)
-	} else {
-		ds = nil
-	}
-	return AnswerRecord{Bindings: bindings, Delay: ds}, true
 }
 
 // NewAnswerRecordIterator constructs a metadata-aware iterator over the given
@@ -83,4 +90,10 @@ func NewAnswerRecordIteratorFrom(trie *AnswerTrie, start int, delayProvider func
 		startIndex:    start,
 		delayProvider: delayProvider,
 	}
+}
+
+// WithInclude sets a visibility predicate for the iterator.
+func (it *AnswerRecordIterator) WithInclude(include func(index int) bool) *AnswerRecordIterator {
+	it.include = include
+	return it
 }

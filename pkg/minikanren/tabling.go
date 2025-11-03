@@ -257,19 +257,45 @@ type SubgoalEntry struct {
 
 	// Reference count for memory management
 	refCount atomic.Int64
+
+	// WFS metadata: delay sets per answer index (conditional answers)
+	// Maps answer index (insertion order) to DelaySet
+	// Protected by metadataMu for thread-safe access
+	answerMetadata map[int]DelaySet
+	metadataMu     sync.RWMutex
+
+	// Pending metadata for the next answer to be inserted
+	// Evaluators queue metadata here before emitting answers
+	pendingDelaySet DelaySet
+	pendingMu       sync.Mutex
+
+	// Event channel: closed on any answer insertion or status change,
+	// then replaced with a new channel. Enables non-blocking observers
+	// to detect immediate changes without polling or sleeps.
+	eventMu sync.Mutex
+	eventCh chan struct{}
+
+	// Retracted answers (by index). Retracted answers are hidden from
+	// WFS-aware iterators but remain in the underlying trie to preserve
+	// insertion order and avoid structural mutation.
+	retracted map[int]struct{}
 }
 
 // NewSubgoalEntry creates a new subgoal entry with the given call pattern.
 func NewSubgoalEntry(pattern *CallPattern) *SubgoalEntry {
 	entry := &SubgoalEntry{
-		pattern:      pattern,
-		answers:      NewAnswerTrie(),
-		dependencies: make([]*SubgoalEntry, 0, 4),
-		stratum:      0,
+		pattern:        pattern,
+		answers:        NewAnswerTrie(),
+		dependencies:   make([]*SubgoalEntry, 0, 4),
+		stratum:        0,
+		answerMetadata: make(map[int]DelaySet),
 	}
 	entry.answerCond = sync.NewCond(&entry.answerMu)
 	entry.status.Store(int32(StatusActive))
 	entry.refCount.Store(1)
+	// Initialize event channel
+	entry.eventCh = make(chan struct{})
+	entry.retracted = make(map[int]struct{})
 	return entry
 }
 
@@ -291,6 +317,35 @@ func (se *SubgoalEntry) Status() SubgoalStatus {
 // SetStatus updates the evaluation status.
 func (se *SubgoalEntry) SetStatus(status SubgoalStatus) {
 	se.status.Store(int32(status))
+}
+
+// Event returns a read-only channel that will be closed upon the next
+// answer insertion or status change. After being closed, a new channel
+// will be created for subsequent events.
+func (se *SubgoalEntry) Event() <-chan struct{} {
+	se.eventMu.Lock()
+	ch := se.eventCh
+	se.eventMu.Unlock()
+	return ch
+}
+
+// signalEvent closes the current event channel (if not already closed)
+// and replaces it with a new channel to signal future events.
+func (se *SubgoalEntry) signalEvent() {
+	se.eventMu.Lock()
+	// Safely close current channel (recover if already closed)
+	defer func() {
+		// Replace with a fresh channel for the next event
+		se.eventCh = make(chan struct{})
+		se.eventMu.Unlock()
+	}()
+	// Close current event channel
+	select {
+	case <-se.eventCh:
+		// already closed, do nothing (will be replaced in defer)
+	default:
+		close(se.eventCh)
+	}
 }
 
 // AddDependency records that this subgoal depends on another.
@@ -332,6 +387,164 @@ func (se *SubgoalEntry) Release() bool {
 		panic("SubgoalEntry: negative reference count")
 	}
 	return newCount == 0
+}
+
+// AttachDelaySet associates a DelaySet with the answer at the given index.
+// This marks the answer as conditional on the resolution of the dependencies
+// in the delay set. Thread-safe for concurrent access.
+//
+// If ds is nil or empty, the answer remains unconditional.
+func (se *SubgoalEntry) AttachDelaySet(answerIndex int, ds DelaySet) {
+	if ds == nil || ds.Empty() {
+		return // No delay set to attach
+	}
+	se.metadataMu.Lock()
+	defer se.metadataMu.Unlock()
+	// Copy to prevent external mutation
+	dsCopy := make(DelaySet, len(ds))
+	for k := range ds {
+		dsCopy[k] = struct{}{}
+	}
+	se.answerMetadata[answerIndex] = dsCopy
+}
+
+// DelaySetFor retrieves the DelaySet for the answer at the given index.
+// Returns nil if the answer is unconditional or the index is out of range.
+// Thread-safe for concurrent access.
+func (se *SubgoalEntry) DelaySetFor(answerIndex int) DelaySet {
+	se.metadataMu.RLock()
+	defer se.metadataMu.RUnlock()
+	if ds, ok := se.answerMetadata[answerIndex]; ok {
+		// Return a copy to prevent external mutation
+		dsCopy := make(DelaySet, len(ds))
+		for k := range ds {
+			dsCopy[k] = struct{}{}
+		}
+		return dsCopy
+	}
+	return nil
+}
+
+// AnswerRecords returns an iterator over AnswerRecord (bindings + delay sets).
+// This is the WFS-aware iterator that provides metadata for conditional answers.
+func (se *SubgoalEntry) AnswerRecords() *AnswerRecordIterator {
+	delayProvider := func(index int) DelaySet {
+		return se.DelaySetFor(index)
+	}
+	include := func(index int) bool { return !se.IsRetracted(index) }
+	return NewAnswerRecordIterator(se.answers, delayProvider).WithInclude(include)
+}
+
+// AnswerRecordsFrom returns a WFS-aware iterator starting at the given index.
+func (se *SubgoalEntry) AnswerRecordsFrom(start int) *AnswerRecordIterator {
+	delayProvider := func(index int) DelaySet {
+		return se.DelaySetFor(index)
+	}
+	include := func(index int) bool { return !se.IsRetracted(index) }
+	return NewAnswerRecordIteratorFrom(se.answers, start, delayProvider).WithInclude(include)
+}
+
+// QueueDelaySetForNextAnswer queues a DelaySet to be attached to the next
+// answer inserted into this entry's answer trie. This allows evaluators to
+// associate metadata with answers they are about to emit.
+// Thread-safe for concurrent access.
+func (se *SubgoalEntry) QueueDelaySetForNextAnswer(ds DelaySet) {
+	se.pendingMu.Lock()
+	defer se.pendingMu.Unlock()
+	if ds != nil && !ds.Empty() {
+		// Copy to prevent external mutation
+		dsCopy := make(DelaySet, len(ds))
+		for k := range ds {
+			dsCopy[k] = struct{}{}
+		}
+		se.pendingDelaySet = dsCopy
+	}
+}
+
+// consumePendingDelaySet retrieves and clears any queued DelaySet.
+// Called by the producer after inserting an answer.
+// Thread-safe for concurrent access.
+func (se *SubgoalEntry) consumePendingDelaySet() DelaySet {
+	se.pendingMu.Lock()
+	defer se.pendingMu.Unlock()
+	ds := se.pendingDelaySet
+	se.pendingDelaySet = nil
+	return ds
+}
+
+// RetractAnswer marks the answer at the given index as retracted (invisible).
+// Thread-safe for concurrent access with metadata operations.
+func (se *SubgoalEntry) RetractAnswer(index int) {
+	se.metadataMu.Lock()
+	se.retracted[index] = struct{}{}
+	se.metadataMu.Unlock()
+	se.signalEvent()
+}
+
+// IsRetracted reports whether the answer at the given index is retracted.
+func (se *SubgoalEntry) IsRetracted(index int) bool {
+	se.metadataMu.RLock()
+	_, ok := se.retracted[index]
+	se.metadataMu.RUnlock()
+	return ok
+}
+
+// SimplifyDelaySets removes the provided child dependency from all delay sets
+// in this entry. Returns two booleans: anyChanged indicates any DS was modified;
+// stillDepends indicates whether any delay set in this entry still references child.
+func (se *SubgoalEntry) SimplifyDelaySets(child uint64) (anyChanged bool, stillDepends bool) {
+	se.metadataMu.Lock()
+	for idx, ds := range se.answerMetadata {
+		if ds == nil {
+			continue
+		}
+		if _, ok := ds[child]; ok {
+			anyChanged = true
+			delete(ds, child)
+			if len(ds) == 0 {
+				delete(se.answerMetadata, idx)
+			} else {
+				se.answerMetadata[idx] = ds
+				stillDepends = true
+			}
+		}
+	}
+	// Check if any DS still contains child
+	if !stillDepends {
+		for _, ds := range se.answerMetadata {
+			if ds != nil {
+				if _, ok := ds[child]; ok {
+					stillDepends = true
+					break
+				}
+			}
+		}
+	}
+	se.metadataMu.Unlock()
+	if anyChanged {
+		se.signalEvent()
+	}
+	return anyChanged, stillDepends
+}
+
+// RetractByChild retracts all answers whose delay set contains the given child.
+// Returns the count of answers retracted.
+func (se *SubgoalEntry) RetractByChild(child uint64) int {
+	count := 0
+	se.metadataMu.Lock()
+	for idx, ds := range se.answerMetadata {
+		if ds != nil {
+			if _, ok := ds[child]; ok {
+				se.retracted[idx] = struct{}{}
+				count++
+			}
+		}
+	}
+	se.metadataMu.Unlock()
+	if count > 0 {
+		se.signalEvent()
+	}
+	return count
 }
 
 // SubgoalTable manages all tabled subgoals using a concurrent map.
@@ -384,6 +597,15 @@ func (st *SubgoalTable) GetOrCreate(pattern *CallPattern) (*SubgoalEntry, bool) 
 // Returns nil if not found.
 func (st *SubgoalTable) Get(pattern *CallPattern) *SubgoalEntry {
 	if value, ok := st.entries.Load(pattern.Hash()); ok {
+		return value.(*SubgoalEntry)
+	}
+	return nil
+}
+
+// GetByHash retrieves an existing subgoal entry by hash.
+// Returns nil if not found.
+func (st *SubgoalTable) GetByHash(hash uint64) *SubgoalEntry {
+	if value, ok := st.entries.Load(hash); ok {
 		return value.(*SubgoalEntry)
 	}
 	return nil

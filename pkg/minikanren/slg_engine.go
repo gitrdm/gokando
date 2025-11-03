@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 // SLGEngine coordinates tabled goal evaluation using SLG resolution.
@@ -59,6 +60,83 @@ type SLGEngine struct {
 	// Optional stratification map: predicateID -> stratum (0 = base)
 	strataMu sync.RWMutex
 	strata   map[string]int
+
+	// Reverse dependency index: child pattern hash -> set of parent entries
+	revMu       sync.RWMutex
+	reverseDeps sync.Map // map[uint64]*parentSet
+}
+
+type parentSet struct {
+	mu  sync.RWMutex
+	set map[*SubgoalEntry]struct{}
+}
+
+func (ps *parentSet) add(p *SubgoalEntry) {
+	ps.mu.Lock()
+	if ps.set == nil {
+		ps.set = make(map[*SubgoalEntry]struct{})
+	}
+	ps.set[p] = struct{}{}
+	ps.mu.Unlock()
+}
+func (ps *parentSet) remove(p *SubgoalEntry) {
+	ps.mu.Lock()
+	delete(ps.set, p)
+	ps.mu.Unlock()
+}
+func (ps *parentSet) snapshot() []*SubgoalEntry {
+	ps.mu.RLock()
+	out := make([]*SubgoalEntry, 0, len(ps.set))
+	for k := range ps.set {
+		out = append(out, k)
+	}
+	ps.mu.RUnlock()
+	return out
+}
+
+func (e *SLGEngine) addReverseDependency(child uint64, parent *SubgoalEntry) {
+	value, _ := e.reverseDeps.LoadOrStore(child, &parentSet{set: make(map[*SubgoalEntry]struct{})})
+	ps := value.(*parentSet)
+	ps.add(parent)
+}
+
+func (e *SLGEngine) removeReverseDependency(child uint64, parent *SubgoalEntry) {
+	if value, ok := e.reverseDeps.Load(child); ok {
+		ps := value.(*parentSet)
+		ps.remove(parent)
+	}
+}
+
+func (e *SLGEngine) getReverseParents(child uint64) []*SubgoalEntry {
+	if value, ok := e.reverseDeps.Load(child); ok {
+		return value.(*parentSet).snapshot()
+	}
+	return nil
+}
+
+// onChildHasAnswers is invoked when a child subgoal derives its first answer.
+// It retracts all conditional answers in parents that depend on this child.
+func (e *SLGEngine) onChildHasAnswers(child *SubgoalEntry) {
+	childHash := child.Pattern().Hash()
+	parents := e.getReverseParents(childHash)
+	for _, p := range parents {
+		p.RetractByChild(childHash)
+		// Parent no longer needs notifications for this child.
+		e.removeReverseDependency(childHash, p)
+	}
+}
+
+// onChildCompletedNoAnswers simplifies delay sets in dependent parents.
+func (e *SLGEngine) onChildCompletedNoAnswers(child *SubgoalEntry) {
+	childHash := child.Pattern().Hash()
+	parents := e.getReverseParents(childHash)
+	for _, p := range parents {
+		_, still := p.SimplifyDelaySets(childHash)
+		if !still {
+			// Remove parent from reverse deps, no longer depends on child
+			e.removeReverseDependency(childHash, p)
+		}
+	}
 }
 
 // SLGConfig holds configuration for the SLG engine.
@@ -77,6 +155,11 @@ type SLGConfig struct {
 
 	// EnableSubsumptionChecking enables answer subsumption (future enhancement)
 	EnableSubsumptionChecking bool
+
+	// NegationPeekTimeout is the maximum duration NegateEvaluator will wait
+	// for an immediate inner subgoal event (first answer or completion) before
+	// emitting a conditional answer. Set to 0 to disable waiting.
+	NegationPeekTimeout time.Duration
 }
 
 // DefaultSLGConfig returns the default SLG configuration.
@@ -87,6 +170,9 @@ func DefaultSLGConfig() *SLGConfig {
 		MaxFixpointIterations:     1000,  // Prevent infinite loops
 		EnableParallelProducers:   false, // Sequential by default
 		EnableSubsumptionChecking: false, // Future enhancement
+		// Small event-driven peek to catch immediate completion/answers without races
+		// Keeps negation semantics intuitive (unconditional when inner completes immediately)
+		NegationPeekTimeout: time.Millisecond,
 	}
 }
 
@@ -305,9 +391,11 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 		evalDone := make(chan struct{})
 		go func() {
 			defer close(producerChan)
-			// Provide child context carrying current entry so nested Evaluate()
-			// calls can register dependencies against this entry.
+			// Provide child context carrying:
+			// - current entry for dependency tracking (slgParentKey)
+			// - current entry for metadata attachment (slgProducerEntryKey)
 			childCtx := context.WithValue(ctx, slgParentKey{}, entry)
+			childCtx = context.WithValue(childCtx, slgProducerEntryKey{}, entry)
 			evalErr = evaluator(childCtx, producerChan)
 			close(evalDone)
 		}()
@@ -317,6 +405,8 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 			select {
 			case <-ctx.Done():
 				entry.SetStatus(StatusFailed)
+				// Signal event for failure
+				entry.signalEvent()
 				entry.answerCond.Broadcast()
 				return
 
@@ -329,24 +419,49 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 					} else {
 						entry.SetStatus(StatusComplete)
 					}
+					// Signal event for completion
+					entry.signalEvent()
 					entry.answerCond.Broadcast()
+					// If child completed with no answers, simplify dependents
+					if entry.Answers().Count() == 0 && evalErr == nil {
+						go e.onChildCompletedNoAnswers(entry)
+					}
 					return
 				}
 
 				// Insert into answer trie (deduplication happens here)
-				if entry.Answers().Insert(answer) {
+				wasNew := entry.Answers().Insert(answer)
+				if wasNew {
 					entry.derivationCount.Add(1)
 					e.totalAnswers.Add(1)
 
+					// Attach any pending delay set metadata for WFS conditional answers
+					if pendingDS := entry.consumePendingDelaySet(); pendingDS != nil {
+						answerIndex := int(entry.Answers().Count() - 1)
+						entry.AttachDelaySet(answerIndex, pendingDS)
+					}
+
+					// Signal event for new answer
+					entry.signalEvent()
 					// Notify waiting consumers
 					entry.answerCond.Broadcast()
+
+					// If this is the first answer for this child, trigger retraction in dependents
+					if entry.Answers().Count() == 1 {
+						go e.onChildHasAnswers(entry)
+					}
 				}
 
 				// Check answer limit
 				if e.config.MaxAnswersPerSubgoal > 0 &&
 					entry.Answers().Count() >= e.config.MaxAnswersPerSubgoal {
 					entry.SetStatus(StatusComplete)
+					// Signal event for completion
+					entry.signalEvent()
 					entry.answerCond.Broadcast()
+					if entry.Answers().Count() == 0 {
+						go e.onChildCompletedNoAnswers(entry)
+					}
 					return
 				}
 			}
@@ -369,6 +484,29 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 				}
 				lastCount++
 				entry.consumptionCount.Add(1)
+
+				// Skip retracted answers (WFS retraction)
+				idx := int(lastCount - 1)
+				if entry.IsRetracted(idx) {
+					continue
+				}
+				// If this answer is conditional and any dependency now has answers,
+				// retract and skip streaming it.
+				if ds := entry.DelaySetFor(idx); ds != nil && !ds.Empty() {
+					shouldRetract := false
+					for dep := range ds {
+						if child := e.subgoals.GetByHash(dep); child != nil {
+							if child.Answers().Count() > 0 {
+								shouldRetract = true
+								break
+							}
+						}
+					}
+					if shouldRetract {
+						entry.RetractAnswer(idx)
+						continue
+					}
+				}
 
 				select {
 				case answerChan <- answer:
@@ -415,6 +553,27 @@ func (e *SLGEngine) consumeAnswers(ctx context.Context, entry *SubgoalEntry) <-c
 				if answer, ok := iter.Next(); ok {
 					consumed++
 					entry.consumptionCount.Add(1)
+					// Skip retracted answers
+					idx := int(consumed - 1)
+					if entry.IsRetracted(idx) {
+						continue
+					}
+					// If conditional and dependency has answers, retract and skip
+					if ds := entry.DelaySetFor(idx); ds != nil && !ds.Empty() {
+						shouldRetract := false
+						for dep := range ds {
+							if child := e.subgoals.GetByHash(dep); child != nil {
+								if child.Answers().Count() > 0 {
+									shouldRetract = true
+									break
+								}
+							}
+						}
+						if shouldRetract {
+							entry.RetractAnswer(idx)
+							continue
+						}
+					}
 					select {
 					case answerChan <- answer:
 						continue
