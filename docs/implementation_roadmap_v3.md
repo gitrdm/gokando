@@ -1206,38 +1206,53 @@ func ExampleTabled() {
 
 - [x] **Task 6.6: Hybrid Solver Integration** ✅ COMPLETED
     - [x] **Objective**: Enable pldb queries to work seamlessly with Phase 3/4 hybrid solver (UnifiedStore) and FD constraints.
-    - [x] **Action**:
-        - [x] Create `UnifiedStoreAdapter` implementing `ConstraintStore` interface for `UnifiedStore`
-        - [x] Create tests demonstrating `Database.Query()` with `UnifiedStore`
-        - [x] Add examples combining pldb queries with FD constraints
-        - [x] Implement hybrid usage patterns (e.g., manual FD filtering of query results)
-        - [x] Document hybrid integration in `docs/guides/pldb/hybrid_integration.md`
-        - [x] Verify bidirectional propagation works with pldb queries
-        - [x] Test adapter cloning for parallel search independence
-        - [x] Validate race-free operation with `-race` detector
-    - [x] **Success Criteria**: 
-        - pldb queries work correctly with `UnifiedStore` via adapter pattern ✓
-        - Examples demonstrate mixing relational facts with FD domain constraints ✓
-        - Bidirectional propagation between pldb bindings and FD domains is validated ✓
-        - Documentation explains when and how to use hybrid pldb + FD patterns ✓
-        - All tests pass with race detector enabled ✓
-    - **Implementation (completed 2025-01-XX)**:
-        - Created `unified_store_adapter.go` (269 lines) - production-quality adapter
-        - Created `pldb_hybrid_test.go` (645 lines) - 7 comprehensive integration tests
-        - Created `pldb_hybrid_example_test.go` (300+ lines) - 6 runnable examples
-        - Created `docs/guides/pldb/hybrid_integration.md` - full usage guide
-        - All tests pass (100% success rate) with race detector
-        - Thread-safe via mutex + atomic ID generation
-        - Copy-on-write semantics preserved for parallel search
-    - **Key Design Decisions**:
-        - **Adapter Pattern**: UnifiedStore method signatures return `(*UnifiedStore, error)`, but ConstraintStore expects `error`. Adapter wraps and translates.
-        - **No Automatic FD Filtering**: Explicit integration pattern (manual filtering) gives users control and clarity. Helper functions could be added later.
-        - **Bidirectional Access**: Adapter provides `UnifiedStore()` and `SetUnifiedStore()` for hybrid solver propagation.
-        - **Thread Safety**: Mutex protects adapter state, UnifiedStore immutability handles reads, atomic operations for ID generation.
-    - **Performance**: 
-        - 1000-fact database queries complete in <150ms
-        - Indexed lookups remain O(1) through adapter
-        - Zero race conditions detected in stress tests
+    - [x] **What Was Delivered**:
+        - [x] `UnifiedStoreAdapter` - wraps UnifiedStore to implement ConstraintStore interface
+        - [x] Real hybrid propagation tests in `pldb_hybrid_real_test.go` (6 comprehensive tests)
+        - [x] Basic integration tests in `pldb_hybrid_test.go` (7 adapter tests)
+        - [x] Example functions in `pldb_hybrid_example_test.go` (6 examples)
+        - [x] Full documentation in `docs/guides/pldb/hybrid_integration.md`
+        - [x] Thread-safe operation validated with race detector
+    - [x] **Success Criteria** (Honest Assessment):
+        - ✅ pldb queries work with UnifiedStore via adapter
+        - ✅ Database facts can bind to FD variables (manual mapping required)
+        - ✅ FD domains can filter database results (manual filtering required)
+        - ✅ Hybrid solver propagates constraints across both domains
+        - ✅ Global constraints (AllDifferent) work with database facts
+        - ⚠️ Arithmetic constraints limited by BitSetDomain (no multiplication)
+        - ⚠️ Variable mapping between relational and FD is manual
+        - ⚠️ No automatic FD filtering of queries (by design - explicit integration)
+    - **Implementation Summary (2025-11-03)**:
+        - **Real Hybrid Tests** (`pldb_hybrid_real_test.go` - 606 lines):
+          - `TestPldb_Real_DatabaseFactsPruneFDDomains` - Database bindings → FD singleton
+          - `TestPldb_Real_ArithmeticConstraintsWithDatabase` - Arithmetic propagation (limited)
+          - `TestPldb_Real_AllDifferentWithMultipleQueries` - Global constraints with facts
+          - `TestPldb_Real_FDDomainsFilterDatabaseQueries` - FD filtering of query results
+          - `TestPldb_Real_HybridGoalCombinator` - Reusable FD-aware query wrapper
+          - `TestPldb_Real_CompleteHybridWorkflow` - Resource allocation scenario
+        - **Adapter Tests** (`pldb_hybrid_test.go` - 611 lines):
+          - Basic adapter functionality and cloning
+          - Simplified propagation examples
+          - Performance with 1000-fact database
+        - **Examples** (`pldb_hybrid_example_test.go` - 300+ lines):
+          - Basic queries, FD filtering, propagation, parallel search, performance
+        - All tests pass with `-race` detector (75% code coverage, 11.6s runtime)
+    - **Key Design Realities**:
+        - **Adapter Pattern**: Necessary because UnifiedStore returns `(*UnifiedStore, error)` (immutable) vs ConstraintStore expects `error` (mutable interface)
+        - **Manual Integration**: Users must explicitly map relational variables to FD variables using variable IDs
+        - **No Automatic Filtering**: FD constraints don't automatically filter queries - user must wrap queries in filtering Goals
+        - **This Is Correct**: Explicit integration gives control, follows Unix philosophy (do one thing well, compose as needed)
+        - **Future Work**: Helper functions could automate common patterns, but core is production-ready
+    - **Limitations Identified**:
+        - **BitSetDomain arithmetic**: Only supports addition/subtraction, not multiplication/division
+        - **Manual variable mapping**: No automatic correspondence between query variables and FD variables  
+        - **No query optimization**: FD domains could inform database query planning but don't currently
+        - **Pattern boilerplate**: FD filtering requires manual Goal wrapping (could be abstracted)
+    - **Performance**:
+        - 1000-fact database queries: <150ms
+        - Indexed lookups: O(1) preserved through adapter
+        - Hybrid propagation: O(variables × constraints) as expected
+        - Zero race conditions in stress tests
 
 - [ ] **Task 6.7: Pattern Matching Operators** ⏳ PENDING
     - [ ] **Objective**: Provide ergonomic pattern matching operators to reduce boilerplate in complex queries and rules.

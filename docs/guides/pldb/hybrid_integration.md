@@ -1,6 +1,17 @@
 # pldb + Hybrid Solver Integration
 
-This guide explains how to integrate GoKanDo's persistent logic database (pldb) with the Phase 3/4 hybrid solver, enabling seamless interaction between relational facts and finite-domain (FD) constraints.
+This guide explains how to integrate GoKanDo's persistent logic database (pldb) with the Phase 3/4 hybrid solver, enabling interaction between relational facts and finite-domain (FD) constraints.
+
+## Reality Check First
+
+**What This Guide Delivers**:
+- ✅ Working adapter for pldb + UnifiedStore
+- ✅ Real bidirectional constraint propagation
+- ✅ Production-quality code with comprehensive tests
+- ⚠️ **Manual integration required** (not automatic)
+- ⚠️ **Pattern boilerplate** (helper functions would reduce this)
+
+**This is compositional, not seamless.** You get clean building blocks that work correctly, but you must explicitly compose them. See `TASK_6.6_REALITY_CHECK.md` for full assessment.
 
 ## Overview
 
