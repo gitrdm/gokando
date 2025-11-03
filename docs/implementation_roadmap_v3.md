@@ -693,12 +693,15 @@ This section reflects the landed, production-ready SLG/WFS implementation. The p
     - Public truth API: `TruthValue` and `NegationTruth` expose True/False/Undefined; undefined arises from conditional inner answers or unfounded-set membership. Truth probes are side-effect-free and do not record permanent negative edges.
     - Tracing: Opt-in, ultra-light tracing for WFS/negation paths controlled via `SLGConfig.DebugWFS` or `GOKANDO_WFS_TRACE=1`.
 
+- Implemented (answer minimization & FD coherence)
+    - Answer subsumption at insertion time: specific answers are dropped if subsumed by an existing general answer; otherwise, existing specifics subsumed by a new general are retracted. Retractions are logical (visibility-only) and evented; WFS-aware iterators skip retracted answers. See `SubgoalEntry.InsertAnswerWithSubsumption` in `pkg/minikanren/tabling.go`.
+    - FD-domain invalidation: when an FD domain shrinks, tabled answers that bind a variable to now-impossible integer values are retracted. Implemented per-entry and engine-wide; the FD plugin notifies the engine on domain changes. Retractions are monotone (shrink-only) and deterministic. See `SubgoalEntry.InvalidateByDomain`, `SLGEngine.InvalidateByDomain`, and `pkg/minikanren/hybrid_fd_plugin.go`.
+    - Public wrappers for tabling: `TabledEvaluate` (global engine) and `WithTabling` (engine-bound closure) with runnable examples. See `pkg/minikanren/slg_wrappers.go`, examples in `pkg/minikanren/slg_wrappers_example_test.go`, and documentation at `docs/minikanren/tabling.md`.
+
 - Removed/deprecated
     - No timer/peek windows remain. The previous peek knob has been removed/ignored; correctness and shape are fully determined by event ordering and handshake.
 
 - Not yet implemented (remaining WFS breadth)
-    - Answer subsumption with FD-domain-aware pruning and invalidation on FD changes.
-    - Public tabling API wrappers (`Tabled`, `WithTabling`), stats, and user-facing guides.
     - Large-scale tabling test matrix (200+ cases) and performance analysis write-up.
 
 - Current quality signals
@@ -707,9 +710,9 @@ This section reflects the landed, production-ready SLG/WFS implementation. The p
     - Coverage: ~74–76% in `pkg/minikanren`; targeted WFS/negation examples and tests included.
 
 - Near-term next steps
-    - Expand tests toward the 200+ case WFS matrix; add more unfounded-set scenarios and mixed positive/negative cyclic patterns.
-    - Document the timerless synchronization and truth API in a developer guide; add a short “How to trace WFS decisions” section.
-    - Consider exposing minimal stats (counts per outcome, retracts, simplifications) for observability.
+    - Expand tests toward the 200+ case WFS matrix; add more unfounded-set scenarios and mixed positive/negative cyclic patterns; include subsumption- and FD-invalidation-heavy patterns.
+    - Add a short “How to trace WFS decisions” section to the developer docs (timerless synchronization is already documented in-context; tabling specifics are at `docs/minikanren/tabling.md`).
+    - Consider exposing minimal tabling stats (derivations, consumptions, retractions) for observability.
 
 **Objective**: Implement production-quality SLG (Linear resolution with Selection function for General logic programs) tabling with Well-Founded Semantics (WFS) support, enabling termination of recursive queries and supporting programs with negation. This closes a critical gap with advanced logic programming systems.
 
