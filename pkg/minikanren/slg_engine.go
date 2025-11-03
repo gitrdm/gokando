@@ -429,6 +429,25 @@ func NewSLGEngine(config *SLGConfig) *SLGEngine {
 	}
 }
 
+// InvalidateByDomain notifies the engine that the FD domain for a variable has changed.
+// It retracts any tabled answers across all subgoals that bind varID to an integer
+// value not contained in the provided domain. Returns the total number of answers
+// retracted across all subgoals.
+//
+// Thread-safety: safe for concurrent use. Iterates over a snapshot of all entries
+// and delegates to entry-level invalidation which handles its own synchronization.
+func (e *SLGEngine) InvalidateByDomain(varID int64, dom Domain) int {
+	if e == nil || dom == nil {
+		return 0
+	}
+	entries := e.subgoals.AllEntries()
+	total := 0
+	for _, se := range entries {
+		total += se.InvalidateByDomain(varID, dom)
+	}
+	return total
+}
+
 // Global SLG engine instance for convenience (can be overridden per-evaluation)
 var globalEngine *SLGEngine
 var globalEngineMu sync.RWMutex
@@ -709,15 +728,10 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 			}
 
 			// Received an immediate answer
-			wasNew := entry.Answers().Insert(answer)
+			wasNew, _ := entry.InsertAnswerWithSubsumption(answer)
 			if wasNew {
 				entry.derivationCount.Add(1)
 				e.totalAnswers.Add(1)
-
-				if pendingDS := entry.consumePendingDelaySet(); pendingDS != nil {
-					answerIndex := int(entry.Answers().Count() - 1)
-					entry.AttachDelaySet(answerIndex, pendingDS)
-				}
 
 				entry.signalEvent()
 				entry.answerCond.Broadcast()
@@ -762,17 +776,11 @@ func (e *SLGEngine) produceAndConsume(ctx context.Context, entry *SubgoalEntry, 
 					return
 				}
 
-				// Insert into answer trie (deduplication happens here)
-				wasNew := entry.Answers().Insert(answer)
+				// Insert into answer trie with subsumption
+				wasNew, _ := entry.InsertAnswerWithSubsumption(answer)
 				if wasNew {
 					entry.derivationCount.Add(1)
 					e.totalAnswers.Add(1)
-
-					// Attach any pending delay set metadata for WFS conditional answers
-					if pendingDS := entry.consumePendingDelaySet(); pendingDS != nil {
-						answerIndex := int(entry.Answers().Count() - 1)
-						entry.AttachDelaySet(answerIndex, pendingDS)
-					}
 
 					// Signal event for new answer
 					entry.signalEvent()

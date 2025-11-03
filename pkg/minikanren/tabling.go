@@ -547,6 +547,125 @@ func (se *SubgoalEntry) consumePendingDelaySet() DelaySet {
 	return ds
 }
 
+// subsumes returns true if bindingsA logically subsume bindingsB.
+// A subsumes B when for every (k,v) in A, B has the same binding.
+// Equivalently, bindings(B) is a superset of bindings(A) w.r.t. equal values.
+func subsumes(bindingsA, bindingsB map[int64]Term) bool {
+	if len(bindingsA) == 0 {
+		return true
+	}
+	for k, va := range bindingsA {
+		vb, ok := bindingsB[k]
+		if !ok {
+			return false
+		}
+		if va == nil && vb == nil {
+			continue
+		}
+		if va == nil || vb == nil {
+			return false
+		}
+		if !va.Equal(vb) {
+			return false
+		}
+	}
+	return true
+}
+
+// InsertAnswerWithSubsumption inserts an answer with logical subsumption.
+//   - If an existing, non-retracted answer subsumes the new answer, do nothing (return false,-1).
+//   - Otherwise, retract any existing, non-retracted answers that are subsumed by the new answer,
+//     then insert the new answer into the trie and attach any pending delay set.
+//
+// Returns (wasNew, newIndex). When wasNew is false, newIndex is -1.
+// Events for retractions are signaled by RetractAnswer; the caller should still
+// signal for the insertion to preserve existing sequencing semantics.
+func (se *SubgoalEntry) InsertAnswerWithSubsumption(bindings map[int64]Term) (bool, int) {
+	// First, scan current (non-retracted) answers for subsumption relationships.
+	it := se.answers.Iterator()
+	idx := 0
+	toRetract := make([]int, 0)
+	// If any existing non-retracted answer subsumes the new one, skip insertion.
+	for {
+		ans, ok := it.Next()
+		if !ok {
+			break
+		}
+		// Skip retracted answers in subsumption checks
+		if se.IsRetracted(idx) {
+			idx++
+			continue
+		}
+		if subsumes(ans, bindings) {
+			// Existing answer is more general or equal -> new adds no value
+			return false, -1
+		}
+		if subsumes(bindings, ans) {
+			toRetract = append(toRetract, idx)
+		}
+		idx++
+	}
+
+	// Retract any subsumed existing answers before inserting the new one.
+	if len(toRetract) > 0 {
+		for _, i := range toRetract {
+			se.RetractAnswer(i)
+		}
+	}
+
+	// Insert into trie (deduplication still applies for exact duplicates)
+	wasNew := se.answers.Insert(bindings)
+	if !wasNew {
+		// No insertion happened; nothing to attach
+		return false, -1
+	}
+
+	// Attach any pending delay set metadata for WFS conditional answers
+	if pendingDS := se.consumePendingDelaySet(); pendingDS != nil {
+		answerIndex := int(se.answers.Count() - 1)
+		se.AttachDelaySet(answerIndex, pendingDS)
+		return true, answerIndex
+	}
+
+	return true, int(se.answers.Count() - 1)
+}
+
+// InvalidateByDomain retracts answers whose binding for varID is a concrete atom
+// not compatible with the provided finite domain. Answers binding varID to a
+// non-integer atom or leaving it unbound are left untouched (only integer atoms
+// are interpreted as FD values). Returns the number of answers retracted.
+func (se *SubgoalEntry) InvalidateByDomain(varID int64, dom Domain) int {
+	if dom == nil {
+		return 0
+	}
+	it := se.answers.Iterator()
+	idx := 0
+	retracted := 0
+	for {
+		ans, ok := it.Next()
+		if !ok {
+			break
+		}
+		// Skip already retracted
+		if se.IsRetracted(idx) {
+			idx++
+			continue
+		}
+		if term, ok := ans[varID]; ok && term != nil && !term.IsVar() {
+			if atom, ok := term.(*Atom); ok {
+				if ival, ok := atom.Value().(int); ok {
+					if !dom.Has(ival) {
+						se.RetractAnswer(idx)
+						retracted++
+					}
+				}
+			}
+		}
+		idx++
+	}
+	return retracted
+}
+
 // RetractAnswer marks the answer at the given index as retracted (invisible).
 // Thread-safe for concurrent access with metadata operations.
 func (se *SubgoalEntry) RetractAnswer(index int) {
