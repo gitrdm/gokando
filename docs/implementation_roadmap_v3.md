@@ -665,54 +665,53 @@ Prioritization for remaining work (suggested order):
         - The solver finds and returns an optimal solution for supported objective forms on small-to-medium instances; when interrupted, returns the best incumbent and indicates non-optimality.
         - Works with existing constraints without API changes; passes the full test suite; documented with runnable examples.
 
-### Phase 5: SLG/WFS Tabling Infrastructure ⏳ PLANNED
+### Phase 5: SLG/WFS Tabling Infrastructure 🚧 IN PROGRESS
 
-#### Status update (as of 2025-11-02)
+#### Status update (as of 2025-11-03)
 
-This section records current implementation progress without changing the planned design. The plan below remains authoritative; items here document what’s landed, what deviates in implementation details, and what’s still pending.
+This section summarizes the landed work, intentional deviations, and remaining items. The planned scope below remains authoritative.
 
-- Implemented
+- Implemented (SLG core)
     - Core tabling data structures in `pkg/minikanren/tabling.go`:
-        - `AnswerTrie` with insertion-order list and structural sharing; concurrent-safe writes guarded by a small mutex; iteration is snapshot-based to avoid holding the trie lock.
-        - `AnswerIterator` now snapshots answers at construction and returns defensive copies. Added `IteratorFrom(start int)` to resume consumption from an offset, preserving determinism when new answers arrive.
-        - `CallPattern`, `SubgoalTable`, and `SubgoalEntry` implemented with atomic status, dependencies, and condition variable for producer/consumer signaling.
-    - SLG evaluation engine in `pkg/minikanren/slg_engine.go`:
-        - Subgoal entries store a typed `GoalEvaluator` to enable re-evaluation.
-        - Real SCC fixpoint implemented: `ComputeFixpoint` iteratively re-evaluates subgoals in an SCC until no new answers are added (replacing prior placeholder logic).
-        - Consumers/producers updated to use snapshot iterators and refresh via `IteratorFrom(offset)` to avoid duplicate or missed answers under concurrent appends.
-    - Thread-safety and immutability tightened: iterators don’t hold trie locks; `Next()` serializes only local index access; answers returned are copies.
-    - Integration validated: Added an end-to-end test (`slg_hybrid_integration_test.go`) proving SLG-derived bindings flow into `UnifiedStore` and trigger `HybridSolver` propagation (Relational ↔ FD).
-    - Examples: Added `ExampleSLGEngine_ComputeFixpoint` and ensured SLG examples reflect snapshot iterator semantics.
+        - `AnswerTrie` with insertion-order list and structural sharing. Writes are coordinated by a small mutex; iteration is snapshot-based (no trie lock held while iterating).
+        - `AnswerIterator` snapshots answers and returns defensive copies. `IteratorFrom(start int)` enables deterministic resumption when new answers arrive.
+        - `CallPattern`, `SubgoalTable`, `SubgoalEntry` with atomic status, dependency tracking, condition variable for producer/consumer signaling, and per-entry change events (`Event()` plus versioned `EventSeq()`/`WaitChangeSince`).
+    - SLG engine in `pkg/minikanren/slg_engine.go`:
+        - Typed `GoalEvaluator` stored on entries for re-evaluation.
+        - SCC fixpoint: `ComputeFixpoint` re-evaluates an SCC until no new answers are added.
+        - Producer/consumer updated to use snapshot iterators and `IteratorFrom` to avoid duplicates/misses under concurrent appends.
+        - Reverse dependency index to propagate child outcomes to dependents.
 
-- Deviations vs. planned design (non-breaking; documented for review)
-    - AnswerTrie concurrency: current implementation uses a single mutex for write coordination and takes a slice snapshot for iteration, rather than fully lock-free maps for children. This keeps the hot path (iteration) lock-free and has performed well in tests; we can evolve to finer-grained or lock-free structures if profiling warrants.
-    - Iterator concurrency: order is globally deterministic by insertion, but distribution across concurrent callers of `Next()` depends on scheduling; documentation clarifies recommended single-consumer usage per iterator for deterministic delivery.
+- Implemented (WFS)
+    - Stratification helpers: `SetStrata`, `Stratum`.
+    - `NegateEvaluator` implements negation-as-failure with conditional answers:
+        - Conditional answers carry a `DelaySet` per answer via per-answer metadata.
+        - Reverse dependencies: when a child gets its first answer, dependents’ conditional answers are retracted; when a child completes with no answers, dependents simplify delay sets (possibly yielding unconditional answers).
+        - Event-driven synchronization; no sleeps. Race-free subscription using `EventSeq()`/`WaitChangeSince`.
+        - Engine handshake: a producer “started” barrier coordinates initial observation to avoid missed immediate outcomes.
+        - Optional micro event-driven peek (default ~1ms) after start to deterministically catch inner goals that finish immediately. Correctness doesn’t depend on this window; it only influences initial shape (conditional vs unconditional). The configuration knob is marked deprecated and slated for removal.
+    - Iteration utilities: `AnswerRecord` and an iterator variant that surfaces per-answer metadata; filtering honors retractions to hide invalidated conditionals during streaming.
 
-- Implemented (WFS slice)
-    - Stratification helpers in the SLG engine (`SetStrata`, `Stratum`).
-    - `NegateEvaluator` enforcing stratification and implementing negation-as-failure; example and tests added; producer status semantics updated to mark subgoals Failed on evaluator errors.
+- Deviations vs. plan (non-breaking)
+    - `AnswerTrie` uses a single mutex for writes and snapshot slices for iteration (instead of fully lock-free internals). This keeps iteration lock-free and has measured good performance; we can revisit if profiling shows contention.
+    - Negation includes an optional micro peek window (post-start) as a pragmatic fallback. The primary design is timing-free (event sequencing + handshake). The `NegationPeekTimeout` field is deprecated and will be removed in a major version; default behavior keeps the window minimal and correctness-independent.
 
-- In progress (current sprint)
-    - WFS scaffolding types: `DelaySet` and `AnswerRecord`; extending `AnswerTrie` with optional per-answer metadata (delay sets) and a parallel iterator that returns `AnswerRecord` while keeping the existing iterator stable.
-    - Conditional negation: when a negated inner subgoal is incomplete, produce a conditional (delayed) answer rather than immediate failure.
-
-- Not yet implemented (full WFS breadth)
-    - SLG operations for negation: delay and simplification, completion rules, and resolution of conditional answers as dependencies complete.
-    - Undefined truth handling (true/false/undefined) and API exposure for subgoal truth status.
-    - Unfounded set detection and resolution for negative cycles/mutual negation.
-    - Answer subsumption with FD domain-aware pruning and cache invalidation on FD changes.
-    - Public tabling API wrappers (`Tabled`, `WithTabling`, stats surface) and user-facing guides.
-    - Large-scale tabling test matrix (200+ cases) and performance analysis doc.
+- Not yet implemented (remaining WFS breadth)
+    - Undefined truth surfacing in the public API (true/false/undefined) beyond internal conditional representation.
+    - Unfounded set detection and resolution across SCCs (negative cycles/mutual negation).
+    - Answer subsumption with FD-domain-aware pruning and invalidation on FD changes.
+    - Public tabling API wrappers (`Tabled`, `WithTabling`), stats, and user-facing guides.
+    - Large-scale tabling test matrix (200+ cases) and performance analysis write-up.
 
 - Current quality signals
-    - Full repository tests pass; new SLG↔Hybrid integration test green.
-    - No races detected in concurrent AnswerTrie/iterator tests; examples pass.
-    - Coverage reported by `go test ./...`: ~77.3% overall.
+    - Full repository tests: green (including conditional negation suites and examples).
+    - Concurrency: event-driven; no sleeps; race-free subscription. No races observed in SLG/iterator tests.
+    - Heavy and stress tests can be forced even with `-short` via `GOKANDO_FORCE_HEAVY=1`.
 
-- Near-term next steps (no design changes)
-    - Add a user-facing fixpoint example demonstrating convergence on a recursive predicate (SCC) and iterator refresh via `IteratorFrom`.
-    - Add a negative-path integration test where an SLG-derived binding conflicts with FD constraints to validate error propagation.
-    - Profile AnswerTrie under heavy append to decide if moving children to lock-free maps is justified.
+- Near-term next steps
+    - Expose undefined truth states at the API boundary in a minimal, composable way.
+    - Implement unfounded set handling across SCCs and extend tests to cover negative cycles.
+    - Document the timing-free synchronization design in the developer guide and deprecate the peek knob publicly.
 
 **Objective**: Implement production-quality SLG (Linear resolution with Selection function for General logic programs) tabling with Well-Founded Semantics (WFS) support, enabling termination of recursive queries and supporting programs with negation. This closes a critical gap with advanced logic programming systems.
 
