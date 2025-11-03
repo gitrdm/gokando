@@ -121,3 +121,140 @@ func makeRangeEx(start, end int) []int {
 	}
 	return result
 }
+
+// ExampleNewScaledDivision_piCircumference demonstrates the fixed-point arithmetic
+// pattern for handling irrational constants like π. This is an alternative to using
+// RationalLinearSum when you want explicit control over scaling.
+func ExampleNewScaledDivision_piCircumference() {
+	model := NewModel()
+
+	// Circle diameter: 1-10 units
+	diameter := model.NewVariableWithName(
+		NewBitSetDomainFromValues(11, makeRangeEx(1, 10)),
+		"diameter",
+	)
+
+	// Circumference (scaled by 10000): π * diameter * 10000
+	// Using π ≈ 31416/10000 (more precision than 22/7)
+	circumferenceScaled := model.NewVariableWithName(
+		NewBitSetDomain(350000),
+		"circumference_scaled",
+	)
+
+	// Actual circumference (in original units)
+	circumference := model.NewVariableWithName(
+		NewBitSetDomain(35),
+		"circumference",
+	)
+
+	// Pattern: Fixed-point arithmetic for irrationals
+	// 1. Scale the constant: π ≈ 31416/10000
+	// 2. Use LinearSum with scaled constant: circumference_scaled = 31416 * diameter
+	// 3. Use ScaledDivision to get final result: circumference = circumference_scaled / 10000
+
+	// Step 1: circumference_scaled = 31416 * diameter
+	coeffs := []int{31416}
+	linearConstraint, _ := NewLinearSum(
+		[]*FDVariable{diameter},
+		coeffs,
+		circumferenceScaled,
+	)
+	model.AddConstraint(linearConstraint)
+
+	// Step 2: circumference = circumference_scaled / 10000
+	divConstraint, _ := NewScaledDivision(circumferenceScaled, 10000, circumference)
+	model.AddConstraint(divConstraint)
+
+	// Fix diameter = 7 for demonstration
+	diameter7Domain := NewBitSetDomainFromValues(11, []int{7})
+	diameter = model.NewVariableWithName(diameter7Domain, "diameter")
+
+	// Rebuild constraints with fixed diameter
+	model = NewModel()
+	diameter = model.NewVariableWithName(diameter7Domain, "diameter")
+	circumferenceScaled = model.NewVariableWithName(NewBitSetDomain(350000), "circumference_scaled")
+	circumference = model.NewVariableWithName(NewBitSetDomain(35), "circumference")
+
+	linearConstraint, _ = NewLinearSum([]*FDVariable{diameter}, coeffs, circumferenceScaled)
+	model.AddConstraint(linearConstraint)
+
+	divConstraint, _ = NewScaledDivision(circumferenceScaled, 10000, circumference)
+	model.AddConstraint(divConstraint)
+
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	finalCircum := solver.GetDomain(nil, circumference.ID())
+	finalScaled := solver.GetDomain(nil, circumferenceScaled.ID())
+
+	fmt.Println("Fixed-point π calculation:")
+	fmt.Printf("Diameter: 7 units\n")
+	fmt.Printf("π * 7 * 10000 = %d (scaled)\n", finalScaled.Min())
+	fmt.Printf("Circumference: %d units (actual)\n", finalCircum.Min())
+	fmt.Printf("Precision: Using π ≈ 3.1416\n")
+
+	// Output:
+	// Fixed-point π calculation:
+	// Diameter: 7 units
+	// π * 7 * 10000 = 219912 (scaled)
+	// Circumference: 21 units (actual)
+	// Precision: Using π ≈ 3.1416
+}
+
+// ExampleNewScaledDivision_percentageWithScaling demonstrates combining multiple
+// fixed-point operations for compound calculations.
+func ExampleNewScaledDivision_percentageWithScaling() {
+	model := NewModel()
+
+	// Investment amount: $1000 (in dollars, not cents for this example)
+	principal := model.NewVariableWithName(
+		NewBitSetDomainFromValues(10001, []int{1000}), // $1000
+		"principal",
+	)
+
+	// Annual interest rate: 5.25% → stored as 525 basis points (5.25 * 100)
+	// Calculate: $1000 * 5.25 / 100 = $52.50
+	// For integer result, scale by 100: 1000 * 525 / 100 = 5250 (in cents)
+	interestScaled := model.NewVariableWithName(
+		NewBitSetDomain(1000000),
+		"interest_scaled",
+	)
+
+	interestCents := model.NewVariableWithName(
+		NewBitSetDomain(10000),
+		"interest_cents",
+	)
+
+	// Pattern: principal * 525 / 100 = interest_cents
+	// Step 1: interest_scaled = principal * 525
+	coeffs := []int{525}
+	linearConstraint, _ := NewLinearSum(
+		[]*FDVariable{principal},
+		coeffs,
+		interestScaled,
+	)
+	model.AddConstraint(linearConstraint)
+
+	// Step 2: interest_cents = interest_scaled / 100
+	divConstraint, _ := NewScaledDivision(interestScaled, 100, interestCents)
+	model.AddConstraint(divConstraint)
+
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	finalInterest := solver.GetDomain(nil, interestCents.ID())
+
+	fmt.Println("Fixed-point percentage calculation:")
+	fmt.Printf("Principal: $1,000.00\n")
+	fmt.Printf("Rate: 5.25%% (525 basis points)\n")
+	fmt.Printf("Interest: $%d.%02d\n",
+		finalInterest.Min()/100, finalInterest.Min()%100)
+
+	// Output:
+	// Fixed-point percentage calculation:
+	// Principal: $1,000.00
+	// Rate: 5.25% (525 basis points)
+	// Interest: $52.50
+}
