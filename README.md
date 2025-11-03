@@ -4,7 +4,7 @@
 [![Go Version](https://img.shields.io/badge/go-1.18%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-GoKando is a complete implementation of miniKanren in Go, featuring thread-safe parallel execution and an integrated finite domain constraint solver. The miniKanren core provides full relational programming capabilities, while the FD solver handles combinatorial problems suitable for educational, research, and lightweight applications—offering more than toy implementations but less than industrial constraint programming tools like Google's CLP systems.
+GoKando is a completely vibe-coded implementation of miniKanren in Go with an integrated finite domain constraint solver. The goal is to provide thread-safe parallel execution and seemless interoperatability between miniKanren and the FD sovler. The miniKanren core provides full relational programming capabilities, while the FD solver handles combinatorial problems. The library is hopefully viable in educational, research, and lightweight applications but your mileage may vary. This is more than a "toy" implementation but much less than industrial strength. 
 
 ## Installation
 
