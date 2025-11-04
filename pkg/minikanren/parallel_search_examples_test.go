@@ -3,7 +3,6 @@ package minikanren
 import (
 	"context"
 	"fmt"
-	"time"
 )
 
 // ExampleSolver_SolveParallel demonstrates basic usage of parallel solving
@@ -68,13 +67,20 @@ func ExampleSolver_SolveParallel_cancel() {
 
 	solver := NewSolver(model)
 
-	// A tiny timeout to illustrate cancellation. In practice, use a sensible value.
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Millisecond)
-	defer cancel()
+	// Cancel the context immediately to deterministically demonstrate cancellation.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
 
-	// Request many solutions so the timeout is likely to fire first.
-	// We intentionally do not assert output for examples that depend on timing.
-	_, _ = solver.SolveParallel(ctx, 8, 0)
+	// Because we cancelled before calling, SolveParallel should return quickly
+	// with an error; print a short message to make the example deterministic.
+	_, err := solver.SolveParallel(ctx, 8, 0)
+	if err != nil {
+		fmt.Println("cancelled")
+	} else {
+		fmt.Println("no-error")
+	}
+	// Output:
+	// cancelled
 }
 
 // ExampleDefaultParallelSearchConfig shows how to inspect the default parallel

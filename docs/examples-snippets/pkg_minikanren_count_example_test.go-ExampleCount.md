@@ -1,16 +1,4 @@
-package minikanren
-
-import (
-	"context"
-	"fmt"
-	"sort"
-)
-
-// ExampleCount demonstrates how to count how many variables equal a target value.
-//
-// We build a small model with three variables X,Y,Z in {1,2,3}, then post
-// Count([X,Y,Z], value=2, N). The count variable N is encoded as N=actual+1
-// due to 1-indexed domains, so N∈[1..4] represents counts 0..3.
+```go
 func ExampleCount() {
 	model := NewModel()
 	dom := NewBitSetDomain(3)
@@ -42,3 +30,7 @@ func ExampleCount() {
 	// X=1 Y=1 Z=2 count=1
 	// X=1 Y=1 Z=3 count=0
 }
+
+```
+
+

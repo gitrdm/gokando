@@ -1,14 +1,4 @@
-package minikanren
-
-import (
-	"context"
-	"fmt"
-	"sort"
-)
-
-// ExampleReifiedConstraint shows how to reify a constraint into a boolean.
-//
-// We reify the arithmetic equality X + 0 = Y into B, where B∈{1=false,2=true}.
+```go
 func ExampleReifiedConstraint() {
 	model := NewModel()
 	x := model.NewVariableWithName(NewBitSetDomain(3), "X")
@@ -37,3 +27,7 @@ func ExampleReifiedConstraint() {
 	// X=1 Y=2 B=false
 	// X=1 Y=3 B=false
 }
+
+```
+
+
