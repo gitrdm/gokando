@@ -13,10 +13,11 @@ import (
 func ExampleTabledRelation_transitiveClosureManual() {
 	// Define edge relation
 	edge, _ := DbRel("edge", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	db, _ = db.AddFact(edge, NewAtom("c"), NewAtom("d"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+		[]interface{}{"c", "d"},
+	)
 
 	// Create tabled edge predicate
 	edgeTabled := TabledRelation(db, edge, "edge")
@@ -63,11 +64,12 @@ func ExampleRecursiveRule_familyTree() {
 	parent, _ := DbRel("parent", 2, 0, 1)
 
 	// Build family tree
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("mary"))
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("tom"))
-	db, _ = db.AddFact(parent, NewAtom("mary"), NewAtom("alice"))
-	db, _ = db.AddFact(parent, NewAtom("tom"), NewAtom("bob"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"john", "mary"},
+		[]interface{}{"john", "tom"},
+		[]interface{}{"mary", "alice"},
+		[]interface{}{"tom", "bob"},
+	)
 
 	// Query variables
 	x := Fresh("x")
@@ -122,9 +124,10 @@ func ExampleRecursiveRule_familyTree() {
 func ExampleTabledQuery_grandparent() {
 	// Create parent relation
 	parent, _ := DbRel("parent", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("mary"))
-	db, _ = db.AddFact(parent, NewAtom("mary"), NewAtom("alice"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"john", "mary"},
+		[]interface{}{"mary", "alice"},
+	)
 
 	// Query for grandparent
 	gp := Fresh("gp")
@@ -157,9 +160,10 @@ func ExampleTabledQuery_grandparent() {
 // ExampleTabledDatabase demonstrates automatic tabling for all queries.
 func ExampleTabledDatabase() {
 	edge, _ := DbRel("edge", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+	)
 
 	// Wrap database for automatic tabling
 	tdb := WithTabledDatabase(db, "mydb")
@@ -223,10 +227,10 @@ func ExampleTabledDatabase_withMutation() {
 // ExampleTabledRelation_symmetricGraph shows querying symmetric relations.
 func ExampleTabledRelation_symmetricGraph() {
 	friend, _ := DbRel("friend", 2, 0, 1)
-	db := NewDatabase()
-	// Add symmetric friendships
-	db, _ = db.AddFact(friend, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(friend, NewAtom("bob"), NewAtom("alice"))
+	db := DB().MustAddFacts(friend,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"bob", "alice"},
+	)
 
 	friendPred := TabledRelation(db, friend, "friend")
 
@@ -257,10 +261,13 @@ func ExampleTabledQuery_multiRelation() {
 	employee, _ := DbRel("employee", 2, 0, 1) // (name, dept)
 	manager, _ := DbRel("manager", 2, 0, 1)   // (mgr, employee)
 
-	db := NewDatabase()
-	db, _ = db.AddFact(employee, NewAtom("alice"), NewAtom("engineering"))
-	db, _ = db.AddFact(employee, NewAtom("bob"), NewAtom("engineering"))
-	db, _ = db.AddFact(manager, NewAtom("bob"), NewAtom("alice"))
+	db := DB().MustAddFacts(employee,
+		[]interface{}{"alice", "engineering"},
+		[]interface{}{"bob", "engineering"},
+	)
+	db = db.MustAddFacts(manager,
+		[]interface{}{"bob", "alice"},
+	)
 
 	// Who manages Alice?
 	mgr := Fresh("mgr")
