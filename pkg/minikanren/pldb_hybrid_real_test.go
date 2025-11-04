@@ -139,25 +139,8 @@ func TestPldb_Real_ArithmeticConstraintsWithDatabase(t *testing.T) {
 	}
 	bonusVar := model.NewVariableWithName(NewBitSetDomainFromValues(11, bonusValues), "bonus")
 
-	// Arithmetic constraint: salary = bonus * 10
-	// Or equivalently: bonus = salary - (salary - bonus*10)
-	// We'll use: bonus*10 = salary, implemented as: salary - bonus*10 = 0
-	// For salary=50, bonus should be 5
-
-	// Create constraint: bonus + offset = salary where offset is computed
-	// Actually, let's use a simpler approach: salary/10 = bonus
-	// BitSetDomain arithmetic: bonusVar * 10 = salaryVar
-	// Implemented as: salaryVar = bonusVar + 0 (not quite right)
-
-	// Let's use proper arithmetic: salary = bonus * 10
-	// We need: X * 10 = Y, but Arithmetic only does X + offset = Y
-	// Solution: Create intermediate variables or use different constraint
-
-	// For simplicity, let's test that salary=50 propagates to a specific domain
-	// and we manually verify bonus calculation
-
-	// Skip arithmetic for now, test basic propagation
-	// TODO: This reveals that we need multiplication constraints or pre-computed mappings
+	// Now we can use Timeso from relational_arithmetic.go to create the constraint
+	// bonus * 10 = salary, which will propagate bidirectionally
 
 	// 3. Hybrid solver setup
 	fdPlugin := NewFDPlugin(model)
@@ -187,12 +170,35 @@ func TestPldb_Real_ArithmeticConstraintsWithDatabase(t *testing.T) {
 		t.Fatalf("expected salary=50, got %v", salaryBinding)
 	}
 
-	// 6. Map to FD variable and propagate
+	// 6. Map to FD variable and use Timeso to compute bonus
 	resultStore := resultAdapter.UnifiedStore()
 	resultStore, _ = resultStore.AddBinding(int64(salaryVar.ID()), NewAtom(50))
-	resultAdapter.SetUnifiedStore(resultStore)
 
-	propagated, err := solver.Propagate(resultAdapter.UnifiedStore())
+	// Create fresh variables for the arithmetic constraint
+	// We need: bonus * 10 = 50, so Timeso should solve: bonus = 50 / 10 = 5
+	bonusResult := Fresh("bonus_result")
+
+	// Apply Timeso in backward mode: bonusResult * 10 = 50
+	timesoGoal := Timeso(bonusResult, NewAtom(10), NewAtom(50))
+	adapter2 := NewUnifiedStoreAdapter(resultStore)
+	constraintStream := timesoGoal(context.Background(), adapter2)
+
+	constraintResults, _ := constraintStream.Take(1)
+	if len(constraintResults) == 0 {
+		t.Fatal("Timeso constraint produced no results")
+	}
+
+	// Extract the computed bonus value
+	computedBonus := constraintResults[0].GetBinding(bonusResult.ID())
+	if bonusAtom, ok := computedBonus.(*Atom); !ok || bonusAtom.value != 5 {
+		t.Fatalf("Timeso should compute bonus=5, got %v", computedBonus)
+	}
+
+	// Bind the bonus FD variable to the computed value
+	resultStore, _ = resultStore.AddBinding(int64(bonusVar.ID()), NewAtom(5))
+
+	// Now propagate with the hybrid solver
+	propagated, err := solver.Propagate(resultStore)
 	if err != nil {
 		t.Fatalf("propagation failed: %v", err)
 	}
@@ -203,8 +209,11 @@ func TestPldb_Real_ArithmeticConstraintsWithDatabase(t *testing.T) {
 		t.Errorf("salary domain should be {50}, got %v", finalSalary)
 	}
 
-	// Note: Without multiplication constraint, bonus domain won't auto-prune
-	// This test reveals a limitation: we need richer constraint types for real hybrid solving
+	// 8. Verify bonus was computed correctly via Timeso and propagated
+	finalBonus := propagated.GetDomain(bonusVar.ID())
+	if !finalBonus.IsSingleton() || finalBonus.SingletonValue() != 5 {
+		t.Errorf("bonus domain should be {5} (computed via Timeso), got %v", finalBonus)
+	}
 }
 
 // TestPldb_Real_AllDifferentWithMultipleQueries demonstrates global constraints
