@@ -7,6 +7,13 @@ import (
 )
 
 // ExampleNewElementValues demonstrates result = values[index] with propagation.
+//
+// This example shows a small constraint network where an index variable
+// selects an element from a fixed vector of values. It demonstrates how
+// propagating a restriction on the result also prunes the index variable's
+// domain. The HLAPI helpers (for example `IntVar`) are used to create
+// variables in a concise way; the original, lower-level constructors are
+// kept as commented references to help readers learn both interfaces.
 func ExampleNewElementValues() {
 	model := NewModel()
 

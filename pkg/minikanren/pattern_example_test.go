@@ -6,7 +6,14 @@ import (
 )
 
 // ExampleMatche demonstrates exhaustive pattern matching.
-// All matching clauses produce results.
+//
+// This example shows how to classify the structure of a term using
+// exhaustive pattern matching: every clause that matches contributes a
+// result. It's useful to illustrate the difference between the matching
+// strategies provided by the pattern subsystem (Matche/Matcha/Matchu).
+// Low-level pattern constructors are used directly here; the comments show
+// how to express the same intent with the HLAPI-style helpers where
+// applicable.
 func ExampleMatche() {
 	// Classify a list by structure
 	list := List(NewAtom(1), NewAtom(2))
