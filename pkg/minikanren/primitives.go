@@ -477,7 +477,7 @@ func List(terms ...Term) Term {
 func Appendo(l1, l2, l3 Term) Goal {
 	return Disj(
 		// Base case: appending empty list to l2 gives l2
-		Conj(Eq(l1, NewAtom(nil)), Eq(l2, l3)),
+		Conj(Eq(l1, Nil), Eq(l2, l3)),
 
 		// Recursive case: l1 = (a . d), l3 = (a . res), append(d, l2, res)
 		func(ctx context.Context, store ConstraintStore) *Stream {
