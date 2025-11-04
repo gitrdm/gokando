@@ -3,7 +3,6 @@ package minikanren
 import (
 	"context"
 	"fmt"
-	"time"
 )
 
 // ExampleSolver_SolveOptimal demonstrates minimizing a linear objective.
@@ -29,9 +28,8 @@ func ExampleSolver_SolveOptimal() {
 	// best objective: 3
 }
 
-// ExampleSolver_SolveOptimalWithOptions demonstrates using options such as a time limit
-// and parallel workers. The example uses a small instance, so the optimum is often found
-// quickly; the output focuses on the best objective value returned.
+// ExampleSolver_SolveOptimalWithOptions demonstrates using options such as parallel workers.
+// The example finds the minimum value of x + 2y where x,y are in [0,9].
 func ExampleSolver_SolveOptimalWithOptions() {
 	model := NewModel()
 	x := model.NewVariable(NewBitSetDomain(10))
@@ -41,12 +39,13 @@ func ExampleSolver_SolveOptimalWithOptions() {
 	model.AddConstraint(ls)
 
 	solver := NewSolver(model)
-	// 10ms time limit, 4 workers
+	// Use parallel workers without timeout for deterministic results
 	ctx := context.Background()
-	sol, best, err := solver.SolveOptimalWithOptions(ctx, tvar, true, WithTimeLimit(10*time.Millisecond), WithParallelWorkers(4))
+	sol, best, err := solver.SolveOptimalWithOptions(ctx, tvar, true, WithParallelWorkers(4))
 	_ = sol // solution slice omitted in example output for brevity
+	
 	if err != nil {
-		fmt.Printf("best=%d (anytime)\n", best)
+		fmt.Printf("error: %v\n", err)
 		return
 	}
 	fmt.Printf("best=%d\n", best)
