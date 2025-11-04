@@ -43,7 +43,7 @@ func ExampleSolver_SolveOptimalWithOptions() {
 	ctx := context.Background()
 	sol, best, err := solver.SolveOptimalWithOptions(ctx, tvar, true, WithParallelWorkers(4))
 	_ = sol // solution slice omitted in example output for brevity
-	
+
 	if err != nil {
 		fmt.Printf("error: %v\n", err)
 		return
