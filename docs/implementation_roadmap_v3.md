@@ -1385,24 +1385,57 @@ func ExampleTabled() {
         - **Validation**: Tested under timeout (20s), parallel execution, and race detection; all stable
     - **Rationale**: These operations are foundational for many logic programming tasks and frequently needed when working with pldb query results.
 
-- [ ] **Task 6.9: Term Utilities and Type Constraints** ⏳ PENDING
-    - [ ] **Objective**: Provide utilities for term manipulation and extended type checking.
-    - [ ] **Action**:
-        - [ ] Implement `CopyTerm(term, fresh Term) Goal` - Copy term with fresh variables
-        - [ ] Implement `Ground(term Term) Goal` - Check if term is fully ground
-        - [ ] Implement `Stringo(term Term) Goal` - String type constraint
-        - [ ] Implement `Booleano(term Term) Goal` - Boolean type constraint
-        - [ ] Implement `Vectoro(term Term) Goal` - Vector/array type constraint
-        - [ ] Add helper functions for term inspection (arity, functor, etc.)
-        - [ ] Document when to use type constraints vs. pattern matching
-    - [ ] **Success Criteria**:
-        - CopyTerm creates independent copies with fresh variables
-        - Ground correctly identifies fully instantiated terms
-        - Type constraints integrate with existing constraint system
-        - Utilities work correctly with pldb facts and query results
+- [x] **Task 6.9: Term Utilities and Type Constraints** ✅ COMPLETED
+    - [x] **Objective**: Provide utilities for term manipulation and extended type checking.
+    - [x] **Action**:
+        - [x] Implement `CopyTerm(term, fresh Term) Goal` - Copy term with fresh variables
+        - [x] Implement `Ground(term Term) Goal` - Check if term is fully ground
+        - [x] Implement `Stringo(term Term) Goal` - String type constraint
+        - [x] Implement `Booleano(term Term) Goal` - Boolean type constraint
+        - [x] Implement `Vectoro(term Term) Goal` - Vector/array type constraint
+        - [x] Add helper functions for term inspection (arity, functor, etc.)
+        - [x] Document when to use type constraints vs. pattern matching
+    - [x] **Success Criteria**:
+        - CopyTerm creates independent copies with fresh variables ✅
+        - Ground correctly identifies fully instantiated terms ✅
+        - Type constraints integrate with existing constraint system ✅
+        - Utilities work correctly with pldb facts and query results ✅
+    - **Implementation Notes**:
+        - **Files**: 
+            * `pkg/minikanren/term_utils.go` (359 lines) - Core utilities
+            * `pkg/minikanren/constraints.go` - Extended with new type constraints
+            * `pkg/minikanren/constraint_types.go` - Added StringType, BooleanType, VectorType
+            * `pkg/minikanren/term_utils_test.go` (648 lines) - Comprehensive tests
+            * `pkg/minikanren/term_utils_example_test.go` (347 lines) - User-facing examples
+        - **CopyTerm**: Preserves term structure while replacing all variables with fresh ones; maintains variable sharing (if var appears multiple times, same fresh var used); uses varMap for tracking replacements; works with atoms (immutable), pairs (recursive), and variables.
+        - **Ground**: Recursively checks if term contains any unbound variables; atoms always ground; pairs ground if both car and cdr ground; used for validation before operations requiring fully instantiated terms.
+        - **Type Constraints**:
+            * Stringo: Checks for Go string type (not just symbols)
+            * Booleano: Checks for Go boolean type (true/false)
+            * Vectoro: Uses reflection to check for slice or array kinds (works with any slice type)
+        - **Term Inspection Utilities**:
+            * Arityo: Relates term to its arity (0 for atoms, list length for pairs)
+            * Functoro: Extracts functor (car) from compound terms
+            * CompoundTermo: Succeeds only for pairs
+            * SimpleTermo: Succeeds only for atoms
+        - **Testing**: 31 comprehensive tests covering:
+            * Edge cases: empty terms, nested structures, bound/unbound variables
+            * Variable sharing preservation in CopyTerm
+            * Context cancellation
+            * Parallel execution
+            * Integration with constraints (Numbero)
+            * Deep nesting and partial ground checking
+        - **Examples**: 14 example functions demonstrating:
+            * Basic usage of each utility
+            * Meta-programming patterns with CopyTerm
+            * Validation patterns with Ground
+            * Type checking with Stringo, Booleano, Vectoro
+            * Structure inspection with Arityo, Functoro
+            * Pattern matching dispatch with Functoro
+        - **Test Results**: All 31 tests pass; all 14 examples pass; full test suite: 7.27s
     - **Rationale**: These utilities are commonly needed for meta-programming tasks and data validation in pldb applications. CopyTerm is particularly important for implementing certain tabling patterns.
 
-**Phase 6 Success Criteria**: ⚠️ MOSTLY COMPLETE (Task 6.9 pending)
+**Phase 6 Success Criteria**: ✅ COMPLETE
 - ✅ Relations can be defined with arbitrary arities and indexes
 - ✅ Fact storage and retrieval is efficient (sub-linear with indexes)
 - ✅ Clean integration with existing miniKanren API
@@ -1411,7 +1444,7 @@ func ExampleTabled() {
 - ✅ Integration with Phase 3/4 hybrid solver (UnifiedStore + FD constraints) - Task 6.6 complete
 - ✅ Pattern matching operators (Matche, Matcha, Matchu) - Task 6.7 complete
 - ✅ Advanced list operations (Rembero, Reverso, Permuteo, Subseto, Lengtho, Flatteno, Distincto, Noto) - Task 6.8 complete
-- ⏳ **Pending**: Term utilities and extended type constraints - Task 6.9
+- ✅ Term utilities and extended type constraints - Task 6.9 complete
 
 **Documentation**:
 - User Guide: `docs/guides/pldb.md` - Complete guide with usage patterns

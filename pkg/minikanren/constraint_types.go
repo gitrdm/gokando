@@ -249,6 +249,15 @@ const (
 
 	// NullType requires the term to be the empty list (nil)
 	NullType
+
+	// StringType requires the term to be a Go string
+	StringType
+
+	// BooleanType requires the term to be a boolean value
+	BooleanType
+
+	// VectorType requires the term to be a slice or array
+	VectorType
 )
 
 // String returns a human-readable representation of the type constraint kind.
@@ -262,6 +271,12 @@ func (tck TypeConstraintKind) String() string {
 		return "pair"
 	case NullType:
 		return "null"
+	case StringType:
+		return "string"
+	case BooleanType:
+		return "boolean"
+	case VectorType:
+		return "vector"
 	default:
 		return "unknown"
 	}
@@ -345,6 +360,28 @@ func (tc *TypeConstraint) hasExpectedType(term Term) bool {
 			return atom.Value() == nil
 		}
 		return term == Nil
+
+	case StringType:
+		if atom, ok := term.(*Atom); ok {
+			_, isString := atom.Value().(string)
+			return isString
+		}
+		return false
+
+	case BooleanType:
+		if atom, ok := term.(*Atom); ok {
+			_, isBool := atom.Value().(bool)
+			return isBool
+		}
+		return false
+
+	case VectorType:
+		if atom, ok := term.(*Atom); ok {
+			val := atom.Value()
+			rv := reflect.ValueOf(val)
+			return rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array
+		}
+		return false
 
 	default:
 		return false
