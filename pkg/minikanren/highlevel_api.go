@@ -136,6 +136,28 @@ func Solve(m *Model, maxSolutions int) ([][]int, error) {
 	return SolveN(context.Background(), m, maxSolutions)
 }
 
+// Optimize finds a solution that optimizes the objective variable.
+// It is a thin wrapper around Solver.SolveOptimal with context.Background().
+//
+// Parameters:
+//   - obj: FD variable representing the objective (e.g., a LinearSum total)
+//   - minimize: true to minimize, false to maximize
+//
+// Returns the best solution (values for all model variables) and the best
+// objective value. Errors mirror the underlying solver behavior.
+func Optimize(m *Model, obj *FDVariable, minimize bool) ([]int, int, error) {
+	solver := NewSolver(m)
+	return solver.SolveOptimal(context.Background(), obj, minimize)
+}
+
+// OptimizeWithOptions is like Optimize but accepts a context and solver options
+// for time/node limits or parallel workers. See WithParallelWorkers, WithNodeLimit,
+// and other OptimizeOption helpers.
+func OptimizeWithOptions(ctx context.Context, m *Model, obj *FDVariable, minimize bool, opts ...OptimizeOption) ([]int, int, error) {
+	solver := NewSolver(m)
+	return solver.SolveOptimalWithOptions(ctx, obj, minimize, opts...)
+}
+
 // SolutionsN runs a goal against a fresh local store and returns up to n
 // solutions projected onto the provided variables. Each solution is a map from
 // variable name to the reified value term. If no vars are provided, an empty
@@ -181,6 +203,13 @@ func SolutionsN(ctx context.Context, n int, goal Goal, vars ...*Var) []map[strin
 // on goals with infinite streams.
 func Solutions(goal Goal, vars ...*Var) []map[string]Term {
 	return SolutionsN(context.Background(), 0, goal, vars...)
+}
+
+// SolutionsCtx is an alias for SolutionsN that improves discoverability when
+// passing an explicit context and solution cap together.
+// It returns up to n solutions (n<=0 for all solutions, which may not terminate).
+func SolutionsCtx(ctx context.Context, n int, goal Goal, vars ...*Var) []map[string]Term {
+	return SolutionsN(ctx, n, goal, vars...)
 }
 
 // FormatSolutions pretty-prints a slice of solutions for human-friendly output.
@@ -267,6 +296,14 @@ func pretty(t Term) string {
 	}
 	return t.String()
 }
+
+// FormatTerm returns the canonical human-friendly string for a reified Term.
+// It mirrors the formatting used by FormatSolutions:
+// - Empty list: ()
+// - Proper lists: (a b c)
+// - Improper lists: (a b . tail)
+// - Strings quoted; other atoms via fmt %%v
+func FormatTerm(t Term) string { return pretty(t) }
 
 // AsInt attempts to extract an int from a reified Term (Atom). Returns false on mismatch.
 func AsInt(t Term) (int, bool) {

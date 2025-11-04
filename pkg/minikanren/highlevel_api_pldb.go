@@ -144,6 +144,35 @@ func (tdb *TabledDatabase) Q(rel *Relation, args ...interface{}) Goal {
 	return tdb.Query(rel, terms...)
 }
 
+// DisjQ builds a disjunction (logical OR) of multiple relation queries.
+// Each variant is a row of arguments (native values or Terms) with arity
+// matching the relation. It returns Failure if no variants are provided.
+//
+// Example:
+//
+//	// parent(gp, p) OR parent(gp, gc)
+//	goal := DisjQ(db, parent, []interface{}{gp, p}, []interface{}{gp, gc})
+func DisjQ(db *Database, rel *Relation, variants ...[]interface{}) Goal {
+	if db == nil || rel == nil {
+		return Failure
+	}
+	if len(variants) == 0 {
+		return Failure
+	}
+	goals := make([]Goal, 0, len(variants))
+	for _, row := range variants {
+		if len(row) != rel.Arity() {
+			// Skip malformed rows to keep behavior predictable in examples
+			continue
+		}
+		goals = append(goals, db.Q(rel, row...))
+	}
+	if len(goals) == 0 {
+		return Failure
+	}
+	return Disj(goals...)
+}
+
 // RecursiveTablePred provides a thin HLAPI wrapper around TabledRecursivePredicate.
 // It returns a predicate constructor that accepts native values or Terms when
 // called, converting non-Terms to Atoms automatically.
