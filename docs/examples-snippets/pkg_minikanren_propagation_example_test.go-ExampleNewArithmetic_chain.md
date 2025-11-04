@@ -2,9 +2,12 @@
 func ExampleNewArithmetic_chain() {
 	model := NewModel()
 
-	a := model.NewVariable(NewBitSetDomainFromValues(20, []int{2, 5}))
-	b := model.NewVariable(NewBitSetDomain(20))
-	c := model.NewVariable(NewBitSetDomain(20))
+	// low-level: a := model.NewVariable(NewBitSetDomainFromValues(20, []int{2, 5}))
+	a := model.IntVarValues([]int{2, 5}, "a")
+	// low-level: b := model.NewVariable(NewBitSetDomain(20))
+	b := model.IntVar(1, 20, "b")
+	// low-level: c := model.NewVariable(NewBitSetDomain(20))
+	c := model.IntVar(1, 20, "c")
 
 	// Create chain: B = A + 5, C = B + 3, so C = A + 8
 	constraint1, err := NewArithmetic(a, b, 5)

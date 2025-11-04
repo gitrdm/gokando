@@ -2,10 +2,11 @@
 func ExampleTabledRelation_transitiveClosureManual() {
 	// Define edge relation
 	edge, _ := DbRel("edge", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	db, _ = db.AddFact(edge, NewAtom("c"), NewAtom("d"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+		[]interface{}{"c", "d"},
+	)
 
 	// Create tabled edge predicate
 	edgeTabled := TabledRelation(db, edge, "edge")

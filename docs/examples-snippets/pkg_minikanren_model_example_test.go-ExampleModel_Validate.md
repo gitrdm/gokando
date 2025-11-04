@@ -3,7 +3,8 @@ func ExampleModel_Validate() {
 	model := minikanren.NewModel()
 
 	// Create a variable with normal domain
-	x := model.NewVariable(minikanren.NewBitSetDomain(5))
+	// low-level: x := model.NewVariable(minikanren.NewBitSetDomain(5))
+	x := model.IntVar(1, 5, "x")
 	_ = x
 
 	// Model is valid
@@ -12,6 +13,7 @@ func ExampleModel_Validate() {
 
 	// Create a variable with empty domain - this is an error
 	emptyDomain := minikanren.NewBitSetDomainFromValues(5, []int{})
+	// low-level: y := model.NewVariable(emptyDomain)
 	y := model.NewVariable(emptyDomain)
 
 	err = model.Validate()

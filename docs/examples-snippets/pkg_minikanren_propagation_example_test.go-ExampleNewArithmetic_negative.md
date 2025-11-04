@@ -2,8 +2,10 @@
 func ExampleNewArithmetic_negative() {
 	model := NewModel()
 
-	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 5, 8}))
-	y := model.NewVariable(NewBitSetDomain(10))
+	// low-level: x := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 5, 8}))
+	x := model.IntVarValues([]int{3, 5, 8}, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(10))
+	y := model.IntVar(1, 10, "y")
 
 	// Enforce: Y = X - 2 (using negative offset)
 	c, err := NewArithmetic(x, y, -2)

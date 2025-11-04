@@ -1,10 +1,10 @@
 ```go
 func ExampleTabledRelation_symmetricGraph() {
 	friend, _ := DbRel("friend", 2, 0, 1)
-	db := NewDatabase()
-	// Add symmetric friendships
-	db, _ = db.AddFact(friend, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(friend, NewAtom("bob"), NewAtom("alice"))
+	db := DB().MustAddFacts(friend,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"bob", "alice"},
+	)
 
 	friendPred := TabledRelation(db, friend, "friend")
 

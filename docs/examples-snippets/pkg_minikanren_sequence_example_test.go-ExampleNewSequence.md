@@ -1,11 +1,16 @@
 ```go
 func ExampleNewSequence() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "x2") // forced not in S
-	x3 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x3")
-	x4 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x4")
-	x5 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x5")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x1")
+	x1 := model.IntVarValues([]int{1, 2}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "x2") // forced not in S
+	x2 := model.IntVarValues([]int{2}, "x2") // forced not in S
+	// x3 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x3")
+	x3 := model.IntVarValues([]int{1, 2}, "x3")
+	// x4 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x4")
+	x4 := model.IntVarValues([]int{1, 2}, "x4")
+	// x5 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x5")
+	x5 := model.IntVarValues([]int{1, 2}, "x5")
 
 	_, _ = NewSequence(model, []*FDVariable{x1, x2, x3, x4, x5}, []int{1}, 3, 2, 3)
 

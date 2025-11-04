@@ -1,9 +1,11 @@
 ```go
 func Example_hlapi_table() {
 	m := NewModel()
-	x := m.NewVariableWithName(NewBitSetDomain(5), "x")
+	// x := m.NewVariableWithName(NewBitSetDomain(5), "x")
+	x := m.IntVar(1, 5, "x")
 	// y ∈ {1,2} upfront so we can avoid internal propagation calls
-	y := m.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "y")
+	// y := m.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "y")
+	y := m.IntVarValues([]int{1, 2}, "y")
 
 	rows := [][]int{
 		{1, 1},

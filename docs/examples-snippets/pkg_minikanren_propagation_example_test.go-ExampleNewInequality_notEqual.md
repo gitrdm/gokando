@@ -2,8 +2,10 @@
 func ExampleNewInequality_notEqual() {
 	model := NewModel()
 
-	x := model.NewVariable(NewBitSetDomain(3))
-	y := model.NewVariable(NewBitSetDomain(3))
+	// low-level: x := model.NewVariable(NewBitSetDomain(3))
+	x := model.IntVar(1, 3, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(3))
+	y := model.IntVar(1, 3, "y")
 
 	// Enforce: X ≠ Y
 	c, err := NewInequality(x, y, NotEqual)

@@ -1,13 +1,13 @@
 ```go
 func ExampleDatabase_Query_datalog() {
 	edge, _ := DbRel("edge", 2, 0, 1)
-
 	// Build a graph: a -> b -> c
 	//                ^-------|
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	db, _ = db.AddFact(edge, NewAtom("c"), NewAtom("a"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+		[]interface{}{"c", "a"},
+	)
 
 	// Query: Find all nodes reachable from 'a' in exactly 2 hops
 	// path2(X, Z) :- edge(X, Y), edge(Y, Z)

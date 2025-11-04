@@ -1,11 +1,11 @@
 ```go
 func ExampleDatabase_Query_disjunction() {
 	parent, _ := DbRel("parent", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("charlie"))
-	db, _ = db.AddFact(parent, NewAtom("charlie"), NewAtom("diana"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"bob", "charlie"},
+		[]interface{}{"charlie", "diana"},
+	)
 
 	// Query: Find children of alice OR bob
 	child := Fresh("child")

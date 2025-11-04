@@ -4,11 +4,12 @@ func ExampleRecursiveRule_familyTree() {
 	parent, _ := DbRel("parent", 2, 0, 1)
 
 	// Build family tree
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("mary"))
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("tom"))
-	db, _ = db.AddFact(parent, NewAtom("mary"), NewAtom("alice"))
-	db, _ = db.AddFact(parent, NewAtom("tom"), NewAtom("bob"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"john", "mary"},
+		[]interface{}{"john", "tom"},
+		[]interface{}{"mary", "alice"},
+		[]interface{}{"tom", "bob"},
+	)
 
 	// Query variables
 	x := Fresh("x")

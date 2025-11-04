@@ -5,17 +5,16 @@ func Example_fdFilteredQuery_multipleConstraints() {
 	// Setup employee and salary databases
 	employee, _ := DbRel("employee", 2, 0)
 	salary, _ := DbRel("salary", 2, 0)
-	db := NewDatabase()
-
-	// Add employee ages
-	db, _ = db.AddFact(employee, NewAtom("alice"), NewAtom(28))
-	db, _ = db.AddFact(employee, NewAtom("bob"), NewAtom(42))
-	db, _ = db.AddFact(employee, NewAtom("charlie"), NewAtom(31))
-
-	// Add employee salaries
-	db, _ = db.AddFact(salary, NewAtom("alice"), NewAtom(50000))
-	db, _ = db.AddFact(salary, NewAtom("bob"), NewAtom(80000))
-	db, _ = db.AddFact(salary, NewAtom("charlie"), NewAtom(45000))
+	db := DB().MustAddFacts(employee,
+		[]interface{}{"alice", 28},
+		[]interface{}{"bob", 42},
+		[]interface{}{"charlie", 31},
+	)
+	db = db.MustAddFacts(salary,
+		[]interface{}{"alice", 50000},
+		[]interface{}{"bob", 80000},
+		[]interface{}{"charlie", 45000},
+	)
 
 	// FD constraints: age 25-35, salary 40k-60k
 	model := NewModel()

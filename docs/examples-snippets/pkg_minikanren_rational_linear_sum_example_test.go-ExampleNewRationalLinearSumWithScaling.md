@@ -3,10 +3,12 @@ func ExampleNewRationalLinearSumWithScaling() {
 	model := NewModel()
 
 	// Three investors with different ownership percentages
-	investorA := model.NewVariable(NewBitSetDomainFromValues(10000, []int{3000})) // $3000 invested
-	investorB := model.NewVariable(NewBitSetDomainFromValues(10000, []int{2000})) // $2000 invested
+	// low-level: investorA := model.NewVariable(NewBitSetDomainFromValues(10000, []int{3000})) // $3000 invested
+	investorA := model.IntVarValues([]int{3000}, "investorA") // $3000 invested
+	// low-level: investorB := model.NewVariable(NewBitSetDomainFromValues(10000, []int{2000})) // $2000 invested
+	investorB := model.IntVarValues([]int{2000}, "investorB") // $2000 invested
 	// Total investment
-	total := model.NewVariable(NewBitSetDomain(10000))
+	total := model.IntVar(1, 10000, "total")
 
 	// Constraint: total = (1/3)*A + (1/2)*B (fractional ownership)
 	// Note: This is a simplified example; in reality you'd sum all investments

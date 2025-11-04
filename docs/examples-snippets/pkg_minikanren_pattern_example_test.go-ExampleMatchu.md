@@ -3,11 +3,11 @@ func ExampleMatchu() {
 	// Classify numbers with mutually exclusive ranges
 	classify := func(n int) string {
 		result := Run(1, func(q *Var) Goal {
-			return Matchu(NewAtom(n),
-				NewClause(NewAtom(0), Eq(q, NewAtom("zero"))),
-				NewClause(NewAtom(1), Eq(q, NewAtom("one"))),
-				NewClause(NewAtom(2), Eq(q, NewAtom("two"))),
-			)
+			return CaseIntMap(NewAtom(n), map[int]string{
+				0: "zero",
+				1: "one",
+				2: "two",
+			}, q)
 		})
 
 		if len(result) == 0 {

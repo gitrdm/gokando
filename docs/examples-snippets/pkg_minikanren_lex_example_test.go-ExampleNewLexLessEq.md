@@ -1,10 +1,14 @@
 ```go
 func ExampleNewLexLessEq() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{2, 3, 4}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{1, 2, 3}), "x2")
-	y1 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{3, 4, 5}), "y1")
-	y2 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{2, 3, 4}), "y2")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{2, 3, 4}), "x1")
+	x1 := model.IntVarValues([]int{2, 3, 4}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{1, 2, 3}), "x2")
+	x2 := model.IntVarValues([]int{1, 2, 3}, "x2")
+	// y1 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{3, 4, 5}), "y1")
+	y1 := model.IntVarValues([]int{3, 4, 5}, "y1")
+	// y2 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{2, 3, 4}), "y2")
+	y2 := model.IntVarValues([]int{2, 3, 4}, "y2")
 
 	c, _ := NewLexLessEq([]*FDVariable{x1, x2}, []*FDVariable{y1, y2})
 	model.AddConstraint(c)

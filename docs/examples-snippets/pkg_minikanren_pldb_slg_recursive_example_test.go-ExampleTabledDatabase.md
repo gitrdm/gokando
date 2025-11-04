@@ -1,9 +1,10 @@
 ```go
 func ExampleTabledDatabase() {
 	edge, _ := DbRel("edge", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+	)
 
 	// Wrap database for automatic tabling
 	tdb := WithTabledDatabase(db, "mydb")

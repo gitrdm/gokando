@@ -9,12 +9,12 @@ func ExampleHybridSolver_Propagate() {
 	arith, _ := NewArithmetic(x, y, 2)
 	model.AddConstraint(arith)
 
-	// Create solver
-	fdPlugin := NewFDPlugin(model)
-	solver := NewHybridSolver(fdPlugin)
+	// Create solver and baseline store from model helper, then override domains
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 
-	// Create store with initial domains
-	store := NewUnifiedStore()
 	store, _ = store.SetDomain(x.ID(), NewBitSetDomainFromValues(10, []int{3, 4, 5}))
 	store, _ = store.SetDomain(y.ID(), NewBitSetDomain(10))
 

@@ -2,13 +2,14 @@
 func Example_fdFilteredQuery() {
 	ctx := context.Background()
 
-	// 1. Setup database with employee records
+	// 1. Setup database with employee records (compact via HLAPI)
 	employee, _ := DbRel("employee", 2, 0)
-	db := NewDatabase()
-	db, _ = db.AddFact(employee, NewAtom("alice"), NewAtom(28))
-	db, _ = db.AddFact(employee, NewAtom("bob"), NewAtom(42))
-	db, _ = db.AddFact(employee, NewAtom("charlie"), NewAtom(31))
-	db, _ = db.AddFact(employee, NewAtom("diana"), NewAtom(19))
+	db := DB().MustAddFacts(employee,
+		[]interface{}{"alice", 28},
+		[]interface{}{"bob", 42},
+		[]interface{}{"charlie", 31},
+		[]interface{}{"diana", 19},
+	)
 
 	// 2. Setup FD constraint for eligible age range [25, 35]
 	model := NewModel()

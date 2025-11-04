@@ -4,9 +4,12 @@ func Example_hlapi_regular() {
 	numStates, start, accept, delta := endsWith1DFA()
 
 	m := NewModel()
-	x1 := m.NewVariableWithName(NewBitSetDomain(2), "x1")
-	x2 := m.NewVariableWithName(NewBitSetDomain(2), "x2")
-	x3 := m.NewVariableWithName(NewBitSetDomain(2), "x3")
+	// x1 := m.NewVariableWithName(NewBitSetDomain(2), "x1")
+	x1 := m.IntVar(1, 2, "x1")
+	// x2 := m.NewVariableWithName(NewBitSetDomain(2), "x2")
+	x2 := m.IntVar(1, 2, "x2")
+	// x3 := m.NewVariableWithName(NewBitSetDomain(2), "x3")
+	x3 := m.IntVar(1, 2, "x3")
 	_ = m.Regular([]*FDVariable{x1, x2, x3}, numStates, start, accept, delta)
 
 	s := NewSolver(m)

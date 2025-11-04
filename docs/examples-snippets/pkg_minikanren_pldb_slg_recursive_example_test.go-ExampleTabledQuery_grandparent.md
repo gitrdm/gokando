@@ -2,9 +2,10 @@
 func ExampleTabledQuery_grandparent() {
 	// Create parent relation
 	parent, _ := DbRel("parent", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("mary"))
-	db, _ = db.AddFact(parent, NewAtom("mary"), NewAtom("alice"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"john", "mary"},
+		[]interface{}{"mary", "alice"},
+	)
 
 	// Query for grandparent
 	gp := Fresh("gp")

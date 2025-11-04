@@ -3,8 +3,10 @@ func ExampleRationalLinearSum_piCircumference() {
 	model := NewModel()
 
 	// Circle with diameter = 7 units
-	diameter := model.NewVariable(NewBitSetDomainFromValues(10, []int{7}))
-	circumference := model.NewVariable(NewBitSetDomain(100))
+	// low-level: diameter := model.NewVariable(NewBitSetDomainFromValues(10, []int{7}))
+	diameter := model.IntVarValues([]int{7}, "diameter")
+	// low-level: circumference := model.NewVariable(NewBitSetDomain(100))
+	circumference := model.IntVar(1, 100, "circumference")
 
 	// Constraint: circumference = π * diameter
 	// Using Archimedes' approximation: π ≈ 22/7

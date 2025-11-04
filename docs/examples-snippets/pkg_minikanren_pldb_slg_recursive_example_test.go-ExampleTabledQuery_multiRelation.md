@@ -3,10 +3,13 @@ func ExampleTabledQuery_multiRelation() {
 	employee, _ := DbRel("employee", 2, 0, 1) // (name, dept)
 	manager, _ := DbRel("manager", 2, 0, 1)   // (mgr, employee)
 
-	db := NewDatabase()
-	db, _ = db.AddFact(employee, NewAtom("alice"), NewAtom("engineering"))
-	db, _ = db.AddFact(employee, NewAtom("bob"), NewAtom("engineering"))
-	db, _ = db.AddFact(manager, NewAtom("bob"), NewAtom("alice"))
+	db := DB().MustAddFacts(employee,
+		[]interface{}{"alice", "engineering"},
+		[]interface{}{"bob", "engineering"},
+	)
+	db = db.MustAddFacts(manager,
+		[]interface{}{"bob", "alice"},
+	)
 
 	// Who manages Alice?
 	mgr := Fresh("mgr")

@@ -1,18 +1,61 @@
 # Generated Examples
+## pkg_minikanren_among_example_test.go-ExampleNewAmong_hybrid.md
+```go
+func ExampleNewAmong_hybrid() {
+	model := NewModel()
+
+	x1 := model.IntVarValues([]int{1, 2}, "x1")
+	x2 := model.IntVarValues([]int{2, 3}, "x2")
+	x3 := model.IntVarValues([]int{3, 4}, "x3")
+	k := model.IntVarValues([]int{2}, "K")
+
+	// Build the propagation constraint and register it with the model so the FD plugin can discover it.
+	c, _ := NewAmong([]*FDVariable{x1, x2, x3}, []int{1, 2}, k)
+	model.AddConstraint(c)
+
+	// Use HLAPI helper to build a HybridSolver and a UnifiedStore populated
+	// from the model (domains + constraints). This reduces boilerplate.
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
+
+	// Run propagation to a fixed point.
+	result, _ := solver.Propagate(store)
+
+	fmt.Printf("x2: %s\n", result.GetDomain(x2.ID()))
+	fmt.Printf("x3: %s\n", result.GetDomain(x3.ID()))
+	// Output:
+	// x2: {3}
+	// x3: {3..4}
+}
+
+```
+
+
+\n
 ## pkg_minikanren_among_example_test.go-ExampleNewAmong.md
 ```go
 func ExampleNewAmong() {
 	model := NewModel()
 
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{2, 3}), "x2")
-	x3 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{3, 4}), "x3")
+	// Low-level API (kept as comments):
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
+	x1 := model.IntVarValues([]int{1, 2}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{2, 3}), "x2")
+	x2 := model.IntVarValues([]int{2, 3}, "x2")
+	// x3 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{3, 4}), "x3")
+	x3 := model.IntVarValues([]int{3, 4}, "x3")
 	// K encodes count+1; here we want exactly 1 variable in S → K={2}
-	k := model.NewVariableWithName(NewBitSetDomainFromValues(4, []int{2}), "K")
+	// k := model.NewVariableWithName(NewBitSetDomainFromValues(4, []int{2}), "K")
+	k := model.IntVarValues([]int{2}, "K")
 
 	// S = {1,2}. With K=1 (encoded 2) and x1⊆S, x2 is forced OUT of S
-	c, _ := NewAmong([]*FDVariable{x1, x2, x3}, []int{1, 2}, k)
-	model.AddConstraint(c)
+	// Low-level API (kept as comment):
+	// c, _ := NewAmong([]*FDVariable{x1, x2, x3}, []int{1, 2}, k)
+	// model.AddConstraint(c)
+	// HLAPI:
+	_ = model.Among([]*FDVariable{x1, x2, x3}, []int{1, 2}, k)
 
 	solver := NewSolver(model)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -29,24 +72,33 @@ func ExampleNewAmong() {
 ```
 
 
-
+\n
 ## pkg_minikanren_bin_packing_example_test.go-ExampleNewBinPacking.md
 ```go
 func ExampleNewBinPacking() {
 	model := NewModel()
 
 	// Items: sizes [2,2,1], bins: 2 with capacities [4,1]
-	bdom := NewBitSetDomain(2) // bins {1,2}
-	x1 := model.NewVariableWithName(bdom, "x1")
-	x2 := model.NewVariableWithName(bdom, "x2")
-	x3 := model.NewVariableWithName(bdom, "x3")
+	// Low level API (kept as comments):
+	// bdom := NewBitSetDomain(2) // bins {1,2}
+	// x1 := model.NewVariableWithName(bdom, "x1")
+	// x2 := model.NewVariableWithName(bdom, "x2")
+	// x3 := model.NewVariableWithName(bdom, "x3")
+	// HLAPI: use IntVar for compact [1..2] domains
+	x1 := model.IntVar(1, 2, "x1")
+	x2 := model.IntVar(1, 2, "x2")
+	x3 := model.IntVar(1, 2, "x3")
 
 	sizes := []int{2, 2, 1}
 	capacities := []int{4, 1}
 
-	_, _ = NewBinPacking(model, []*FDVariable{x1, x2, x3}, sizes, capacities)
+	// Low-level API (kept as comment):
+	// _, _ = NewBinPacking(model, []*FDVariable{x1, x2, x3}, sizes, capacities)
+	// HLAPI wrapper:
+	_ = model.BinPacking([]*FDVariable{x1, x2, x3}, sizes, capacities)
 
 	solver := NewSolver(model)
+	// Propagate using solver.propagate to show the low-level approach is equivalent.
 	st, _ := solver.propagate(nil)
 
 	// After propagation:
@@ -64,7 +116,7 @@ func ExampleNewBinPacking() {
 ```
 
 
-
+\n
 ## pkg_minikanren_circuit_example_test.go-ExampleNewCircuit.md
 ```go
 func ExampleNewCircuit() {
@@ -100,7 +152,7 @@ func ExampleNewCircuit() {
 ```
 
 
-
+\n
 ## pkg_minikanren_count_example_test.go-ExampleCount.md
 ```go
 func ExampleCount() {
@@ -138,23 +190,38 @@ func ExampleCount() {
 ```
 
 
-
+\n
 ## pkg_minikanren_cumulative_example_test.go-ExampleNewCumulative.md
 ```go
 func ExampleNewCumulative() {
 	model := NewModel()
 
 	// Task A: fixed at start=2, duration=2, demand=2
-	A := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{2}), "A")
+	// A := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{2}), "A")
+	A := model.IntVarValues([]int{2}, "A")
 	// Task B: start in [1..4], duration=2, demand=1
-	B := model.NewVariableWithName(NewBitSetDomain(4), "B")
+	// B := model.NewVariableWithName(NewBitSetDomain(4), "B")
+	B := model.IntVar(1, 4, "B")
 
-	cum, err := NewCumulative([]*FDVariable{A, B}, []int{2, 2}, []int{2, 1}, 2)
-	if err != nil {
-		panic(err)
-	}
-	model.AddConstraint(cum)
+	// Low-level API (kept as comment):
+	// cum, err := NewCumulative([]*FDVariable{A, B}, []int{2, 2}, []int{2, 1}, 2)
+	// if err != nil {
+	//     panic(err)
+	// }
+	// model.AddConstraint(cum)
+	// HLAPI wrapper:
+	_ = model.Cumulative([]*FDVariable{A, B}, []int{2, 2}, []int{2, 1}, 2)
 
+	// If you only need concrete solutions (assignments), the HLAPI helper
+	// SolveN(ctx, model, maxSolutions) is a convenient wrapper that creates
+	// a solver, runs the search, and returns solutions. Example:
+	//
+	//    sols, err := SolveN(ctx, model, 1)
+	//
+	// However, when you want to inspect solver internals (domains after
+	// propagation) or call methods like GetDomain/propagate, create the
+	// Solver explicitly as done below and call Solve on it. That allows
+	// reading the pruned domains from the solver state.
 	solver := NewSolver(model)
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
@@ -171,15 +238,19 @@ func ExampleNewCumulative() {
 ```
 
 
-
+\n
 ## pkg_minikanren_diffn_example_test.go-ExampleNewDiffn.md
 ```go
 func ExampleNewDiffn() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1}), "x1")
-	y1 := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1}), "y1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1, 2, 3, 4}), "x2")
-	y2 := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1}), "y2")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1}), "x1")
+	x1 := model.IntVarValues([]int{1}, "x1")
+	// y1 := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1}), "y1")
+	y1 := model.IntVarValues([]int{1}, "y1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1, 2, 3, 4}), "x2")
+	x2 := model.IntVarValues([]int{1, 2, 3, 4}, "x2")
+	// y2 := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1}), "y2")
+	y2 := model.IntVarValues([]int{1}, "y2")
 
 	_, _ = NewDiffn(model, []*FDVariable{x1, x2}, []*FDVariable{y1, y2}, []int{2, 2}, []int{2, 2})
 
@@ -194,7 +265,7 @@ func ExampleNewDiffn() {
 ```
 
 
-
+\n
 ## pkg_minikanren_domain_example_test.go-ExampleBitSetDomain_Complement.md
 ```go
 func ExampleBitSetDomain_Complement() {
@@ -215,7 +286,7 @@ func ExampleBitSetDomain_Complement() {
 ```
 
 
-
+\n
 ## pkg_minikanren_domain_example_test.go-ExampleBitSetDomain_Intersect.md
 ```go
 func ExampleBitSetDomain_Intersect() {
@@ -241,7 +312,7 @@ func ExampleBitSetDomain_Intersect() {
 ```
 
 
-
+\n
 ## pkg_minikanren_domain_example_test.go-ExampleBitSetDomain_IsSingleton.md
 ```go
 func ExampleBitSetDomain_IsSingleton() {
@@ -268,7 +339,7 @@ func ExampleBitSetDomain_IsSingleton() {
 ```
 
 
-
+\n
 ## pkg_minikanren_domain_example_test.go-ExampleBitSetDomain_IterateValues.md
 ```go
 func ExampleBitSetDomain_IterateValues() {
@@ -287,7 +358,7 @@ func ExampleBitSetDomain_IterateValues() {
 ```
 
 
-
+\n
 ## pkg_minikanren_domain_example_test.go-ExampleBitSetDomain_Remove.md
 ```go
 func ExampleBitSetDomain_Remove() {
@@ -311,7 +382,7 @@ func ExampleBitSetDomain_Remove() {
 ```
 
 
-
+\n
 ## pkg_minikanren_domain_example_test.go-ExampleBitSetDomain_Union.md
 ```go
 func ExampleBitSetDomain_Union() {
@@ -337,7 +408,7 @@ func ExampleBitSetDomain_Union() {
 ```
 
 
-
+\n
 ## pkg_minikanren_domain_example_test.go-ExampleNewBitSetDomainFromValues.md
 ```go
 func ExampleNewBitSetDomainFromValues() {
@@ -359,7 +430,7 @@ func ExampleNewBitSetDomainFromValues() {
 ```
 
 
-
+\n
 ## pkg_minikanren_domain_example_test.go-ExampleNewBitSetDomain.md
 ```go
 func ExampleNewBitSetDomain() {
@@ -381,16 +452,18 @@ func ExampleNewBitSetDomain() {
 ```
 
 
-
+\n
 ## pkg_minikanren_element_example_test.go-ExampleNewElementValues.md
 ```go
 func ExampleNewElementValues() {
 	model := NewModel()
 
 	// index initially in [1..5]
-	idx := model.NewVariable(NewBitSetDomain(5))
+	// low-level: idx := model.NewVariable(NewBitSetDomain(5))
+	idx := model.IntVar(1, 5, "idx")
 	// result initially in [1..10]
-	res := model.NewVariable(NewBitSetDomain(10))
+	// low-level: res := model.NewVariable(NewBitSetDomain(10))
+	res := model.IntVar(1, 10, "res")
 
 	vals := []int{2, 4, 4, 7, 9}
 	c, _ := NewElementValues(idx, vals, res)
@@ -421,7 +494,7 @@ func ExampleNewElementValues() {
 ```
 
 
-
+\n
 ## pkg_minikanren_enhancements_example_test.go-ExampleCumulative_energeticReasoning.md
 ```go
 func ExampleCumulative_energeticReasoning() {
@@ -454,7 +527,7 @@ func ExampleCumulative_energeticReasoning() {
 ```
 
 
-
+\n
 ## pkg_minikanren_enhancements_example_test.go-ExampleLinearSum_mixedSign.md
 ```go
 func ExampleLinearSum_mixedSign() {
@@ -483,7 +556,7 @@ func ExampleLinearSum_mixedSign() {
 ```
 
 
-
+\n
 ## pkg_minikanren_enhancements_example_test.go-ExampleSolver_SolveOptimal_boolSum.md
 ```go
 func ExampleSolver_SolveOptimal_boolSum() {
@@ -512,7 +585,7 @@ func ExampleSolver_SolveOptimal_boolSum() {
 ```
 
 
-
+\n
 ## pkg_minikanren_enhancements_example_test.go-ExampleSolver_SolveOptimal_impactHeuristic.md
 ```go
 func ExampleSolver_SolveOptimal_impactHeuristic() {
@@ -540,26 +613,33 @@ func ExampleSolver_SolveOptimal_impactHeuristic() {
 ```
 
 
-
+\n
 ## pkg_minikanren_gcc_example_test.go-ExampleNewGlobalCardinality.md
 ```go
 func ExampleNewGlobalCardinality() {
 	model := NewModel()
 
-	a := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1}), "a")
-	b := model.NewVariableWithName(NewBitSetDomain(2), "b")
-	c := model.NewVariableWithName(NewBitSetDomain(2), "c")
+	// Low-level constructors are preserved as comments for reference:
+	// a := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1}), "a")
+	a := model.IntVarValues([]int{1}, "a")
+	// b := model.NewVariableWithName(NewBitSetDomain(2), "b")
+	b := model.IntVar(1, 2, "b")
+	// c := model.NewVariableWithName(NewBitSetDomain(2), "c")
+	c := model.IntVar(1, 2, "c")
 
 	min := make([]int, 3)
 	max := make([]int, 3)
 	min[1], max[1] = 1, 1 // value 1 exactly once
 	min[2], max[2] = 0, 3
 
-	gcc, err := NewGlobalCardinality([]*FDVariable{a, b, c}, min, max)
-	if err != nil {
-		panic(err)
-	}
-	model.AddConstraint(gcc)
+	// Low-level API (kept as comment):
+	// gcc, err := NewGlobalCardinality([]*FDVariable{a, b, c}, min, max)
+	// if err != nil {
+	//     panic(err)
+	// }
+	// model.AddConstraint(gcc)
+	// HLAPI wrapper (preferred for examples):
+	_ = model.GlobalCardinality([]*FDVariable{a, b, c}, min, max)
 
 	solver := NewSolver(model)
 	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
@@ -578,7 +658,7 @@ func ExampleNewGlobalCardinality() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_collectors_example_test.go-Example_hlapi_collectors_ints.md
 ```go
 func Example_hlapi_collectors_ints() {
@@ -598,7 +678,7 @@ func Example_hlapi_collectors_ints() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_collectors_example_test.go-Example_hlapi_collectors_pairs_ints.md
 ```go
 func Example_hlapi_collectors_pairs_ints() {
@@ -621,7 +701,7 @@ func Example_hlapi_collectors_pairs_ints() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_collectors_example_test.go-Example_hlapi_collectors_rows.md
 ```go
 func Example_hlapi_collectors_rows() {
@@ -646,7 +726,7 @@ func Example_hlapi_collectors_rows() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_collectors_example_test.go-Example_hlapi_rowsAll_timeout.md
 ```go
 func Example_hlapi_rowsAll_timeout() {
@@ -664,7 +744,7 @@ func Example_hlapi_rowsAll_timeout() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_example_test.go-ExampleModel_helpers_allDifferent.md
 ```go
 func ExampleModel_helpers_allDifferent() {
@@ -685,7 +765,7 @@ func ExampleModel_helpers_allDifferent() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_example_test.go-ExampleSolutions_basic.md
 ```go
 func ExampleSolutions_basic() {
@@ -701,7 +781,7 @@ func ExampleSolutions_basic() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_format_example_test.go-ExampleFormatTerm_basic.md
 ```go
 func ExampleFormatTerm_basic() {
@@ -715,7 +795,7 @@ func ExampleFormatTerm_basic() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_globals_example_test.go-Example_hlapi_cumulative.md
 ```go
 func Example_hlapi_cumulative() {
@@ -739,7 +819,7 @@ func Example_hlapi_cumulative() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_globals_example_test.go-Example_hlapi_gcc.md
 ```go
 func Example_hlapi_gcc() {
@@ -771,7 +851,7 @@ func Example_hlapi_gcc() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_globals_example_test.go-Example_hlapi_lexLessEq.md
 ```go
 func Example_hlapi_lexLessEq() {
@@ -795,7 +875,7 @@ func Example_hlapi_lexLessEq() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_globals_example_test.go-Example_hlapi_noOverlap.md
 ```go
 func Example_hlapi_noOverlap() {
@@ -817,7 +897,7 @@ func Example_hlapi_noOverlap() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_globals_example_test.go-Example_hlapi_regular.md
 ```go
 func Example_hlapi_regular() {
@@ -825,9 +905,12 @@ func Example_hlapi_regular() {
 	numStates, start, accept, delta := endsWith1DFA()
 
 	m := NewModel()
-	x1 := m.NewVariableWithName(NewBitSetDomain(2), "x1")
-	x2 := m.NewVariableWithName(NewBitSetDomain(2), "x2")
-	x3 := m.NewVariableWithName(NewBitSetDomain(2), "x3")
+	// x1 := m.NewVariableWithName(NewBitSetDomain(2), "x1")
+	x1 := m.IntVar(1, 2, "x1")
+	// x2 := m.NewVariableWithName(NewBitSetDomain(2), "x2")
+	x2 := m.IntVar(1, 2, "x2")
+	// x3 := m.NewVariableWithName(NewBitSetDomain(2), "x3")
+	x3 := m.IntVar(1, 2, "x3")
 	_ = m.Regular([]*FDVariable{x1, x2, x3}, numStates, start, accept, delta)
 
 	s := NewSolver(m)
@@ -846,14 +929,16 @@ func Example_hlapi_regular() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_globals_example_test.go-Example_hlapi_table.md
 ```go
 func Example_hlapi_table() {
 	m := NewModel()
-	x := m.NewVariableWithName(NewBitSetDomain(5), "x")
+	// x := m.NewVariableWithName(NewBitSetDomain(5), "x")
+	x := m.IntVar(1, 5, "x")
 	// y ∈ {1,2} upfront so we can avoid internal propagation calls
-	y := m.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "y")
+	// y := m.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "y")
+	y := m.IntVarValues([]int{1, 2}, "y")
 
 	rows := [][]int{
 		{1, 1},
@@ -880,7 +965,7 @@ func Example_hlapi_table() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_intvarvalues_example_test.go-ExampleModel_helpers_intVarValues.md
 ```go
 func ExampleModel_helpers_intVarValues() {
@@ -897,7 +982,7 @@ func ExampleModel_helpers_intVarValues() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_optimize_example_test.go-Example_hlapi_optimize.md
 ```go
 func Example_hlapi_optimize() {
@@ -920,7 +1005,7 @@ func Example_hlapi_optimize() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_optimize_example_test.go-Example_hlapi_optimize_withOptions.md
 ```go
 func Example_hlapi_optimize_withOptions() {
@@ -944,7 +1029,7 @@ func Example_hlapi_optimize_withOptions() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_disjq_example_test.go-Example_hlapi_disjq.md
 ```go
 func Example_hlapi_disjq() {
@@ -974,7 +1059,7 @@ func Example_hlapi_disjq() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_example_test.go-Example_pldb_join.md
 ```go
 func Example_pldb_join() {
@@ -1008,7 +1093,7 @@ func Example_pldb_join() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_example_test.go-Example_tabled_query.md
 ```go
 func Example_tabled_query() {
@@ -1036,7 +1121,7 @@ func Example_tabled_query() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_recursive_example_test.go-Example_hlapi_ancestor_recursive_sugar.md
 ```go
 func Example_hlapi_ancestor_recursive_sugar() {
@@ -1077,7 +1162,7 @@ func Example_hlapi_ancestor_recursive_sugar() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_recursive_example_test.go-Example_hlapi_values_projection.md
 ```go
 func Example_hlapi_values_projection() {
@@ -1098,7 +1183,7 @@ func Example_hlapi_values_projection() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_slg_example_test.go-Example_hlapi_ancestor_recursive.md
 ```go
 func Example_hlapi_ancestor_recursive() {
@@ -1143,7 +1228,7 @@ func Example_hlapi_ancestor_recursive() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_slg_example_test.go-Example_hlapi_grandparent.md
 ```go
 func Example_hlapi_grandparent() {
@@ -1174,7 +1259,7 @@ func Example_hlapi_grandparent() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_slg_example_test.go-Example_hlapi_multiRelationLoader.md
 ```go
 func Example_hlapi_multiRelationLoader() {
@@ -1201,7 +1286,7 @@ func Example_hlapi_multiRelationLoader() {
 ```
 
 
-
+\n
 ## pkg_minikanren_highlevel_api_pldb_slg_example_test.go-Example_hlapi_path_twoHop.md
 ```go
 func Example_hlapi_path_twoHop() {
@@ -1234,7 +1319,7 @@ func Example_hlapi_path_twoHop() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleFDPlugin.md
 ```go
 func ExampleFDPlugin() {
@@ -1261,7 +1346,7 @@ func ExampleFDPlugin() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleHybridSolver_bidirectionalPropagation.md
 ```go
 func ExampleHybridSolver_bidirectionalPropagation() {
@@ -1275,13 +1360,12 @@ func ExampleHybridSolver_bidirectionalPropagation() {
 	allDiff, _ := NewAllDifferent([]*FDVariable{x, y, z})
 	model.AddConstraint(allDiff)
 
-	// Create hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(fdPlugin, relPlugin)
+	// Build solver and store from model helper; then set initial domains
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 
-	// Initial state: all variables have domain {1, 2, 3}
-	store := NewUnifiedStore()
 	domain := NewBitSetDomainFromValues(10, []int{1, 2, 3})
 	store, _ = store.SetDomain(x.ID(), domain)
 	store, _ = store.SetDomain(y.ID(), domain)
@@ -1317,7 +1401,7 @@ func ExampleHybridSolver_bidirectionalPropagation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleHybridSolver_Propagate.md
 ```go
 func ExampleHybridSolver_Propagate() {
@@ -1330,12 +1414,12 @@ func ExampleHybridSolver_Propagate() {
 	arith, _ := NewArithmetic(x, y, 2)
 	model.AddConstraint(arith)
 
-	// Create solver
-	fdPlugin := NewFDPlugin(model)
-	solver := NewHybridSolver(fdPlugin)
+	// Create solver and baseline store from model helper, then override domains
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 
-	// Create store with initial domains
-	store := NewUnifiedStore()
 	store, _ = store.SetDomain(x.ID(), NewBitSetDomainFromValues(10, []int{3, 4, 5}))
 	store, _ = store.SetDomain(y.ID(), NewBitSetDomain(10))
 
@@ -1359,7 +1443,7 @@ func ExampleHybridSolver_Propagate() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleHybridSolver_realWorldScheduling.md
 ```go
 func ExampleHybridSolver_realWorldScheduling() {
@@ -1377,13 +1461,12 @@ func ExampleHybridSolver_realWorldScheduling() {
 	allDiff, _ := NewAllDifferent([]*FDVariable{task1, task2, task3})
 	model.AddConstraint(allDiff)
 
-	// Create hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(fdPlugin, relPlugin)
+	// Create solver and store from model helper; then set initial domains
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 
-	// Initial domains: tasks can start at times 1-5
-	store := NewUnifiedStore()
 	timeSlots := NewBitSetDomainFromValues(10, []int{1, 2, 3, 4, 5})
 	store, _ = store.SetDomain(task1.ID(), timeSlots)
 	store, _ = store.SetDomain(task2.ID(), timeSlots)
@@ -1426,7 +1509,7 @@ func ExampleHybridSolver_realWorldScheduling() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleNewHybridSolver.md
 ```go
 func ExampleNewHybridSolver() {
@@ -1439,7 +1522,9 @@ func ExampleNewHybridSolver() {
 	arith, _ := NewArithmetic(x, y, 1)
 	model.AddConstraint(arith)
 
-	// Create plugins
+	// Create plugins explicitly to preserve the canonical demonstration order
+	// (FD plugin followed by Relational). This example intentionally shows
+	// the plugin ordering used elsewhere in the docs.
 	fdPlugin := NewFDPlugin(model)
 	relPlugin := NewRelationalPlugin()
 
@@ -1459,7 +1544,7 @@ func ExampleNewHybridSolver() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleNewUnifiedStore.md
 ```go
 func ExampleNewUnifiedStore() {
@@ -1484,7 +1569,7 @@ func ExampleNewUnifiedStore() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleRelationalPlugin.md
 ```go
 func ExampleRelationalPlugin() {
@@ -1520,7 +1605,7 @@ func ExampleRelationalPlugin() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleRelationalPlugin_promoteSingletons.md
 ```go
 func ExampleRelationalPlugin_promoteSingletons() {
@@ -1549,7 +1634,7 @@ func ExampleRelationalPlugin_promoteSingletons() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleUnifiedStore_AddBinding.md
 ```go
 func ExampleUnifiedStore_AddBinding() {
@@ -1574,7 +1659,7 @@ func ExampleUnifiedStore_AddBinding() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_example_test.go-ExampleUnifiedStore_SetDomain.md
 ```go
 func ExampleUnifiedStore_SetDomain() {
@@ -1597,7 +1682,7 @@ func ExampleUnifiedStore_SetDomain() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_registry_example_test.go-ExampleHybridRegistry_AutoBind.md
 ```go
 func ExampleHybridRegistry_AutoBind() {
@@ -1659,7 +1744,7 @@ func ExampleHybridRegistry_AutoBind() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_registry_example_test.go-ExampleHybridRegistry_multipleVariables.md
 ```go
 func ExampleHybridRegistry_multipleVariables() {
@@ -1709,7 +1794,7 @@ func ExampleHybridRegistry_multipleVariables() {
 ```
 
 
-
+\n
 ## pkg_minikanren_hybrid_registry_example_test.go-ExampleNewHybridRegistry.md
 ```go
 func ExampleNewHybridRegistry() {
@@ -1737,15 +1822,19 @@ func ExampleNewHybridRegistry() {
 ```
 
 
-
+\n
 ## pkg_minikanren_lex_example_test.go-ExampleNewLexLessEq.md
 ```go
 func ExampleNewLexLessEq() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{2, 3, 4}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{1, 2, 3}), "x2")
-	y1 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{3, 4, 5}), "y1")
-	y2 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{2, 3, 4}), "y2")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{2, 3, 4}), "x1")
+	x1 := model.IntVarValues([]int{2, 3, 4}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{1, 2, 3}), "x2")
+	x2 := model.IntVarValues([]int{1, 2, 3}, "x2")
+	// y1 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{3, 4, 5}), "y1")
+	y1 := model.IntVarValues([]int{3, 4, 5}, "y1")
+	// y2 := model.NewVariableWithName(NewBitSetDomainFromValues(9, []int{2, 3, 4}), "y2")
+	y2 := model.IntVarValues([]int{2, 3, 4}, "y2")
 
 	c, _ := NewLexLessEq([]*FDVariable{x1, x2}, []*FDVariable{y1, y2})
 	model.AddConstraint(c)
@@ -1764,7 +1853,7 @@ func ExampleNewLexLessEq() {
 ```
 
 
-
+\n
 ## pkg_minikanren_list_ops_example_test.go-ExampleDistincto.md
 ```go
 func ExampleDistincto() {
@@ -1783,7 +1872,7 @@ func ExampleDistincto() {
 ```
 
 
-
+\n
 ## pkg_minikanren_list_ops_example_test.go-ExampleFlatteno.md
 ```go
 func ExampleFlatteno() {
@@ -1800,7 +1889,7 @@ func ExampleFlatteno() {
 ```
 
 
-
+\n
 ## pkg_minikanren_list_ops_example_test.go-ExampleLengthoInt.md
 ```go
 func ExampleLengthoInt() {
@@ -1816,7 +1905,7 @@ func ExampleLengthoInt() {
 ```
 
 
-
+\n
 ## pkg_minikanren_list_ops_example_test.go-ExampleNoto.md
 ```go
 func ExampleNoto() {
@@ -1837,7 +1926,7 @@ func ExampleNoto() {
 ```
 
 
-
+\n
 ## pkg_minikanren_list_ops_example_test.go-ExamplePermuteo.md
 ```go
 func ExamplePermuteo() {
@@ -1857,7 +1946,7 @@ func ExamplePermuteo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_list_ops_example_test.go-ExampleRembero.md
 ```go
 func ExampleRembero() {
@@ -1874,7 +1963,7 @@ func ExampleRembero() {
 ```
 
 
-
+\n
 ## pkg_minikanren_list_ops_example_test.go-ExampleReverso.md
 ```go
 func ExampleReverso() {
@@ -1890,7 +1979,7 @@ func ExampleReverso() {
 ```
 
 
-
+\n
 ## pkg_minikanren_list_ops_example_test.go-ExampleSubseto.md
 ```go
 func ExampleSubseto() {
@@ -1908,7 +1997,7 @@ func ExampleSubseto() {
 ```
 
 
-
+\n
 ## pkg_minikanren_minmax_example_test.go-ExampleNewMax.md
 ```go
 func ExampleNewMax() {
@@ -1938,7 +2027,7 @@ func ExampleNewMax() {
 ```
 
 
-
+\n
 ## pkg_minikanren_minmax_example_test.go-ExampleNewMin.md
 ```go
 func ExampleNewMin() {
@@ -1970,7 +2059,7 @@ func ExampleNewMin() {
 ```
 
 
-
+\n
 ## pkg_minikanren_model_example_test.go-ExampleFDVariable_IsBound.md
 ```go
 func ExampleFDVariable_IsBound() {
@@ -1993,7 +2082,7 @@ func ExampleFDVariable_IsBound() {
 ```
 
 
-
+\n
 ## pkg_minikanren_model_example_test.go-ExampleModel_NewVariables.md
 ```go
 func ExampleModel_NewVariables() {
@@ -2018,7 +2107,7 @@ func ExampleModel_NewVariables() {
 ```
 
 
-
+\n
 ## pkg_minikanren_model_example_test.go-ExampleModel_NewVariablesWithNames.md
 ```go
 func ExampleModel_NewVariablesWithNames() {
@@ -2040,14 +2129,15 @@ func ExampleModel_NewVariablesWithNames() {
 ```
 
 
-
+\n
 ## pkg_minikanren_model_example_test.go-ExampleModel_Validate.md
 ```go
 func ExampleModel_Validate() {
 	model := minikanren.NewModel()
 
 	// Create a variable with normal domain
-	x := model.NewVariable(minikanren.NewBitSetDomain(5))
+	// low-level: x := model.NewVariable(minikanren.NewBitSetDomain(5))
+	x := model.IntVar(1, 5, "x")
 	_ = x
 
 	// Model is valid
@@ -2056,6 +2146,7 @@ func ExampleModel_Validate() {
 
 	// Create a variable with empty domain - this is an error
 	emptyDomain := minikanren.NewBitSetDomainFromValues(5, []int{})
+	// low-level: y := model.NewVariable(emptyDomain)
 	y := model.NewVariable(emptyDomain)
 
 	err = model.Validate()
@@ -2071,7 +2162,7 @@ func ExampleModel_Validate() {
 ```
 
 
-
+\n
 ## pkg_minikanren_model_example_test.go-ExampleNewModel.md
 ```go
 func ExampleNewModel() {
@@ -2095,7 +2186,7 @@ func ExampleNewModel() {
 ```
 
 
-
+\n
 ## pkg_minikanren_model_example_test.go-ExampleNewSolver.md
 ```go
 func ExampleNewSolver() {
@@ -2134,7 +2225,7 @@ func ExampleNewSolver() {
 ```
 
 
-
+\n
 ## pkg_minikanren_model_example_test.go-ExampleSolverConfig.md
 ```go
 func ExampleSolverConfig() {
@@ -2158,7 +2249,7 @@ func ExampleSolverConfig() {
 ```
 
 
-
+\n
 ## pkg_minikanren_model_example_test.go-ExampleSolver_parallelSearch.md
 ```go
 func ExampleSolver_parallelSearch() {
@@ -2187,16 +2278,18 @@ func ExampleSolver_parallelSearch() {
 ```
 
 
-
+\n
 ## pkg_minikanren_nooverlap_example_test.go-ExampleNewNoOverlap.md
 ```go
 func ExampleNewNoOverlap() {
 	model := NewModel()
 
 	// Task A fixed at start=2, duration=2 ⇒ executes over [2,3]
-	A := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{2}), "A")
+	// A := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{2}), "A")
+	A := model.IntVarValues([]int{2}, "A")
 	// Task B can start in [1..4], duration=2
-	B := model.NewVariableWithName(NewBitSetDomain(4), "B")
+	// B := model.NewVariableWithName(NewBitSetDomain(4), "B")
+	B := model.IntVar(1, 4, "B")
 
 	noov, err := NewNoOverlap([]*FDVariable{A, B}, []int{2, 2})
 	if err != nil {
@@ -2220,15 +2313,20 @@ func ExampleNewNoOverlap() {
 ```
 
 
-
+\n
 ## pkg_minikanren_nvalue_example_test.go-ExampleNewAtMostNValues.md
 ```go
 func ExampleNewAtMostNValues() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
-	x3 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x3")
-	limit := model.NewVariableWithName(NewBitSetDomain(2), "limit") // distinct ≤ 1
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1}), "x1")
+	x1 := model.IntVarValues([]int{1}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
+	x2 := model.IntVarValues([]int{1, 2}, "x2")
+	// x3 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x3")
+	x3 := model.IntVarValues([]int{1, 2}, "x3")
+	// low-level: limit := model.NewVariableWithName(NewBitSetDomain(2), "limit") // distinct ≤ 1
+	// HLAPI: express the same compact integer domain using IntVar
+	limit := model.IntVar(1, 2, "limit") // distinct ≤ 1 encoded over {1,2}
 
 	_, _ = NewAtMostNValues(model, []*FDVariable{x1, x2, x3}, limit)
 
@@ -2245,15 +2343,18 @@ func ExampleNewAtMostNValues() {
 ```
 
 
-
+\n
 ## pkg_minikanren_nvalue_example_test.go-ExampleNewNValue.md
 ```go
 func ExampleNewNValue() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
+	x1 := model.IntVarValues([]int{1, 2}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
+	x2 := model.IntVarValues([]int{1, 2}, "x2")
 	// Exact NValue=1 ⇒ NPlus1=2
-	nPlus1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "N+1")
+	// nPlus1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "N+1")
+	nPlus1 := model.IntVarValues([]int{2}, "N+1")
 
 	_, _ = NewNValue(model, []*FDVariable{x1, x2}, nPlus1)
 
@@ -2272,7 +2373,7 @@ func ExampleNewNValue() {
 ```
 
 
-
+\n
 ## pkg_minikanren_optimization_example_test.go-ExampleSolver_SolveOptimal.md
 ```go
 func ExampleSolver_SolveOptimal() {
@@ -2300,7 +2401,7 @@ func ExampleSolver_SolveOptimal() {
 ```
 
 
-
+\n
 ## pkg_minikanren_optimization_example_test.go-ExampleSolver_SolveOptimal_minOfArray.md
 ```go
 func ExampleSolver_SolveOptimal_minOfArray() {
@@ -2324,7 +2425,7 @@ func ExampleSolver_SolveOptimal_minOfArray() {
 ```
 
 
-
+\n
 ## pkg_minikanren_optimization_example_test.go-ExampleSolver_SolveOptimalWithOptions.md
 ```go
 func ExampleSolver_SolveOptimalWithOptions() {
@@ -2353,7 +2454,7 @@ func ExampleSolver_SolveOptimalWithOptions() {
 ```
 
 
-
+\n
 ## pkg_minikanren_parallel_search_examples_test.go-ExampleDefaultParallelSearchConfig.md
 ```go
 func ExampleDefaultParallelSearchConfig() {
@@ -2368,7 +2469,7 @@ func ExampleDefaultParallelSearchConfig() {
 ```
 
 
-
+\n
 ## pkg_minikanren_parallel_search_examples_test.go-ExampleSolver_SolveParallel_cancel.md
 ```go
 func ExampleSolver_SolveParallel_cancel() {
@@ -2398,7 +2499,7 @@ func ExampleSolver_SolveParallel_cancel() {
 ```
 
 
-
+\n
 ## pkg_minikanren_parallel_search_examples_test.go-ExampleSolver_SolveParallel_limit.md
 ```go
 func ExampleSolver_SolveParallel_limit() {
@@ -2424,7 +2525,7 @@ func ExampleSolver_SolveParallel_limit() {
 ```
 
 
-
+\n
 ## pkg_minikanren_parallel_search_examples_test.go-ExampleSolver_SolveParallel.md
 ```go
 func ExampleSolver_SolveParallel() {
@@ -2455,7 +2556,7 @@ func ExampleSolver_SolveParallel() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatcha_deterministicChoice.md
 ```go
 func ExampleMatcha_deterministicChoice() {
@@ -2497,7 +2598,7 @@ func ExampleMatcha_deterministicChoice() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatcha.md
 ```go
 func ExampleMatcha() {
@@ -2528,7 +2629,7 @@ func ExampleMatcha() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatcha_withHybridSolver.md
 ```go
 func ExampleMatcha_withHybridSolver() {
@@ -2569,7 +2670,7 @@ func ExampleMatcha_withHybridSolver() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatcheList.md
 ```go
 func ExampleMatcheList() {
@@ -2593,7 +2694,7 @@ func ExampleMatcheList() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatche_listProcessing.md
 ```go
 func ExampleMatche_listProcessing() {
@@ -2627,7 +2728,7 @@ func ExampleMatche_listProcessing() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatche.md
 ```go
 func ExampleMatche() {
@@ -2656,7 +2757,7 @@ func ExampleMatche() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatche_withDatabase.md
 ```go
 func ExampleMatche_withDatabase() {
@@ -2692,18 +2793,18 @@ func ExampleMatche_withDatabase() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatchu.md
 ```go
 func ExampleMatchu() {
 	// Classify numbers with mutually exclusive ranges
 	classify := func(n int) string {
 		result := Run(1, func(q *Var) Goal {
-			return Matchu(NewAtom(n),
-				NewClause(NewAtom(0), Eq(q, NewAtom("zero"))),
-				NewClause(NewAtom(1), Eq(q, NewAtom("one"))),
-				NewClause(NewAtom(2), Eq(q, NewAtom("two"))),
-			)
+			return CaseIntMap(NewAtom(n), map[int]string{
+				0: "zero",
+				1: "one",
+				2: "two",
+			}, q)
 		})
 
 		if len(result) == 0 {
@@ -2731,18 +2832,23 @@ func ExampleMatchu() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleMatchu_validation.md
 ```go
 func ExampleMatchu_validation() {
 	// Validate that a value matches exactly one category
 	validate := func(val int) (string, bool) {
+		// Alternative implementation for demonstration purposes
+		// return Matchu(NewAtom(val),
+		//		NewClause(NewAtom(1), Eq(q, NewAtom("category-A"))),
+		//		NewClause(NewAtom(2), Eq(q, NewAtom("category-B"))),
+		//		NewClause(NewAtom(3), Eq(q, NewAtom("category-C"))),
 		result := Run(1, func(q *Var) Goal {
-			return Matchu(NewAtom(val),
-				NewClause(NewAtom(1), Eq(q, NewAtom("category-A"))),
-				NewClause(NewAtom(2), Eq(q, NewAtom("category-B"))),
-				NewClause(NewAtom(3), Eq(q, NewAtom("category-C"))),
-			)
+			return CaseIntMap(NewAtom(val), map[int]string{
+				1: "category-A",
+				2: "category-B",
+				3: "category-C",
+			}, q)
 		})
 
 		if len(result) == 0 {
@@ -2777,7 +2883,7 @@ func ExampleMatchu_validation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExampleNewClause.md
 ```go
 func ExampleNewClause() {
@@ -2806,7 +2912,7 @@ func ExampleNewClause() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pattern_example_test.go-ExamplePatternClause_nestedPatterns.md
 ```go
 func ExamplePatternClause_nestedPatterns() {
@@ -2842,7 +2948,7 @@ func ExamplePatternClause_nestedPatterns() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_example_test.go-ExampleDatabase_AddFact.md
 ```go
 func ExampleDatabase_AddFact() {
@@ -2872,18 +2978,18 @@ func ExampleDatabase_AddFact() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_example_test.go-ExampleDatabase_Query_datalog.md
 ```go
 func ExampleDatabase_Query_datalog() {
 	edge, _ := DbRel("edge", 2, 0, 1)
-
 	// Build a graph: a -> b -> c
 	//                ^-------|
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	db, _ = db.AddFact(edge, NewAtom("c"), NewAtom("a"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+		[]interface{}{"c", "a"},
+	)
 
 	// Query: Find all nodes reachable from 'a' in exactly 2 hops
 	// path2(X, Z) :- edge(X, Y), edge(Y, Z)
@@ -2917,16 +3023,16 @@ func ExampleDatabase_Query_datalog() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_example_test.go-ExampleDatabase_Query_disjunction.md
 ```go
 func ExampleDatabase_Query_disjunction() {
 	parent, _ := DbRel("parent", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("charlie"))
-	db, _ = db.AddFact(parent, NewAtom("charlie"), NewAtom("diana"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"bob", "charlie"},
+		[]interface{}{"charlie", "diana"},
+	)
 
 	// Query: Find children of alice OR bob
 	child := Fresh("child")
@@ -2950,16 +3056,16 @@ func ExampleDatabase_Query_disjunction() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_example_test.go-ExampleDatabase_Query_join.md
 ```go
 func ExampleDatabase_Query_join() {
 	parent, _ := DbRel("parent", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("charlie"))
-	db, _ = db.AddFact(parent, NewAtom("charlie"), NewAtom("diana"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"bob", "charlie"},
+		[]interface{}{"charlie", "diana"},
+	)
 
 	// Query: Find grandparent-grandchild pairs
 	// grandparent(GP, GC) :- parent(GP, P), parent(P, GC)
@@ -2986,17 +3092,17 @@ func ExampleDatabase_Query_join() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_example_test.go-ExampleDatabase_Query_repeated.md
 ```go
 func ExampleDatabase_Query_repeated() {
 	edge, _ := DbRel("edge", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	db, _ = db.AddFact(edge, NewAtom("c"), NewAtom("c")) // self-loop
-	db, _ = db.AddFact(edge, NewAtom("d"), NewAtom("d")) // self-loop
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+		[]interface{}{"c", "c"}, // self-loop
+		[]interface{}{"d", "d"}, // self-loop
+	)
 
 	// Query: Find all self-loops
 	x := Fresh("x")
@@ -3016,16 +3122,16 @@ func ExampleDatabase_Query_repeated() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_example_test.go-ExampleDatabase_Query_simple.md
 ```go
 func ExampleDatabase_Query_simple() {
 	parent, _ := DbRel("parent", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("charlie"))
-	db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("diana"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"alice", "charlie"},
+		[]interface{}{"bob", "diana"},
+	)
 
 	// Query: Who are alice's children?
 	child := Fresh("child")
@@ -3047,12 +3153,13 @@ func ExampleDatabase_Query_simple() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_example_test.go-ExampleDatabase_RemoveFact.md
 ```go
 func ExampleDatabase_RemoveFact() {
 	person, _ := DbRel("person", 1, 0)
 
+	// Create database with some people using low-level API versus the HLAPI for demonstration
 	db := NewDatabase()
 	db, _ = db.AddFact(person, NewAtom("alice"))
 	db, _ = db.AddFact(person, NewAtom("bob"))
@@ -3082,7 +3189,7 @@ func ExampleDatabase_RemoveFact() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_example_test.go-ExampleDbRel.md
 ```go
 func ExampleDbRel() {
@@ -3106,7 +3213,7 @@ func ExampleDbRel() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_example_test.go-ExampleUnifiedStoreAdapter_basicQuery.md
 ```go
 func ExampleUnifiedStoreAdapter_basicQuery() {
@@ -3141,26 +3248,28 @@ func ExampleUnifiedStoreAdapter_basicQuery() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_example_test.go-ExampleUnifiedStoreAdapter_fdConstrainedQuery.md
 ```go
 func ExampleUnifiedStoreAdapter_fdConstrainedQuery() {
-	// Create a database of employees with ages
+	// Create a database of employees with ages (compact via HLAPI)
 	employee, _ := DbRel("employee", 2, 0) // name is indexed
-	db := NewDatabase()
-	db, _ = db.AddFact(employee, NewAtom("alice"), NewAtom(28))
-	db, _ = db.AddFact(employee, NewAtom("bob"), NewAtom(32))
-	db, _ = db.AddFact(employee, NewAtom("carol"), NewAtom(45))
-	db, _ = db.AddFact(employee, NewAtom("dave"), NewAtom(29))
+	db := DB().MustAddFacts(employee,
+		[]interface{}{"alice", 28},
+		[]interface{}{"bob", 32},
+		[]interface{}{"carol", 45},
+		[]interface{}{"dave", 29},
+	)
 
 	// Create FD model with age restricted to [25, 35]
 	model := NewModel()
-	ageVar := model.NewVariableWithName(
-		NewBitSetDomainFromValues(100, []int{25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35}),
-		"age",
-	)
+	// ageVar := model.NewVariableWithName(
+	//     NewBitSetDomainFromValues(100, []int{25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35}),
+	//     "age",
+	// )
+	ageVar := model.IntVarValues([]int{25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35}, "age")
 
-	// Create store with FD domain
+	// Create store with FD domain and adapter
 	store := NewUnifiedStore()
 	store, _ = store.SetDomain(ageVar.ID(), ageVar.Domain())
 	adapter := NewUnifiedStoreAdapter(store)
@@ -3169,44 +3278,12 @@ func ExampleUnifiedStoreAdapter_fdConstrainedQuery() {
 	name := Fresh("name")
 	age := Fresh("age")
 
-	// Create hybrid query with manual FD filtering
-	hybridQuery := func(ctx context.Context, cstore ConstraintStore) *Stream {
-		dbQuery := db.Query(employee, name, age)
-		dbStream := dbQuery(ctx, cstore)
-
-		stream := NewStream()
-		go func() {
-			defer stream.Close()
-			for {
-				results, hasMore := dbStream.Take(1)
-				if len(results) == 0 {
-					if !hasMore {
-						break
-					}
-					continue
-				}
-
-				result := results[0]
-				ageBinding := result.GetBinding(age.ID())
-
-				// Filter: only include ages in FD domain
-				if ageAtom, ok := ageBinding.(*Atom); ok {
-					if ageInt, ok := ageAtom.value.(int); ok {
-						if resAdapter, ok := result.(*UnifiedStoreAdapter); ok {
-							domain := resAdapter.GetDomain(ageVar.ID())
-							if domain != nil && domain.Has(ageInt) {
-								stream.Put(result)
-							}
-						}
-					}
-				}
-			}
-		}()
-		return stream
-	}
+	// Use HLAPI FDFilteredQuery to combine the DB query and FD-domain filtering
+	// FDFilteredQuery(db, rel, fdVar, filterVar, queryTerms...)
+	goal := FDFilteredQuery(db, employee, ageVar, age, name, age)
 
 	// Execute query
-	stream := hybridQuery(context.Background(), adapter)
+	stream := goal(context.Background(), adapter)
 	results, _ := stream.Take(10)
 
 	// Print count (order may vary)
@@ -3219,7 +3296,7 @@ func ExampleUnifiedStoreAdapter_fdConstrainedQuery() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_example_test.go-ExampleUnifiedStoreAdapter_hybridPropagation.md
 ```go
 func ExampleUnifiedStoreAdapter_hybridPropagation() {
@@ -3234,16 +3311,14 @@ func ExampleUnifiedStoreAdapter_hybridPropagation() {
 	for i := range ageValues {
 		ageValues[i] = i
 	}
-	ageVar := model.NewVariableWithName(NewBitSetDomainFromValues(101, ageValues), "age")
+	// ageVar := model.NewVariableWithName(NewBitSetDomainFromValues(101, ageValues), "age")
+	ageVar := model.IntVarValues(ageValues, "age")
 
-	// Set up hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(relPlugin, fdPlugin)
-
-	// Create store with FD domain
-	store := NewUnifiedStore()
-	store, _ = store.SetDomain(ageVar.ID(), ageVar.Domain())
+	// Create HybridSolver and a UnifiedStore populated from the model.
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 	adapter := NewUnifiedStoreAdapter(store)
 
 	// Query for alice's age
@@ -3284,7 +3359,7 @@ func ExampleUnifiedStoreAdapter_hybridPropagation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_example_test.go-ExampleUnifiedStoreAdapter_parallelSearch.md
 ```go
 func ExampleUnifiedStoreAdapter_parallelSearch() {
@@ -3336,7 +3411,7 @@ func ExampleUnifiedStoreAdapter_parallelSearch() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_example_test.go-ExampleUnifiedStoreAdapter_performance.md
 ```go
 func ExampleUnifiedStoreAdapter_performance() {
@@ -3374,7 +3449,7 @@ func ExampleUnifiedStoreAdapter_performance() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_helpers_example_test.go-Example_fdFilteredQuery_compositional.md
 ```go
 func Example_fdFilteredQuery_compositional() {
@@ -3436,19 +3511,20 @@ func Example_fdFilteredQuery_compositional() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_helpers_example_test.go-Example_fdFilteredQuery.md
 ```go
 func Example_fdFilteredQuery() {
 	ctx := context.Background()
 
-	// 1. Setup database with employee records
+	// 1. Setup database with employee records (compact via HLAPI)
 	employee, _ := DbRel("employee", 2, 0)
-	db := NewDatabase()
-	db, _ = db.AddFact(employee, NewAtom("alice"), NewAtom(28))
-	db, _ = db.AddFact(employee, NewAtom("bob"), NewAtom(42))
-	db, _ = db.AddFact(employee, NewAtom("charlie"), NewAtom(31))
-	db, _ = db.AddFact(employee, NewAtom("diana"), NewAtom(19))
+	db := DB().MustAddFacts(employee,
+		[]interface{}{"alice", 28},
+		[]interface{}{"bob", 42},
+		[]interface{}{"charlie", 31},
+		[]interface{}{"diana", 19},
+	)
 
 	// 2. Setup FD constraint for eligible age range [25, 35]
 	model := NewModel()
@@ -3511,7 +3587,7 @@ func Example_fdFilteredQuery() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_helpers_example_test.go-Example_fdFilteredQuery_multipleConstraints.md
 ```go
 func Example_fdFilteredQuery_multipleConstraints() {
@@ -3520,17 +3596,16 @@ func Example_fdFilteredQuery_multipleConstraints() {
 	// Setup employee and salary databases
 	employee, _ := DbRel("employee", 2, 0)
 	salary, _ := DbRel("salary", 2, 0)
-	db := NewDatabase()
-
-	// Add employee ages
-	db, _ = db.AddFact(employee, NewAtom("alice"), NewAtom(28))
-	db, _ = db.AddFact(employee, NewAtom("bob"), NewAtom(42))
-	db, _ = db.AddFact(employee, NewAtom("charlie"), NewAtom(31))
-
-	// Add employee salaries
-	db, _ = db.AddFact(salary, NewAtom("alice"), NewAtom(50000))
-	db, _ = db.AddFact(salary, NewAtom("bob"), NewAtom(80000))
-	db, _ = db.AddFact(salary, NewAtom("charlie"), NewAtom(45000))
+	db := DB().MustAddFacts(employee,
+		[]interface{}{"alice", 28},
+		[]interface{}{"bob", 42},
+		[]interface{}{"charlie", 31},
+	)
+	db = db.MustAddFacts(salary,
+		[]interface{}{"alice", 50000},
+		[]interface{}{"bob", 80000},
+		[]interface{}{"charlie", 45000},
+	)
 
 	// FD constraints: age 25-35, salary 40k-60k
 	model := NewModel()
@@ -3583,7 +3658,7 @@ func Example_fdFilteredQuery_multipleConstraints() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_helpers_example_test.go-Example_fdFilteredQuery_withArithmetic.md
 ```go
 func Example_fdFilteredQuery_withArithmetic() {
@@ -3645,7 +3720,7 @@ func Example_fdFilteredQuery_withArithmetic() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_hybrid_helpers_example_test.go-Example_mapQueryResult.md
 ```go
 func Example_mapQueryResult() {
@@ -3684,7 +3759,7 @@ func Example_mapQueryResult() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleInvalidateAll.md
 ```go
 func ExampleInvalidateAll() {
@@ -3717,7 +3792,7 @@ func ExampleInvalidateAll() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleInvalidateRelation.md
 ```go
 func ExampleInvalidateRelation() {
@@ -3754,7 +3829,7 @@ func ExampleInvalidateRelation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleQueryEvaluator.md
 ```go
 func ExampleQueryEvaluator() {
@@ -3791,7 +3866,7 @@ func ExampleQueryEvaluator() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleTabledQuery_groundQuery.md
 ```go
 func ExampleTabledQuery_groundQuery() {
@@ -3823,7 +3898,7 @@ func ExampleTabledQuery_groundQuery() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleTabledQuery_join.md
 ```go
 func ExampleTabledQuery_join() {
@@ -3859,7 +3934,7 @@ func ExampleTabledQuery_join() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleTabledQuery.md
 ```go
 func ExampleTabledQuery() {
@@ -3888,7 +3963,7 @@ func ExampleTabledQuery() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleTabledQuery_multipleVariables.md
 ```go
 func ExampleTabledQuery_multipleVariables() {
@@ -3930,7 +4005,7 @@ func ExampleTabledQuery_multipleVariables() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleTabledRelation.md
 ```go
 func ExampleTabledRelation() {
@@ -3966,7 +4041,7 @@ func ExampleTabledRelation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleWithTabledDatabase.md
 ```go
 func ExampleWithTabledDatabase() {
@@ -3997,7 +4072,7 @@ func ExampleWithTabledDatabase() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_example_test.go-ExampleWithTabledDatabase_mutation.md
 ```go
 func ExampleWithTabledDatabase_mutation() {
@@ -4030,7 +4105,7 @@ func ExampleWithTabledDatabase_mutation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleRecursiveRule_familyTree.md
 ```go
 func ExampleRecursiveRule_familyTree() {
@@ -4038,11 +4113,12 @@ func ExampleRecursiveRule_familyTree() {
 	parent, _ := DbRel("parent", 2, 0, 1)
 
 	// Build family tree
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("mary"))
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("tom"))
-	db, _ = db.AddFact(parent, NewAtom("mary"), NewAtom("alice"))
-	db, _ = db.AddFact(parent, NewAtom("tom"), NewAtom("bob"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"john", "mary"},
+		[]interface{}{"john", "tom"},
+		[]interface{}{"mary", "alice"},
+		[]interface{}{"tom", "bob"},
+	)
 
 	// Query variables
 	x := Fresh("x")
@@ -4096,14 +4172,15 @@ func ExampleRecursiveRule_familyTree() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleTabledDatabase.md
 ```go
 func ExampleTabledDatabase() {
 	edge, _ := DbRel("edge", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+	)
 
 	// Wrap database for automatic tabling
 	tdb := WithTabledDatabase(db, "mydb")
@@ -4128,7 +4205,7 @@ func ExampleTabledDatabase() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleTabledDatabase_withMutation.md
 ```go
 func ExampleTabledDatabase_withMutation() {
@@ -4172,15 +4249,16 @@ func ExampleTabledDatabase_withMutation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleTabledQuery_grandparent.md
 ```go
 func ExampleTabledQuery_grandparent() {
 	// Create parent relation
 	parent, _ := DbRel("parent", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("john"), NewAtom("mary"))
-	db, _ = db.AddFact(parent, NewAtom("mary"), NewAtom("alice"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"john", "mary"},
+		[]interface{}{"mary", "alice"},
+	)
 
 	// Query for grandparent
 	gp := Fresh("gp")
@@ -4213,17 +4291,20 @@ func ExampleTabledQuery_grandparent() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleTabledQuery_multiRelation.md
 ```go
 func ExampleTabledQuery_multiRelation() {
 	employee, _ := DbRel("employee", 2, 0, 1) // (name, dept)
 	manager, _ := DbRel("manager", 2, 0, 1)   // (mgr, employee)
 
-	db := NewDatabase()
-	db, _ = db.AddFact(employee, NewAtom("alice"), NewAtom("engineering"))
-	db, _ = db.AddFact(employee, NewAtom("bob"), NewAtom("engineering"))
-	db, _ = db.AddFact(manager, NewAtom("bob"), NewAtom("alice"))
+	db := DB().MustAddFacts(employee,
+		[]interface{}{"alice", "engineering"},
+		[]interface{}{"bob", "engineering"},
+	)
+	db = db.MustAddFacts(manager,
+		[]interface{}{"bob", "alice"},
+	)
 
 	// Who manages Alice?
 	mgr := Fresh("mgr")
@@ -4251,15 +4332,15 @@ func ExampleTabledQuery_multiRelation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleTabledRelation_symmetricGraph.md
 ```go
 func ExampleTabledRelation_symmetricGraph() {
 	friend, _ := DbRel("friend", 2, 0, 1)
-	db := NewDatabase()
-	// Add symmetric friendships
-	db, _ = db.AddFact(friend, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(friend, NewAtom("bob"), NewAtom("alice"))
+	db := DB().MustAddFacts(friend,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"bob", "alice"},
+	)
 
 	friendPred := TabledRelation(db, friend, "friend")
 
@@ -4288,16 +4369,17 @@ func ExampleTabledRelation_symmetricGraph() {
 ```
 
 
-
+\n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleTabledRelation_transitiveClosureManual.md
 ```go
 func ExampleTabledRelation_transitiveClosureManual() {
 	// Define edge relation
 	edge, _ := DbRel("edge", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	db, _ = db.AddFact(edge, NewAtom("c"), NewAtom("d"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+		[]interface{}{"c", "d"},
+	)
 
 	// Create tabled edge predicate
 	edgeTabled := TabledRelation(db, edge, "edge")
@@ -4341,16 +4423,19 @@ func ExampleTabledRelation_transitiveClosureManual() {
 ```
 
 
-
+\n
 ## pkg_minikanren_propagation_example_test.go-ExampleNewAllDifferent.md
 ```go
 func ExampleNewAllDifferent() {
 	model := NewModel()
 
 	// Create three variables with domain {1, 2, 3}
-	x := model.NewVariable(NewBitSetDomain(3))
-	y := model.NewVariable(NewBitSetDomain(3))
-	z := model.NewVariable(NewBitSetDomain(3))
+	// low-level: x := model.NewVariable(NewBitSetDomain(3))
+	x := model.IntVar(1, 3, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(3))
+	y := model.IntVar(1, 3, "y")
+	// low-level: z := model.NewVariable(NewBitSetDomain(3))
+	z := model.IntVar(1, 3, "z")
 
 	// Ensure all three variables have different values
 	c, err := NewAllDifferent([]*FDVariable{x, y, z})
@@ -4377,7 +4462,7 @@ func ExampleNewAllDifferent() {
 ```
 
 
-
+\n
 ## pkg_minikanren_propagation_example_test.go-ExampleNewAllDifferent_nQueens.md
 ```go
 func ExampleNewAllDifferent_nQueens() {
@@ -4449,15 +4534,18 @@ func ExampleNewAllDifferent_nQueens() {
 ```
 
 
-
+\n
 ## pkg_minikanren_propagation_example_test.go-ExampleNewArithmetic_chain.md
 ```go
 func ExampleNewArithmetic_chain() {
 	model := NewModel()
 
-	a := model.NewVariable(NewBitSetDomainFromValues(20, []int{2, 5}))
-	b := model.NewVariable(NewBitSetDomain(20))
-	c := model.NewVariable(NewBitSetDomain(20))
+	// low-level: a := model.NewVariable(NewBitSetDomainFromValues(20, []int{2, 5}))
+	a := model.IntVarValues([]int{2, 5}, "a")
+	// low-level: b := model.NewVariable(NewBitSetDomain(20))
+	b := model.IntVar(1, 20, "b")
+	// low-level: c := model.NewVariable(NewBitSetDomain(20))
+	c := model.IntVar(1, 20, "c")
 
 	// Create chain: B = A + 5, C = B + 3, so C = A + 8
 	constraint1, err := NewArithmetic(a, b, 5)
@@ -4490,15 +4578,17 @@ func ExampleNewArithmetic_chain() {
 ```
 
 
-
+\n
 ## pkg_minikanren_propagation_example_test.go-ExampleNewArithmetic.md
 ```go
 func ExampleNewArithmetic() {
 	model := NewModel()
 
 	// Create variables with specific domains
-	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 5, 7}))
-	y := model.NewVariable(NewBitSetDomain(10))
+	// low-level: x := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 5, 7}))
+	x := model.IntVarValues([]int{2, 5, 7}, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(10))
+	y := model.IntVar(1, 10, "y")
 
 	// Enforce: Y = X + 3
 	c, err := NewArithmetic(x, y, 3)
@@ -4526,14 +4616,16 @@ func ExampleNewArithmetic() {
 ```
 
 
-
+\n
 ## pkg_minikanren_propagation_example_test.go-ExampleNewArithmetic_negative.md
 ```go
 func ExampleNewArithmetic_negative() {
 	model := NewModel()
 
-	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 5, 8}))
-	y := model.NewVariable(NewBitSetDomain(10))
+	// low-level: x := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 5, 8}))
+	x := model.IntVarValues([]int{3, 5, 8}, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(10))
+	y := model.IntVar(1, 10, "y")
 
 	// Enforce: Y = X - 2 (using negative offset)
 	c, err := NewArithmetic(x, y, -2)
@@ -4561,7 +4653,7 @@ func ExampleNewArithmetic_negative() {
 ```
 
 
-
+\n
 ## pkg_minikanren_propagation_example_test.go-ExampleNewInequality_lessThan.md
 ```go
 func ExampleNewInequality_lessThan() {
@@ -4596,14 +4688,16 @@ func ExampleNewInequality_lessThan() {
 ```
 
 
-
+\n
 ## pkg_minikanren_propagation_example_test.go-ExampleNewInequality_notEqual.md
 ```go
 func ExampleNewInequality_notEqual() {
 	model := NewModel()
 
-	x := model.NewVariable(NewBitSetDomain(3))
-	y := model.NewVariable(NewBitSetDomain(3))
+	// low-level: x := model.NewVariable(NewBitSetDomain(3))
+	x := model.IntVar(1, 3, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(3))
+	y := model.IntVar(1, 3, "y")
 
 	// Enforce: X ≠ Y
 	c, err := NewInequality(x, y, NotEqual)
@@ -4631,7 +4725,7 @@ func ExampleNewInequality_notEqual() {
 ```
 
 
-
+\n
 ## pkg_minikanren_propagation_example_test.go-ExampleNewInequality_ordering.md
 ```go
 func ExampleNewInequality_ordering() {
@@ -4674,7 +4768,7 @@ func ExampleNewInequality_ordering() {
 ```
 
 
-
+\n
 ## pkg_minikanren_rational_example_test.go-ExampleApproximateIrrational.md
 ```go
 func ExampleApproximateIrrational() {
@@ -4698,7 +4792,7 @@ func ExampleApproximateIrrational() {
 ```
 
 
-
+\n
 ## pkg_minikanren_rational_example_test.go-ExampleCommonIrrationals.md
 ```go
 func ExampleCommonIrrationals() {
@@ -4726,7 +4820,7 @@ func ExampleCommonIrrationals() {
 ```
 
 
-
+\n
 ## pkg_minikanren_rational_example_test.go-ExampleRational_arithmetic.md
 ```go
 func ExampleRational_arithmetic() {
@@ -4753,7 +4847,7 @@ func ExampleRational_arithmetic() {
 ```
 
 
-
+\n
 ## pkg_minikanren_rational_example_test.go-ExampleRational_circumference.md
 ```go
 func ExampleRational_circumference() {
@@ -4776,15 +4870,17 @@ func ExampleRational_circumference() {
 ```
 
 
-
+\n
 ## pkg_minikanren_rational_linear_sum_example_test.go-ExampleNewRationalLinearSum.md
 ```go
 func ExampleNewRationalLinearSum() {
 	model := NewModel()
 
 	// Variables: hours worked
-	hours := model.NewVariable(NewBitSetDomainFromValues(50, []int{8})) // 8 hours worked
-	payment := model.NewVariable(NewBitSetDomain(1000))                 // payment in dollars
+	// low-level: hours := model.NewVariable(NewBitSetDomainFromValues(50, []int{8})) // 8 hours worked
+	hours := model.IntVarValues([]int{8}, "hours") // 8 hours worked
+	// low-level: payment := model.NewVariable(NewBitSetDomain(1000))                 // payment in dollars
+	payment := model.IntVar(1, 1000, "payment") // payment in dollars
 
 	// Constraint: payment = 25 * hours (hourly rate of $25)
 	coeffs := []Rational{NewRational(25, 1)} // $25/hour as coefficient
@@ -4810,17 +4906,19 @@ func ExampleNewRationalLinearSum() {
 ```
 
 
-
+\n
 ## pkg_minikanren_rational_linear_sum_example_test.go-ExampleNewRationalLinearSumWithScaling.md
 ```go
 func ExampleNewRationalLinearSumWithScaling() {
 	model := NewModel()
 
 	// Three investors with different ownership percentages
-	investorA := model.NewVariable(NewBitSetDomainFromValues(10000, []int{3000})) // $3000 invested
-	investorB := model.NewVariable(NewBitSetDomainFromValues(10000, []int{2000})) // $2000 invested
+	// low-level: investorA := model.NewVariable(NewBitSetDomainFromValues(10000, []int{3000})) // $3000 invested
+	investorA := model.IntVarValues([]int{3000}, "investorA") // $3000 invested
+	// low-level: investorB := model.NewVariable(NewBitSetDomainFromValues(10000, []int{2000})) // $2000 invested
+	investorB := model.IntVarValues([]int{2000}, "investorB") // $2000 invested
 	// Total investment
-	total := model.NewVariable(NewBitSetDomain(10000))
+	total := model.IntVar(1, 10000, "total")
 
 	// Constraint: total = (1/3)*A + (1/2)*B (fractional ownership)
 	// Note: This is a simplified example; in reality you'd sum all investments
@@ -4862,14 +4960,15 @@ func ExampleNewRationalLinearSumWithScaling() {
 ```
 
 
-
+\n
 ## pkg_minikanren_rational_linear_sum_example_test.go-ExampleRationalLinearSum_percentageCalculation.md
 ```go
 func ExampleRationalLinearSum_percentageCalculation() {
 	model := NewModel()
 
 	// Base salary: $50,000
-	baseSalary := model.NewVariable(NewBitSetDomainFromValues(100000, []int{50000}))
+	// low-level: baseSalary := model.NewVariable(NewBitSetDomainFromValues(100000, []int{50000}))
+	baseSalary := model.IntVarValues([]int{50000}, "baseSalary")
 	// Total with 10% bonus. Use a realistic, narrower domain to keep the example fast.
 	// Wide dense domains cause ScaledDivision to enumerate large ranges for arc-consistency.
 	// Here we bound to [54_000..56_000] which still demonstrates propagation clearly
@@ -4911,15 +5010,17 @@ func ExampleRationalLinearSum_percentageCalculation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_rational_linear_sum_example_test.go-ExampleRationalLinearSum_piCircumference.md
 ```go
 func ExampleRationalLinearSum_piCircumference() {
 	model := NewModel()
 
 	// Circle with diameter = 7 units
-	diameter := model.NewVariable(NewBitSetDomainFromValues(10, []int{7}))
-	circumference := model.NewVariable(NewBitSetDomain(100))
+	// low-level: diameter := model.NewVariable(NewBitSetDomainFromValues(10, []int{7}))
+	diameter := model.IntVarValues([]int{7}, "diameter")
+	// low-level: circumference := model.NewVariable(NewBitSetDomain(100))
+	circumference := model.IntVar(1, 100, "circumference")
 
 	// Constraint: circumference = π * diameter
 	// Using Archimedes' approximation: π ≈ 22/7
@@ -4958,7 +5059,7 @@ func ExampleRationalLinearSum_piCircumference() {
 ```
 
 
-
+\n
 ## pkg_minikanren_regular_example_test.go-ExampleNewRegular.md
 ```go
 func ExampleNewRegular() {
@@ -4987,7 +5088,7 @@ func ExampleNewRegular() {
 ```
 
 
-
+\n
 ## pkg_minikanren_reification_example_test.go-ExampleReifiedConstraint.md
 ```go
 func ExampleReifiedConstraint() {
@@ -5022,7 +5123,7 @@ func ExampleReifiedConstraint() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleDivo_backward.md
 ```go
 func ExampleDivo_backward() {
@@ -5036,7 +5137,7 @@ func ExampleDivo_backward() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleDivo_integerDivision.md
 ```go
 func ExampleDivo_integerDivision() {
@@ -5050,7 +5151,7 @@ func ExampleDivo_integerDivision() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleDivo.md
 ```go
 func ExampleDivo() {
@@ -5064,7 +5165,7 @@ func ExampleDivo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleExpo.md
 ```go
 func ExampleExpo() {
@@ -5078,7 +5179,7 @@ func ExampleExpo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleExpo_verification.md
 ```go
 func ExampleExpo_verification() {
@@ -5095,7 +5196,7 @@ func ExampleExpo_verification() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleExpo_zeroExponent.md
 ```go
 func ExampleExpo_zeroExponent() {
@@ -5109,7 +5210,7 @@ func ExampleExpo_zeroExponent() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleGreaterEqualo.md
 ```go
 func ExampleGreaterEqualo() {
@@ -5126,7 +5227,7 @@ func ExampleGreaterEqualo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleGreaterThano.md
 ```go
 func ExampleGreaterThano() {
@@ -5143,7 +5244,7 @@ func ExampleGreaterThano() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleLessEqualo.md
 ```go
 func ExampleLessEqualo() {
@@ -5160,7 +5261,7 @@ func ExampleLessEqualo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleLessThano_filter.md
 ```go
 func ExampleLessThano_filter() {
@@ -5177,7 +5278,7 @@ func ExampleLessThano_filter() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleLessThano.md
 ```go
 func ExampleLessThano() {
@@ -5194,7 +5295,7 @@ func ExampleLessThano() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleLessThano_withArithmetic.md
 ```go
 func ExampleLessThano_withArithmetic() {
@@ -5214,7 +5315,7 @@ func ExampleLessThano_withArithmetic() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleLogo_base10.md
 ```go
 func ExampleLogo_base10() {
@@ -5228,7 +5329,7 @@ func ExampleLogo_base10() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleLogo.md
 ```go
 func ExampleLogo() {
@@ -5242,7 +5343,7 @@ func ExampleLogo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleMinuso_backward.md
 ```go
 func ExampleMinuso_backward() {
@@ -5256,7 +5357,7 @@ func ExampleMinuso_backward() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleMinuso.md
 ```go
 func ExampleMinuso() {
@@ -5270,7 +5371,7 @@ func ExampleMinuso() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleMinuso_negative.md
 ```go
 func ExampleMinuso_negative() {
@@ -5284,7 +5385,7 @@ func ExampleMinuso_negative() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExamplePluso_backward.md
 ```go
 func ExamplePluso_backward() {
@@ -5298,7 +5399,7 @@ func ExamplePluso_backward() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExamplePluso_chained.md
 ```go
 func ExamplePluso_chained() {
@@ -5333,7 +5434,7 @@ func ExamplePluso_chained() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExamplePluso_composition.md
 ```go
 func ExamplePluso_composition() {
@@ -5352,7 +5453,7 @@ func ExamplePluso_composition() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExamplePluso_generate.md
 ```go
 func ExamplePluso_generate() {
@@ -5388,7 +5489,7 @@ func ExamplePluso_generate() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExamplePluso.md
 ```go
 func ExamplePluso() {
@@ -5402,7 +5503,7 @@ func ExamplePluso() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleTimeso_backward.md
 ```go
 func ExampleTimeso_backward() {
@@ -5416,7 +5517,7 @@ func ExampleTimeso_backward() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleTimeso.md
 ```go
 func ExampleTimeso() {
@@ -5430,7 +5531,7 @@ func ExampleTimeso() {
 ```
 
 
-
+\n
 ## pkg_minikanren_relational_arithmetic_example_test.go-ExampleTimeso_notDivisible.md
 ```go
 func ExampleTimeso_notDivisible() {
@@ -5445,7 +5546,7 @@ func ExampleTimeso_notDivisible() {
 ```
 
 
-
+\n
 ## pkg_minikanren_scaled_division_example_test.go-ExampleNewScaledDivision_bidirectional.md
 ```go
 func ExampleNewScaledDivision_bidirectional() {
@@ -5491,7 +5592,7 @@ func ExampleNewScaledDivision_bidirectional() {
 ```
 
 
-
+\n
 ## pkg_minikanren_scaled_division_example_test.go-ExampleNewScaledDivision.md
 ```go
 func ExampleNewScaledDivision() {
@@ -5556,7 +5657,7 @@ func ExampleNewScaledDivision() {
 ```
 
 
-
+\n
 ## pkg_minikanren_scaled_division_example_test.go-ExampleNewScaledDivision_percentageWithScaling.md
 ```go
 func ExampleNewScaledDivision_percentageWithScaling() {
@@ -5617,7 +5718,7 @@ func ExampleNewScaledDivision_percentageWithScaling() {
 ```
 
 
-
+\n
 ## pkg_minikanren_scaled_division_example_test.go-ExampleNewScaledDivision_piCircumference.md
 ```go
 func ExampleNewScaledDivision_piCircumference() {
@@ -5700,24 +5801,31 @@ func ExampleNewScaledDivision_piCircumference() {
 ```
 
 
-
+\n
 ## pkg_minikanren_send_more_money_example_test.go-Example_sendMoreMoney_reificationCount.md
 ```go
 func Example_sendMoreMoney_reificationCount() {
 	model := NewModel()
 
-	// Digits 0..9 → FD values 1..10
-	digits := NewBitSetDomain(10)
+	// Digits 0..9 → FD values 1..10 (we use HLAPI IntVar/IntVarValues below)
 
 	// Letter variables (encoded digits)
-	S := model.NewVariable(digits)
-	E := model.NewVariable(digits)
-	N := model.NewVariable(digits)
-	D := model.NewVariable(digits)
-	M := model.NewVariable(digits)
-	O := model.NewVariable(digits)
-	R := model.NewVariable(digits)
-	Y := model.NewVariable(digits)
+	// low-level: S := model.NewVariable(digits)
+	S := model.IntVar(1, 10, "S")
+	// low-level: E := model.NewVariable(digits)
+	E := model.IntVar(1, 10, "E")
+	// low-level: N := model.NewVariable(digits)
+	N := model.IntVar(1, 10, "N")
+	// low-level: D := model.NewVariable(digits)
+	D := model.IntVar(1, 10, "D")
+	// low-level: M := model.NewVariable(digits)
+	M := model.IntVar(1, 10, "M")
+	// low-level: O := model.NewVariable(digits)
+	O := model.IntVar(1, 10, "O")
+	// low-level: R := model.NewVariable(digits)
+	R := model.IntVar(1, 10, "R")
+	// low-level: Y := model.NewVariable(digits)
+	Y := model.IntVar(1, 10, "Y")
 
 	// All letters must be distinct
 	ad, err := NewAllDifferent([]*FDVariable{S, E, N, D, M, O, R, Y})
@@ -5728,13 +5836,19 @@ func Example_sendMoreMoney_reificationCount() {
 
 	// 1) No leading zeros: S and M cannot be digit 0 (encoded as FD value 1)
 	//    Count([S, M], target=1) must be 0 → encoded countVar = 1 (0+1)
-	countVar := model.NewVariable(NewBitSetDomainFromValues(10, []int{1}))
+	// low-level: countVar := model.NewVariable(NewBitSetDomainFromValues(10, []int{1}))
+	// The countVar is encoded as count+1; to force count==0 we set countVar to {1}.
+	// low-level: countVar := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1}), "countVar")
+	// Use the low-level constructor here to preserve the original universe size
+	// (NewCount expects the countVar's domain MaxValue() to be >= len(vars)+1).
+	countVar := model.NewVariableWithName(NewBitSetDomainFromValues(10, []int{1}), "countVar")
 	if _, err := NewCount(model, []*FDVariable{S, M}, 1, countVar); err != nil {
 		panic(err)
 	}
 
 	// 2) Reify M = digit 1 (common fact): encoded M == 2; force boolean to true ({2})
-	bM := model.NewVariable(NewBitSetDomainFromValues(10, []int{2})) // {2} means true
+	// low-level: bM := model.NewVariable(NewBitSetDomainFromValues(10, []int{2})) // {2} means true
+	bM := model.IntVarValues([]int{2}, "bM") // {2} means true
 	reif, err := NewValueEqualsReified(M, 2, bM)
 	if err != nil {
 		panic(err)
@@ -5761,16 +5875,21 @@ func Example_sendMoreMoney_reificationCount() {
 ```
 
 
-
+\n
 ## pkg_minikanren_sequence_example_test.go-ExampleNewSequence.md
 ```go
 func ExampleNewSequence() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "x2") // forced not in S
-	x3 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x3")
-	x4 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x4")
-	x5 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x5")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x1")
+	x1 := model.IntVarValues([]int{1, 2}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "x2") // forced not in S
+	x2 := model.IntVarValues([]int{2}, "x2") // forced not in S
+	// x3 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x3")
+	x3 := model.IntVarValues([]int{1, 2}, "x3")
+	// x4 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x4")
+	x4 := model.IntVarValues([]int{1, 2}, "x4")
+	// x5 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x5")
+	x5 := model.IntVarValues([]int{1, 2}, "x5")
 
 	_, _ = NewSequence(model, []*FDVariable{x1, x2, x3, x4, x5}, []int{1}, 3, 2, 3)
 
@@ -5788,7 +5907,7 @@ func ExampleNewSequence() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleGlobalEngine.md
 ```go
 func ExampleGlobalEngine() {
@@ -5827,7 +5946,7 @@ func ExampleGlobalEngine() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleNewSLGEngine_customConfig.md
 ```go
 func ExampleNewSLGEngine_customConfig() {
@@ -5849,7 +5968,7 @@ func ExampleNewSLGEngine_customConfig() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleNewSLGEngine.md
 ```go
 func ExampleNewSLGEngine() {
@@ -5867,7 +5986,7 @@ func ExampleNewSLGEngine() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleResetGlobalEngine.md
 ```go
 func ExampleResetGlobalEngine() {
@@ -5907,7 +6026,7 @@ func ExampleResetGlobalEngine() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleSCC_AnswerCount.md
 ```go
 func ExampleSCC_AnswerCount() {
@@ -5933,7 +6052,7 @@ func ExampleSCC_AnswerCount() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleSLGEngine_ComputeFixpoint.md
 ```go
 func ExampleSLGEngine_ComputeFixpoint() {
@@ -5973,7 +6092,7 @@ func ExampleSLGEngine_ComputeFixpoint() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleSLGEngine_DetectCycles.md
 ```go
 func ExampleSLGEngine_DetectCycles() {
@@ -6019,7 +6138,7 @@ func ExampleSLGEngine_DetectCycles() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleSLGEngine_DetectCycles_selfLoop.md
 ```go
 func ExampleSLGEngine_DetectCycles_selfLoop() {
@@ -6051,7 +6170,7 @@ func ExampleSLGEngine_DetectCycles_selfLoop() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleSLGEngine_Evaluate.md
 ```go
 func ExampleSLGEngine_Evaluate() {
@@ -6097,7 +6216,7 @@ func ExampleSLGEngine_Evaluate() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleSLGEngine_Evaluate_streaming.md
 ```go
 func ExampleSLGEngine_Evaluate_streaming() {
@@ -6134,7 +6253,7 @@ func ExampleSLGEngine_Evaluate_streaming() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_engine_example_test.go-ExampleSLGEngine_Stats.md
 ```go
 func ExampleSLGEngine_Stats() {
@@ -6183,7 +6302,7 @@ func ExampleSLGEngine_Stats() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_wfs_example_test.go-ExampleNegateEvaluator.md
 ```go
 func ExampleNegateEvaluator() {
@@ -6250,7 +6369,7 @@ func ExampleNegateEvaluator() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_wrappers_example_test.go-ExampleTabledEvaluate.md
 ```go
 func ExampleTabledEvaluate() {
@@ -6277,7 +6396,7 @@ func ExampleTabledEvaluate() {
 ```
 
 
-
+\n
 ## pkg_minikanren_slg_wrappers_example_test.go-ExampleWithTabling.md
 ```go
 func ExampleWithTabling() {
@@ -6307,17 +6426,22 @@ func ExampleWithTabling() {
 ```
 
 
-
+\n
 ## pkg_minikanren_stretch_example_test.go-ExampleNewStretch.md
 ```go
 func ExampleNewStretch() {
 	model := NewModel()
 	// Domains over {1,2}; constrain value 1 to appear only in runs of length exactly 2.
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1}), "x2") // fix a 1
-	x3 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "x3") // separator
-	x4 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1}), "x4") // fix a 1
-	x5 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x5")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x1")
+	x1 := model.IntVarValues([]int{1, 2}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1}), "x2") // fix a 1
+	x2 := model.IntVarValues([]int{1}, "x2") // fix a 1
+	// x3 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "x3") // separator
+	x3 := model.IntVarValues([]int{2}, "x3") // separator
+	// x4 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1}), "x4") // fix a 1
+	x4 := model.IntVarValues([]int{1}, "x4") // fix a 1
+	// x5 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{1, 2}), "x5")
+	x5 := model.IntVarValues([]int{1, 2}, "x5")
 
 	_, _ = NewStretch(model, []*FDVariable{x1, x2, x3, x4, x5}, []int{1}, []int{2}, []int{2})
 
@@ -6335,7 +6459,7 @@ func ExampleNewStretch() {
 ```
 
 
-
+\n
 ## pkg_minikanren_sum_example_test.go-ExampleNewLinearSum.md
 ```go
 func ExampleNewLinearSum() {
@@ -6381,7 +6505,7 @@ func ExampleNewLinearSum() {
 ```
 
 
-
+\n
 ## pkg_minikanren_table_example_test.go-ExampleNewTable.md
 ```go
 func ExampleNewTable() {
@@ -6419,7 +6543,7 @@ func ExampleNewTable() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleAnswerTrie_Iterator.md
 ```go
 func ExampleAnswerTrie_Iterator() {
@@ -6458,7 +6582,7 @@ func ExampleAnswerTrie_Iterator() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleAnswerTrie.md
 ```go
 func ExampleAnswerTrie() {
@@ -6503,7 +6627,7 @@ func ExampleAnswerTrie() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleNewCallPattern.md
 ```go
 func ExampleNewCallPattern() {
@@ -6524,7 +6648,7 @@ func ExampleNewCallPattern() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleNewCallPattern_variableReuse.md
 ```go
 func ExampleNewCallPattern_variableReuse() {
@@ -6541,7 +6665,7 @@ func ExampleNewCallPattern_variableReuse() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleNewCallPattern_variables.md
 ```go
 func ExampleNewCallPattern_variables() {
@@ -6567,7 +6691,7 @@ func ExampleNewCallPattern_variables() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleSubgoalEntry_dependencies.md
 ```go
 func ExampleSubgoalEntry_dependencies() {
@@ -6593,7 +6717,7 @@ func ExampleSubgoalEntry_dependencies() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleSubgoalEntry.md
 ```go
 func ExampleSubgoalEntry() {
@@ -6623,7 +6747,7 @@ func ExampleSubgoalEntry() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleSubgoalStatus.md
 ```go
 func ExampleSubgoalStatus() {
@@ -6648,7 +6772,7 @@ func ExampleSubgoalStatus() {
 ```
 
 
-
+\n
 ## pkg_minikanren_tabling_example_test.go-ExampleSubgoalTable.md
 ```go
 func ExampleSubgoalTable() {
@@ -6680,7 +6804,7 @@ func ExampleSubgoalTable() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleArityo.md
 ```go
 func ExampleArityo() {
@@ -6705,7 +6829,7 @@ func ExampleArityo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleArityo_typeChecking.md
 ```go
 func ExampleArityo_typeChecking() {
@@ -6741,7 +6865,7 @@ func ExampleArityo_typeChecking() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleBooleano.md
 ```go
 func ExampleBooleano() {
@@ -6770,7 +6894,7 @@ func ExampleBooleano() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleCompoundTermo.md
 ```go
 func ExampleCompoundTermo() {
@@ -6804,7 +6928,7 @@ func ExampleCompoundTermo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleCopyTerm.md
 ```go
 func ExampleCopyTerm() {
@@ -6828,7 +6952,7 @@ func ExampleCopyTerm() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleCopyTerm_metaProgramming.md
 ```go
 func ExampleCopyTerm_metaProgramming() {
@@ -6857,7 +6981,7 @@ func ExampleCopyTerm_metaProgramming() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleFunctoro.md
 ```go
 func ExampleFunctoro() {
@@ -6876,7 +7000,7 @@ func ExampleFunctoro() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleFunctoro_patternMatching.md
 ```go
 func ExampleFunctoro_patternMatching() {
@@ -6914,7 +7038,7 @@ func ExampleFunctoro_patternMatching() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleGround_list.md
 ```go
 func ExampleGround_list() {
@@ -6949,7 +7073,7 @@ func ExampleGround_list() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleGround.md
 ```go
 func ExampleGround() {
@@ -6982,7 +7106,7 @@ func ExampleGround() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleGround_validation.md
 ```go
 func ExampleGround_validation() {
@@ -7016,7 +7140,7 @@ func ExampleGround_validation() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleSimpleTermo.md
 ```go
 func ExampleSimpleTermo() {
@@ -7044,7 +7168,7 @@ func ExampleSimpleTermo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleStringo.md
 ```go
 func ExampleStringo() {
@@ -7073,7 +7197,7 @@ func ExampleStringo() {
 ```
 
 
-
+\n
 ## pkg_minikanren_term_utils_example_test.go-ExampleVectoro.md
 ```go
 func ExampleVectoro() {
@@ -7099,7 +7223,7 @@ func ExampleVectoro() {
 ```
 
 
-
+\n
 ## pkg_minikanren_wfs_api_example_test.go-ExampleSLGEngine_NegationTruth.md
 ```go
 func ExampleSLGEngine_NegationTruth() {
@@ -7136,4 +7260,4 @@ func ExampleSLGEngine_NegationTruth() {
 ```
 
 
-
+\n

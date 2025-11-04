@@ -3,7 +3,8 @@ func ExampleRationalLinearSum_percentageCalculation() {
 	model := NewModel()
 
 	// Base salary: $50,000
-	baseSalary := model.NewVariable(NewBitSetDomainFromValues(100000, []int{50000}))
+	// low-level: baseSalary := model.NewVariable(NewBitSetDomainFromValues(100000, []int{50000}))
+	baseSalary := model.IntVarValues([]int{50000}, "baseSalary")
 	// Total with 10% bonus. Use a realistic, narrower domain to keep the example fast.
 	// Wide dense domains cause ScaledDivision to enumerate large ranges for arc-consistency.
 	// Here we bound to [54_000..56_000] which still demonstrates propagation clearly

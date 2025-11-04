@@ -3,8 +3,10 @@ func ExampleNewArithmetic() {
 	model := NewModel()
 
 	// Create variables with specific domains
-	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 5, 7}))
-	y := model.NewVariable(NewBitSetDomain(10))
+	// low-level: x := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 5, 7}))
+	x := model.IntVarValues([]int{2, 5, 7}, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(10))
+	y := model.IntVar(1, 10, "y")
 
 	// Enforce: Y = X + 3
 	c, err := NewArithmetic(x, y, 3)

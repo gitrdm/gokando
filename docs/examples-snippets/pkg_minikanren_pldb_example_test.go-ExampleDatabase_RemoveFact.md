@@ -2,6 +2,7 @@
 func ExampleDatabase_RemoveFact() {
 	person, _ := DbRel("person", 1, 0)
 
+	// Create database with some people using low-level API versus the HLAPI for demonstration
 	db := NewDatabase()
 	db, _ = db.AddFact(person, NewAtom("alice"))
 	db, _ = db.AddFact(person, NewAtom("bob"))

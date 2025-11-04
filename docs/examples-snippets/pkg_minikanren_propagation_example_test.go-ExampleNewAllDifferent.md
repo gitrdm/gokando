@@ -3,9 +3,12 @@ func ExampleNewAllDifferent() {
 	model := NewModel()
 
 	// Create three variables with domain {1, 2, 3}
-	x := model.NewVariable(NewBitSetDomain(3))
-	y := model.NewVariable(NewBitSetDomain(3))
-	z := model.NewVariable(NewBitSetDomain(3))
+	// low-level: x := model.NewVariable(NewBitSetDomain(3))
+	x := model.IntVar(1, 3, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(3))
+	y := model.IntVar(1, 3, "y")
+	// low-level: z := model.NewVariable(NewBitSetDomain(3))
+	z := model.IntVar(1, 3, "z")
 
 	// Ensure all three variables have different values
 	c, err := NewAllDifferent([]*FDVariable{x, y, z})

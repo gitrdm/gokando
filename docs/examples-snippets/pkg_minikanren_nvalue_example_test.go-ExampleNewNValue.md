@@ -1,10 +1,13 @@
 ```go
 func ExampleNewNValue() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
+	x1 := model.IntVarValues([]int{1, 2}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
+	x2 := model.IntVarValues([]int{1, 2}, "x2")
 	// Exact NValue=1 ⇒ NPlus1=2
-	nPlus1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "N+1")
+	// nPlus1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "N+1")
+	nPlus1 := model.IntVarValues([]int{2}, "N+1")
 
 	_, _ = NewNValue(model, []*FDVariable{x1, x2}, nPlus1)
 

@@ -9,7 +9,9 @@ func ExampleNewHybridSolver() {
 	arith, _ := NewArithmetic(x, y, 1)
 	model.AddConstraint(arith)
 
-	// Create plugins
+	// Create plugins explicitly to preserve the canonical demonstration order
+	// (FD plugin followed by Relational). This example intentionally shows
+	// the plugin ordering used elsewhere in the docs.
 	fdPlugin := NewFDPlugin(model)
 	relPlugin := NewRelationalPlugin()
 

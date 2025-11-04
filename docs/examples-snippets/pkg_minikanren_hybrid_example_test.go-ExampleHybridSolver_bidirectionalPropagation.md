@@ -10,13 +10,12 @@ func ExampleHybridSolver_bidirectionalPropagation() {
 	allDiff, _ := NewAllDifferent([]*FDVariable{x, y, z})
 	model.AddConstraint(allDiff)
 
-	// Create hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(fdPlugin, relPlugin)
+	// Build solver and store from model helper; then set initial domains
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 
-	// Initial state: all variables have domain {1, 2, 3}
-	store := NewUnifiedStore()
 	domain := NewBitSetDomainFromValues(10, []int{1, 2, 3})
 	store, _ = store.SetDomain(x.ID(), domain)
 	store, _ = store.SetDomain(y.ID(), domain)
