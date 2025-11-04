@@ -118,14 +118,11 @@ func ExampleUnifiedStoreAdapter_hybridPropagation() {
 	// ageVar := model.NewVariableWithName(NewBitSetDomainFromValues(101, ageValues), "age")
 	ageVar := model.IntVarValues(ageValues, "age")
 
-	// Set up hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(relPlugin, fdPlugin)
-
-	// Create store with FD domain
-	store := NewUnifiedStore()
-	store, _ = store.SetDomain(ageVar.ID(), ageVar.Domain())
+	// Create HybridSolver and a UnifiedStore populated from the model.
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 	adapter := NewUnifiedStoreAdapter(store)
 
 	// Query for alice's age

@@ -9,6 +9,11 @@ import (
 // ExampleNewGlobalCardinality demonstrates posting a global-cardinality
 // (GCC) constraint and observing pruning via propagation.
 //
+// HLAPI note: the example uses the `model.GlobalCardinality(...)` wrapper
+// which posts the constraint directly; the equivalent low-level constructor
+// `NewGlobalCardinality` is preserved in comments for readers learning the
+// lower-level API.
+//
 // Global cardinality constrains how many times each value may appear across
 // a set of variables. In this example we have three variables (a,b,c) whose
 // domains are {1,2}. We set the occurrence limits so that value 1 must

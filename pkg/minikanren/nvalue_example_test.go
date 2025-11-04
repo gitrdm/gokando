@@ -7,6 +7,11 @@ import (
 
 // ExampleNewAtMostNValues shows how fixing one variable and enforcing
 // at most one distinct value prunes others to the same value.
+//
+// HLAPI note: this example demonstrates the lower-level constructor
+// `NewAtMostNValues(...)` directly. If a thin Model-level wrapper is
+// preferred, we can add `Model.AtMostNValues(...)` in the HLAPI; for now
+// the lower-level form is retained to show the explicit wiring.
 func ExampleNewAtMostNValues() {
 	model := NewModel()
 	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1}), "x1")

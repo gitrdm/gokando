@@ -9,6 +9,10 @@ import (
 // ExampleNewCumulative demonstrates time-table pruning using the HLAPI
 // wrapper `Cumulative`.
 //
+// HLAPI note: the example uses `model.Cumulative(...)` for brevity; the
+// low-level `NewCumulative` constructor is preserved in comments for readers
+// who need to see the explicit constraint construction.
+//
 // The model encodes two tasks with fixed durations and resource demands.
 // Task A is fixed to start at time 2 (duration 2, demand 2). Task B can
 // start in the interval [1..4] (duration 2, demand 1). The cumulative

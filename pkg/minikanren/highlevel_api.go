@@ -770,3 +770,60 @@ func CaseIntMap(term Term, mapping map[int]string, q *Var) Goal {
 
 	return Matche(term, clauses...)
 }
+
+// NewUnifiedStoreFromModel creates a fresh UnifiedStore populated with the
+// model's FD domains and registered model constraints. This is a convenience
+// helper for constructing the hybrid starting store used by the HybridSolver.
+//
+// The function validates the model, copies each variable's initial domain
+// into the store, and adds model constraints so that plugins (e.g. FDPlugin)
+// can discover them during propagation.
+func NewUnifiedStoreFromModel(m *Model) (*UnifiedStore, error) {
+	if m == nil {
+		return nil, fmt.Errorf("NewUnifiedStoreFromModel: nil model")
+	}
+
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+
+	store := NewUnifiedStore()
+
+	// Initialize FD domains from model variables
+	for _, v := range m.Variables() {
+		var err error
+		store, err = store.SetDomain(v.ID(), v.Domain())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Add all model constraints into the unified store so plugins can see them
+	for _, c := range m.Constraints() {
+		store = store.AddConstraint(c)
+	}
+
+	return store, nil
+}
+
+// NewHybridSolverFromModel builds a HybridSolver wired for the given model and
+// returns it along with a UnifiedStore pre-populated from the model. The
+// returned solver registers both the Relational and FD plugins in that order
+// which is the common configuration for hybrid solving.
+func NewHybridSolverFromModel(m *Model) (*HybridSolver, *UnifiedStore, error) {
+	if m == nil {
+		return nil, nil, fmt.Errorf("NewHybridSolverFromModel: nil model")
+	}
+
+	store, err := NewUnifiedStoreFromModel(m)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	relPlugin := NewRelationalPlugin()
+	fdPlugin := NewFDPlugin(m)
+
+	solver := NewHybridSolver(relPlugin, fdPlugin)
+
+	return solver, store, nil
+}

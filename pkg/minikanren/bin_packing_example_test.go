@@ -7,6 +7,10 @@ import (
 // ExampleNewBinPacking demonstrates how to model a simple bin-packing
 // constraint using the HLAPI wrapper `BinPacking`.
 //
+// HLAPI note: this example prefers the `model.BinPacking(...)` wrapper to
+// the lower-level `NewBinPacking` constructor; the low-level form is shown
+// as a comment for instructional purposes.
+//
 // The example encodes three items with sizes [2,2,1] into two bins with
 // capacities [4,1]. We create FD variables that represent the bin index for
 // each item (1-based bin numbering). After posting the bin-packing constraint
