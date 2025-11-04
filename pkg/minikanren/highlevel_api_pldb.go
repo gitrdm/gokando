@@ -144,6 +144,51 @@ func (tdb *TabledDatabase) Q(rel *Relation, args ...interface{}) Goal {
 	return tdb.Query(rel, terms...)
 }
 
+// RecursiveTablePred provides a thin HLAPI wrapper around TabledRecursivePredicate.
+// It returns a predicate constructor that accepts native values or Terms when
+// called, converting non-Terms to Atoms automatically.
+//
+// The recursive definition uses the same signature as TabledRecursivePredicate:
+// a callback that receives a self predicate (for recursive calls) and the
+// instantiated call arguments as Terms, and must return the recursive case Goal.
+// The base case over baseRel is handled automatically by the underlying helper.
+//
+// Example:
+//
+//	ancestor := RecursiveTablePred(db, parent, "ancestor2",
+//	  func(self func(...Term) Goal, args ...Term) Goal {
+//	    x, y := args[0], args[1]
+//	    z := Fresh("z")
+//	    return Conj(
+//	      db.Query(parent, x, z), // base facts used in recursive step
+//	      self(z, y),              // recursive call to tabled predicate
+//	    )
+//	  })
+//	// Use native values or Terms at call sites
+//	goal := ancestor(Fresh("x"), "carol")
+func RecursiveTablePred(
+	db *Database,
+	baseRel *Relation,
+	predicateID string,
+	recursive func(self func(...Term) Goal, args ...Term) Goal,
+) func(...interface{}) Goal {
+	inner := TabledRecursivePredicate(db, baseRel, predicateID, recursive)
+	return func(args ...interface{}) Goal {
+		if baseRel == nil || len(args) != baseRel.Arity() {
+			return Failure
+		}
+		terms := make([]Term, len(args))
+		for i, a := range args {
+			if t, ok := a.(Term); ok {
+				terms[i] = t
+			} else {
+				terms[i] = NewAtom(a)
+			}
+		}
+		return inner(terms...)
+	}
+}
+
 // FactsSpec describes facts for a relation for bulk loading.
 type FactsSpec struct {
 	Rel  *Relation

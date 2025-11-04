@@ -267,3 +267,89 @@ func pretty(t Term) string {
 	}
 	return t.String()
 }
+
+// AsInt attempts to extract an int from a reified Term (Atom). Returns false on mismatch.
+func AsInt(t Term) (int, bool) {
+	if a, ok := t.(*Atom); ok {
+		if v, ok2 := a.Value().(int); ok2 {
+			return v, true
+		}
+	}
+	return 0, false
+}
+
+// MustInt extracts an int from a Term or panics. Intended for examples/tests.
+func MustInt(t Term) int {
+	if v, ok := AsInt(t); ok {
+		return v
+	}
+	panic(fmt.Sprintf("expected int Atom, got %T: %v", t, t))
+}
+
+// AsString attempts to extract a string from a reified Term (Atom).
+func AsString(t Term) (string, bool) {
+	if a, ok := t.(*Atom); ok {
+		if v, ok2 := a.Value().(string); ok2 {
+			return v, true
+		}
+	}
+	return "", false
+}
+
+// MustString extracts a string from a Term or panics.
+func MustString(t Term) string {
+	if v, ok := AsString(t); ok {
+		return v
+	}
+	panic(fmt.Sprintf("expected string Atom, got %T: %v", t, t))
+}
+
+// AsList collects a proper Scheme-like list into a Go slice of Terms.
+// Returns false for non-list or improper lists.
+func AsList(t Term) ([]Term, bool) {
+	if a, ok := t.(*Atom); ok && a.Value() == nil {
+		return []Term{}, true
+	}
+	elems := []Term{}
+	cur := t
+	for {
+		p, ok := cur.(*Pair)
+		if !ok {
+			// must end with empty list to be proper
+			if a, ok := cur.(*Atom); ok && a.Value() == nil {
+				return elems, true
+			}
+			return nil, false
+		}
+		elems = append(elems, p.Car())
+		cur = p.Cdr()
+	}
+}
+
+// ValuesInt projects a named value from Solutions(...) into a slice of ints.
+// Missing or non-int entries are skipped.
+func ValuesInt(results []map[string]Term, name string) []int {
+	out := make([]int, 0, len(results))
+	for _, r := range results {
+		if t, ok := r[name]; ok {
+			if v, ok2 := AsInt(t); ok2 {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
+}
+
+// ValuesString projects a named value from Solutions(...) into a slice of strings.
+// Missing or non-string entries are skipped.
+func ValuesString(results []map[string]Term, name string) []string {
+	out := make([]string, 0, len(results))
+	for _, r := range results {
+		if t, ok := r[name]; ok {
+			if v, ok2 := AsString(t); ok2 {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
+}
