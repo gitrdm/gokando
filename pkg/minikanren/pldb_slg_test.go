@@ -548,7 +548,6 @@ func TestTabledQuery_Join(t *testing.T) {
 			db.Query(parent, p, gc),
 		)
 
-
 		store2 := NewLocalConstraintStore(NewGlobalConstraintBus())
 		stream2 := goal2(ctx, store2)
 		results2, _ := stream2.Take(10)
@@ -637,10 +636,10 @@ func TestInvalidateRelationFineGrained(t *testing.T) {
 	t.Run("verify edge cleared", func(t *testing.T) {
 		stats := engine.Stats()
 		newCachedSubgoals := stats.CachedSubgoals
-		
+
 		// Should have fewer cached subgoals now
 		if newCachedSubgoals >= initialCachedSubgoals {
-			t.Errorf("Expected fewer cached subgoals after invalidation, got %d (was %d)", 
+			t.Errorf("Expected fewer cached subgoals after invalidation, got %d (was %d)",
 				newCachedSubgoals, initialCachedSubgoals)
 		}
 	})
@@ -668,7 +667,7 @@ func TestInvalidateRelationFineGrained(t *testing.T) {
 		postHits := postQueryStats.CacheHits
 
 		if postHits <= preHits {
-			t.Errorf("Expected cache hit for parent predicate after edge invalidation, hits: %d -> %d", 
+			t.Errorf("Expected cache hit for parent predicate after edge invalidation, hits: %d -> %d",
 				preHits, postHits)
 		}
 	})
@@ -696,9 +695,8 @@ func TestInvalidateRelationFineGrained(t *testing.T) {
 		postMisses := postQueryStats.CacheMisses
 
 		if postMisses <= preMisses {
-			t.Errorf("Expected cache miss for edge predicate after invalidation, misses: %d -> %d", 
+			t.Errorf("Expected cache miss for edge predicate after invalidation, misses: %d -> %d",
 				preMisses, postMisses)
 		}
 	})
 }
-
