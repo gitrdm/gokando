@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 // A creates an Atom term from any Go value. Shorthand for NewAtom/AtomFromValue.
@@ -297,6 +298,19 @@ func SolutionsCtx(ctx context.Context, n int, goal Goal, vars ...*Var) []map[str
 	return SolutionsN(ctx, n, goal, vars...)
 }
 
+// SolutionsAllCtx returns all solutions (unbounded) using the provided context.
+// Use a context with timeout/cancel to avoid infinite enumeration.
+func SolutionsAllCtx(ctx context.Context, goal Goal, vars ...*Var) []map[string]Term {
+	return SolutionsN(ctx, 0, goal, vars...)
+}
+
+// SolutionsAllTimeout returns all solutions but aborts enumeration after the given timeout.
+func SolutionsAllTimeout(timeout time.Duration, goal Goal, vars ...*Var) []map[string]Term {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return SolutionsN(ctx, 0, goal, vars...)
+}
+
 // RowsN runs a goal and returns up to n rows of reified Terms projected in the
 // order of vars provided. Each row corresponds to one solution. If no vars are
 // provided, each row contains a single Atom(nil) to preserve cardinality. When
@@ -340,6 +354,19 @@ func RowsN(ctx context.Context, n int, goal Goal, vars ...*Var) [][]Term {
 // with infinite streams.
 func Rows(goal Goal, vars ...*Var) [][]Term { return RowsN(context.Background(), 0, goal, vars...) }
 
+// RowsAllCtx returns all rows using the provided context. Use a timeout/cancel
+// to avoid infinite enumeration.
+func RowsAllCtx(ctx context.Context, goal Goal, vars ...*Var) [][]Term {
+	return RowsN(ctx, 0, goal, vars...)
+}
+
+// RowsAllTimeout returns all rows but aborts enumeration after the given timeout.
+func RowsAllTimeout(timeout time.Duration, goal Goal, vars ...*Var) [][]Term {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	return RowsN(ctx, 0, goal, vars...)
+}
+
 // IntsN solves for a single variable and returns up to n integer values.
 // Non-int bindings are skipped. When n<=0, all results are returned.
 func IntsN(ctx context.Context, n int, goal Goal, v *Var) []int {
@@ -375,6 +402,142 @@ func StringsN(ctx context.Context, n int, goal Goal, v *Var) []string {
 
 // Strings is StringsN with n<=0 (all results).
 func Strings(goal Goal, v *Var) []string { return StringsN(context.Background(), 0, goal, v) }
+
+// RowsAsInts converts [][]Term rows into [][]int, keeping only rows where all
+// entries are int Atoms. Rows with any non-int terms are skipped.
+func RowsAsInts(rows [][]Term) [][]int {
+	out := make([][]int, 0, len(rows))
+	for _, r := range rows {
+		okRow := true
+		conv := make([]int, len(r))
+		for i, t := range r {
+			v, ok := AsInt(t)
+			if !ok {
+				okRow = false
+				break
+			}
+			conv[i] = v
+		}
+		if okRow {
+			out = append(out, conv)
+		}
+	}
+	return out
+}
+
+// RowsAsStrings converts [][]Term rows into [][]string, keeping only rows where all
+// entries are string Atoms. Rows with any non-string terms are skipped.
+func RowsAsStrings(rows [][]Term) [][]string {
+	out := make([][]string, 0, len(rows))
+	for _, r := range rows {
+		okRow := true
+		conv := make([]string, len(r))
+		for i, t := range r {
+			v, ok := AsString(t)
+			if !ok {
+				okRow = false
+				break
+			}
+			conv[i] = v
+		}
+		if okRow {
+			out = append(out, conv)
+		}
+	}
+	return out
+}
+
+// PairsIntsN returns up to n pairs of ints for two projected variables.
+// Rows with non-int bindings are skipped.
+func PairsIntsN(ctx context.Context, n int, goal Goal, x, y *Var) [][2]int {
+	rows := RowsN(ctx, n, goal, x, y)
+	out := make([][2]int, 0, len(rows))
+	for _, r := range rows {
+		if len(r) != 2 {
+			continue
+		}
+		a, ok1 := AsInt(r[0])
+		b, ok2 := AsInt(r[1])
+		if ok1 && ok2 {
+			out = append(out, [2]int{a, b})
+		}
+	}
+	return out
+}
+
+// PairsInts is PairsIntsN with n<=0 (all results).
+func PairsInts(goal Goal, x, y *Var) [][2]int { return PairsIntsN(context.Background(), 0, goal, x, y) }
+
+// TriplesIntsN returns up to n triples of ints for three projected variables.
+// Rows with non-int bindings are skipped.
+func TriplesIntsN(ctx context.Context, n int, goal Goal, x, y, z *Var) [][3]int {
+	rows := RowsN(ctx, n, goal, x, y, z)
+	out := make([][3]int, 0, len(rows))
+	for _, r := range rows {
+		if len(r) != 3 {
+			continue
+		}
+		a, ok1 := AsInt(r[0])
+		b, ok2 := AsInt(r[1])
+		c, ok3 := AsInt(r[2])
+		if ok1 && ok2 && ok3 {
+			out = append(out, [3]int{a, b, c})
+		}
+	}
+	return out
+}
+
+// TriplesInts is TriplesIntsN with n<=0 (all results).
+func TriplesInts(goal Goal, x, y, z *Var) [][3]int {
+	return TriplesIntsN(context.Background(), 0, goal, x, y, z)
+}
+
+// PairsStringsN returns up to n pairs of strings for two projected variables.
+// Rows with non-string bindings are skipped.
+func PairsStringsN(ctx context.Context, n int, goal Goal, x, y *Var) [][2]string {
+	rows := RowsN(ctx, n, goal, x, y)
+	out := make([][2]string, 0, len(rows))
+	for _, r := range rows {
+		if len(r) != 2 {
+			continue
+		}
+		a, ok1 := AsString(r[0])
+		b, ok2 := AsString(r[1])
+		if ok1 && ok2 {
+			out = append(out, [2]string{a, b})
+		}
+	}
+	return out
+}
+
+// PairsStrings is PairsStringsN with n<=0 (all results).
+func PairsStrings(goal Goal, x, y *Var) [][2]string {
+	return PairsStringsN(context.Background(), 0, goal, x, y)
+}
+
+// TriplesStringsN returns up to n triples of strings for three projected variables.
+// Rows with non-string bindings are skipped.
+func TriplesStringsN(ctx context.Context, n int, goal Goal, x, y, z *Var) [][3]string {
+	rows := RowsN(ctx, n, goal, x, y, z)
+	out := make([][3]string, 0, len(rows))
+	for _, r := range rows {
+		if len(r) != 3 {
+			continue
+		}
+		a, ok1 := AsString(r[0])
+		b, ok2 := AsString(r[1])
+		c, ok3 := AsString(r[2])
+		if ok1 && ok2 && ok3 {
+			out = append(out, [3]string{a, b, c})
+		}
+	}
+	return out
+}
+
+// TriplesStrings is TriplesStringsN with n<=0 (all results).
+func TriplesStrings(goal Goal, x, y, z *Var) [][3]string {
+	return TriplesStringsN(context.Background(), 0, goal, x, y, z)
+}
 
 // FormatSolutions pretty-prints a slice of solutions for human-friendly output.
 // Each solution is rendered as "name: value, name2: value2" with lists and strings

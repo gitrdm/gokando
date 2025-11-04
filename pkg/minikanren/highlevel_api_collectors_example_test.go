@@ -2,6 +2,7 @@ package minikanren_test
 
 import (
 	"fmt"
+	"time"
 
 	. "github.com/gitrdm/gokando/pkg/minikanren"
 )
@@ -41,4 +42,36 @@ func Example_hlapi_collectors_rows() {
 	// Output:
 	// (1,"a")
 	// (2,"b")
+}
+
+// Example_hlapi_collectors_pairs_ints shows how to collect typed pairs of ints.
+func Example_hlapi_collectors_pairs_ints() {
+	x, y := Fresh("x"), Fresh("y")
+	goal := Disj(
+		Conj(Eq(x, A(1)), Eq(y, A(2))),
+		Conj(Eq(x, A(3)), Eq(y, A(4))),
+	)
+	pairs := PairsInts(goal, x, y)
+	// Print count and sum of all elements for stable output
+	sum := 0
+	for _, p := range pairs {
+		sum += p[0] + p[1]
+	}
+	fmt.Printf("%d %d\n", len(pairs), sum)
+	// Output:
+	// 2 10
+}
+
+// Example_hlapi_rowsAll_timeout demonstrates using a timeout to guard against
+// accidental infinite enumeration while collecting all rows.
+func Example_hlapi_rowsAll_timeout() {
+	x, y := Fresh("x"), Fresh("y")
+	goal := Disj(
+		Conj(Eq(x, A(1)), Eq(y, A("a"))),
+		Conj(Eq(x, A(2)), Eq(y, A("b"))),
+	)
+	rows := RowsAllTimeout(50*time.Millisecond, goal, x, y)
+	fmt.Println(len(rows))
+	// Output:
+	// 2
 }
