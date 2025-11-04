@@ -210,6 +210,25 @@ func (m *Model) Table(vars []*FDVariable, rows [][]int) error {
 	return nil
 }
 
+// Among posts an Among(vars, S, K) constraint to the model. It counts how many
+// variables in vars take a value from the set S and encodes the count into K
+// (see NewAmong for encoding details).
+func (m *Model) Among(vars []*FDVariable, values []int, k *FDVariable) error {
+	c, err := NewAmong(vars, values, k)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// BinPacking posts a bin-packing constraint over items with given sizes and
+// bin capacities. It's a thin wrapper around NewBinPacking.
+func (m *Model) BinPacking(items []*FDVariable, sizes []int, capacities []int) error {
+	_, err := NewBinPacking(m, items, sizes, capacities)
+	return err
+}
+
 // SolveN solves the model and returns up to maxSolutions solutions using the
 // default sequential solver. For advanced control, use NewSolver(m) directly.
 func SolveN(ctx context.Context, m *Model, maxSolutions int) ([][]int, error) {

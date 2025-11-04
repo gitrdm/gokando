@@ -14,9 +14,12 @@ func ExampleNewAllDifferent() {
 	model := NewModel()
 
 	// Create three variables with domain {1, 2, 3}
-	x := model.NewVariable(NewBitSetDomain(3))
-	y := model.NewVariable(NewBitSetDomain(3))
-	z := model.NewVariable(NewBitSetDomain(3))
+	// low-level: x := model.NewVariable(NewBitSetDomain(3))
+	x := model.IntVar(1, 3, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(3))
+	y := model.IntVar(1, 3, "y")
+	// low-level: z := model.NewVariable(NewBitSetDomain(3))
+	z := model.IntVar(1, 3, "z")
 
 	// Ensure all three variables have different values
 	c, err := NewAllDifferent([]*FDVariable{x, y, z})
@@ -46,8 +49,10 @@ func ExampleNewArithmetic() {
 	model := NewModel()
 
 	// Create variables with specific domains
-	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 5, 7}))
-	y := model.NewVariable(NewBitSetDomain(10))
+	// low-level: x := model.NewVariable(NewBitSetDomainFromValues(10, []int{2, 5, 7}))
+	x := model.IntVarValues([]int{2, 5, 7}, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(10))
+	y := model.IntVar(1, 10, "y")
 
 	// Enforce: Y = X + 3
 	c, err := NewArithmetic(x, y, 3)
@@ -77,8 +82,10 @@ func ExampleNewArithmetic() {
 func ExampleNewArithmetic_negative() {
 	model := NewModel()
 
-	x := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 5, 8}))
-	y := model.NewVariable(NewBitSetDomain(10))
+	// low-level: x := model.NewVariable(NewBitSetDomainFromValues(10, []int{3, 5, 8}))
+	x := model.IntVarValues([]int{3, 5, 8}, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(10))
+	y := model.IntVar(1, 10, "y")
 
 	// Enforce: Y = X - 2 (using negative offset)
 	c, err := NewArithmetic(x, y, -2)
@@ -137,8 +144,10 @@ func ExampleNewInequality_lessThan() {
 func ExampleNewInequality_notEqual() {
 	model := NewModel()
 
-	x := model.NewVariable(NewBitSetDomain(3))
-	y := model.NewVariable(NewBitSetDomain(3))
+	// low-level: x := model.NewVariable(NewBitSetDomain(3))
+	x := model.IntVar(1, 3, "x")
+	// low-level: y := model.NewVariable(NewBitSetDomain(3))
+	y := model.IntVar(1, 3, "y")
 
 	// Enforce: X ≠ Y
 	c, err := NewInequality(x, y, NotEqual)
@@ -275,9 +284,12 @@ func ExampleNewInequality_ordering() {
 func ExampleNewArithmetic_chain() {
 	model := NewModel()
 
-	a := model.NewVariable(NewBitSetDomainFromValues(20, []int{2, 5}))
-	b := model.NewVariable(NewBitSetDomain(20))
-	c := model.NewVariable(NewBitSetDomain(20))
+	// low-level: a := model.NewVariable(NewBitSetDomainFromValues(20, []int{2, 5}))
+	a := model.IntVarValues([]int{2, 5}, "a")
+	// low-level: b := model.NewVariable(NewBitSetDomain(20))
+	b := model.IntVar(1, 20, "b")
+	// low-level: c := model.NewVariable(NewBitSetDomain(20))
+	c := model.IntVar(1, 20, "c")
 
 	// Create chain: B = A + 5, C = B + 3, so C = A + 8
 	constraint1, err := NewArithmetic(a, b, 5)

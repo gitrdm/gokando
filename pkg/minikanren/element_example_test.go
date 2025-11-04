@@ -11,9 +11,11 @@ func ExampleNewElementValues() {
 	model := NewModel()
 
 	// index initially in [1..5]
-	idx := model.NewVariable(NewBitSetDomain(5))
+	// low-level: idx := model.NewVariable(NewBitSetDomain(5))
+	idx := model.IntVar(1, 5, "idx")
 	// result initially in [1..10]
-	res := model.NewVariable(NewBitSetDomain(10))
+	// low-level: res := model.NewVariable(NewBitSetDomain(10))
+	res := model.IntVar(1, 10, "res")
 
 	vals := []int{2, 4, 4, 7, 9}
 	c, _ := NewElementValues(idx, vals, res)

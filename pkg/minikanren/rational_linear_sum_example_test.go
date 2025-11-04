@@ -11,8 +11,10 @@ func ExampleNewRationalLinearSum() {
 	model := NewModel()
 
 	// Variables: hours worked
-	hours := model.NewVariable(NewBitSetDomainFromValues(50, []int{8})) // 8 hours worked
-	payment := model.NewVariable(NewBitSetDomain(1000))                 // payment in dollars
+	// low-level: hours := model.NewVariable(NewBitSetDomainFromValues(50, []int{8})) // 8 hours worked
+	hours := model.IntVarValues([]int{8}, "hours") // 8 hours worked
+	// low-level: payment := model.NewVariable(NewBitSetDomain(1000))                 // payment in dollars
+	payment := model.IntVar(1, 1000, "payment") // payment in dollars
 
 	// Constraint: payment = 25 * hours (hourly rate of $25)
 	coeffs := []Rational{NewRational(25, 1)} // $25/hour as coefficient
@@ -41,8 +43,10 @@ func ExampleRationalLinearSum_piCircumference() {
 	model := NewModel()
 
 	// Circle with diameter = 7 units
-	diameter := model.NewVariable(NewBitSetDomainFromValues(10, []int{7}))
-	circumference := model.NewVariable(NewBitSetDomain(100))
+	// low-level: diameter := model.NewVariable(NewBitSetDomainFromValues(10, []int{7}))
+	diameter := model.IntVarValues([]int{7}, "diameter")
+	// low-level: circumference := model.NewVariable(NewBitSetDomain(100))
+	circumference := model.IntVar(1, 100, "circumference")
 
 	// Constraint: circumference = π * diameter
 	// Using Archimedes' approximation: π ≈ 22/7
@@ -84,7 +88,8 @@ func ExampleRationalLinearSum_percentageCalculation() {
 	model := NewModel()
 
 	// Base salary: $50,000
-	baseSalary := model.NewVariable(NewBitSetDomainFromValues(100000, []int{50000}))
+	// low-level: baseSalary := model.NewVariable(NewBitSetDomainFromValues(100000, []int{50000}))
+	baseSalary := model.IntVarValues([]int{50000}, "baseSalary")
 	// Total with 10% bonus. Use a realistic, narrower domain to keep the example fast.
 	// Wide dense domains cause ScaledDivision to enumerate large ranges for arc-consistency.
 	// Here we bound to [54_000..56_000] which still demonstrates propagation clearly
@@ -129,10 +134,12 @@ func ExampleNewRationalLinearSumWithScaling() {
 	model := NewModel()
 
 	// Three investors with different ownership percentages
-	investorA := model.NewVariable(NewBitSetDomainFromValues(10000, []int{3000})) // $3000 invested
-	investorB := model.NewVariable(NewBitSetDomainFromValues(10000, []int{2000})) // $2000 invested
+	// low-level: investorA := model.NewVariable(NewBitSetDomainFromValues(10000, []int{3000})) // $3000 invested
+	investorA := model.IntVarValues([]int{3000}, "investorA") // $3000 invested
+	// low-level: investorB := model.NewVariable(NewBitSetDomainFromValues(10000, []int{2000})) // $2000 invested
+	investorB := model.IntVarValues([]int{2000}, "investorB") // $2000 invested
 	// Total investment
-	total := model.NewVariable(NewBitSetDomain(10000))
+	total := model.IntVar(1, 10000, "total")
 
 	// Constraint: total = (1/3)*A + (1/2)*B (fractional ownership)
 	// Note: This is a simplified example; in reality you'd sum all investments

@@ -4,11 +4,14 @@ import (
 	"fmt"
 )
 
-// ExampleNewTable demonstrates the Table (extensional) global constraint.
+// ExampleNewTable demonstrates the extensional `Table` global constraint.
 //
-// We model two variables x,y and restrict the pair (x,y) to be one of the
-// allowed rows: (1,1), (2,3), (3,2). Given y ∈ {1,2}, propagation prunes x to
-// {1,3} because only rows (1,1) and (3,2) are compatible with the current y.
+// We model a pair of variables (x,y) and restrict them to belong to a small
+// set of allowed rows: (1,1), (2,3), (3,2). After constraining y to the
+// compact domain {1,2} and running propagation, the domain of x is pruned to
+// {1,3} because only rows (1,1) and (3,2) remain consistent with the chosen
+// values for y. This example shows how `Table` performs pairwise filtering
+// against an explicit extensional relation.
 func ExampleNewTable() {
 	model := NewModel()
 	x := model.NewVariableWithName(NewBitSetDomain(5), "x")

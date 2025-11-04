@@ -8,7 +8,19 @@ import (
 	. "github.com/gitrdm/gokando/pkg/minikanren"
 )
 
-// Example_hlapi_noOverlap demonstrates posting NoOverlap via the HLAPI.
+// Example_hlapi_noOverlap demonstrates how to use the HLAPI helper
+// to post a NoOverlap constraint and inspect the resulting solutions.
+//
+// In this small model we:
+//   - create two integer start variables `s1` and `s2` with domain [1..3];
+//   - post `NoOverlap` with fixed durations [2,2], which requires that the
+//     intervals [s1, s1+2) and [s2, s2+2) do not overlap;
+//   - enumerate all solutions and print how many distinct start pairs satisfy
+//     the constraint.
+//
+// Intuitively only the assignments (s1=1,s2=3) and (s1=3,s2=1) are valid
+// starts for two tasks of duration 2 placed in the domain [1..4), so the
+// example prints "2".
 func Example_hlapi_noOverlap() {
 	m := NewModel()
 	s := m.IntVarsWithNames([]string{"s1", "s2"}, 1, 3)
@@ -96,9 +108,12 @@ func Example_hlapi_regular() {
 	numStates, start, accept, delta := endsWith1DFA()
 
 	m := NewModel()
-	x1 := m.NewVariableWithName(NewBitSetDomain(2), "x1")
-	x2 := m.NewVariableWithName(NewBitSetDomain(2), "x2")
-	x3 := m.NewVariableWithName(NewBitSetDomain(2), "x3")
+	// x1 := m.NewVariableWithName(NewBitSetDomain(2), "x1")
+	x1 := m.IntVar(1, 2, "x1")
+	// x2 := m.NewVariableWithName(NewBitSetDomain(2), "x2")
+	x2 := m.IntVar(1, 2, "x2")
+	// x3 := m.NewVariableWithName(NewBitSetDomain(2), "x3")
+	x3 := m.IntVar(1, 2, "x3")
 	_ = m.Regular([]*FDVariable{x1, x2, x3}, numStates, start, accept, delta)
 
 	s := NewSolver(m)
@@ -117,9 +132,11 @@ func Example_hlapi_regular() {
 // Example_hlapi_table mirrors the NewTable example via HLAPI.
 func Example_hlapi_table() {
 	m := NewModel()
-	x := m.NewVariableWithName(NewBitSetDomain(5), "x")
+	// x := m.NewVariableWithName(NewBitSetDomain(5), "x")
+	x := m.IntVar(1, 5, "x")
 	// y ∈ {1,2} upfront so we can avoid internal propagation calls
-	y := m.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "y")
+	// y := m.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "y")
+	y := m.IntVarValues([]int{1, 2}, "y")
 
 	rows := [][]int{
 		{1, 1},

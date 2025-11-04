@@ -9,10 +9,15 @@ import (
 // at most one distinct value prunes others to the same value.
 func ExampleNewAtMostNValues() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
-	x3 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x3")
-	limit := model.NewVariableWithName(NewBitSetDomain(2), "limit") // distinct ≤ 1
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1}), "x1")
+	x1 := model.IntVarValues([]int{1}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
+	x2 := model.IntVarValues([]int{1, 2}, "x2")
+	// x3 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x3")
+	x3 := model.IntVarValues([]int{1, 2}, "x3")
+	// low-level: limit := model.NewVariableWithName(NewBitSetDomain(2), "limit") // distinct ≤ 1
+	// HLAPI: express the same compact integer domain using IntVar
+	limit := model.IntVar(1, 2, "limit") // distinct ≤ 1 encoded over {1,2}
 
 	_, _ = NewAtMostNValues(model, []*FDVariable{x1, x2, x3}, limit)
 
@@ -29,10 +34,13 @@ func ExampleNewAtMostNValues() {
 // ExampleNewNValue shows wiring for an exact distinct-count.
 func ExampleNewNValue() {
 	model := NewModel()
-	x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
-	x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
+	// x1 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x1")
+	x1 := model.IntVarValues([]int{1, 2}, "x1")
+	// x2 := model.NewVariableWithName(NewBitSetDomainFromValues(5, []int{1, 2}), "x2")
+	x2 := model.IntVarValues([]int{1, 2}, "x2")
 	// Exact NValue=1 ⇒ NPlus1=2
-	nPlus1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "N+1")
+	// nPlus1 := model.NewVariableWithName(NewBitSetDomainFromValues(2, []int{2}), "N+1")
+	nPlus1 := model.IntVarValues([]int{2}, "N+1")
 
 	_, _ = NewNValue(model, []*FDVariable{x1, x2}, nPlus1)
 
