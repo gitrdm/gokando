@@ -2,6 +2,7 @@ package minikanren
 
 import (
 	"context"
+	"reflect"
 )
 
 // Neq creates a disequality constraint that ensures two terms are NOT equal.
@@ -395,5 +396,149 @@ func Pairo(term Term) Goal {
 		car := Fresh("car")
 		cdr := Fresh("cdr")
 		return Eq(term, NewPair(car, cdr))(ctx, store)
+	}
+}
+
+// Stringo constrains a term to be a string (string atom).
+// This is distinct from Symbolo in that it specifically checks for Go string type,
+// whereas Symbolo accepts any string-like symbol.
+//
+// Example:
+//
+//	x := Fresh("x")
+//	goal := Conj(Stringo(x), Eq(x, NewAtom("hello")))
+func Stringo(term Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		// Walk the term to resolve variable bindings
+		sub := store.GetSubstitution()
+		walked := sub.Walk(term)
+
+		stream := NewStream()
+
+		// Check if it's a string atom
+		if atom, ok := walked.(*Atom); ok {
+			if _, isString := atom.Value().(string); isString {
+				go func() {
+					defer stream.Close()
+					stream.Put(store)
+				}()
+				return stream
+			}
+		}
+
+		// If it's a variable, add a type constraint
+		if walked.IsVar() {
+			constraint := NewTypeConstraint(term, StringType)
+			err := store.AddConstraint(constraint)
+
+			go func() {
+				defer stream.Close()
+				if err == nil {
+					stream.Put(store)
+				}
+			}()
+			return stream
+		}
+
+		// Otherwise fail
+		go stream.Close()
+		return stream
+	}
+}
+
+// Booleano constrains a term to be a boolean value (true/false).
+// This is useful for boolean logic and conditional processing.
+//
+// Example:
+//
+//	x := Fresh("x")
+//	goal := Conj(Booleano(x), Eq(x, NewAtom(true)))
+func Booleano(term Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		// Walk the term to resolve variable bindings
+		sub := store.GetSubstitution()
+		walked := sub.Walk(term)
+
+		stream := NewStream()
+
+		// Check if it's a boolean atom
+		if atom, ok := walked.(*Atom); ok {
+			if _, isBool := atom.Value().(bool); isBool {
+				go func() {
+					defer stream.Close()
+					stream.Put(store)
+				}()
+				return stream
+			}
+		}
+
+		// If it's a variable, add a type constraint
+		if walked.IsVar() {
+			constraint := NewTypeConstraint(term, BooleanType)
+			err := store.AddConstraint(constraint)
+
+			go func() {
+				defer stream.Close()
+				if err == nil {
+					stream.Put(store)
+				}
+			}()
+			return stream
+		}
+
+		// Otherwise fail
+		go stream.Close()
+		return stream
+	}
+}
+
+// Vectoro constrains a term to be a slice or array.
+// This is useful for working with Go slices in relational programs.
+//
+// Example:
+//
+//	x := Fresh("x")
+//	goal := Conj(Vectoro(x), Eq(x, NewAtom([]int{1, 2, 3})))
+func Vectoro(term Term) Goal {
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		// Walk the term to resolve variable bindings
+		sub := store.GetSubstitution()
+		walked := sub.Walk(term)
+
+		stream := NewStream()
+
+		// Check if it's a slice/array atom
+		if atom, ok := walked.(*Atom); ok {
+			val := atom.Value()
+			// Use reflection to check if it's a slice or array
+			if val != nil {
+				rv := reflect.ValueOf(val)
+				if rv.Kind() == reflect.Slice || rv.Kind() == reflect.Array {
+					go func() {
+						defer stream.Close()
+						stream.Put(store)
+					}()
+					return stream
+				}
+			}
+		}
+
+		// If it's a variable, add a type constraint
+		if walked.IsVar() {
+			constraint := NewTypeConstraint(term, VectorType)
+			err := store.AddConstraint(constraint)
+
+			go func() {
+				defer stream.Close()
+				if err == nil {
+					stream.Put(store)
+				}
+			}()
+			return stream
+		}
+
+		// Otherwise fail
+		go stream.Close()
+		return stream
 	}
 }

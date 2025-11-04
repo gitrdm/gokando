@@ -306,7 +306,7 @@ func TestParallelSearch_LimitSolutions(t *testing.T) {
 
 // TestParallelSearch_StressTest runs a larger problem to stress test the implementation.
 func TestParallelSearch_StressTest(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping stress test in short mode")
 	}
 
@@ -447,7 +447,7 @@ func TestParallelSearch_DoesNotBlockOnLimit(t *testing.T) {
 // problem with proper diagonal modeling using arithmetic constraints. This also
 // serves as a meaningful stress test of propagation + parallel search.
 func TestParallelSearch_NQueens(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping N-Queens stress test in short mode")
 	}
 

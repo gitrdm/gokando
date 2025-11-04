@@ -10,7 +10,7 @@ import (
 
 // TestThreadSafetyOptimizedConstraintBus tests the thread safety of our optimized constraint bus patterns
 func TestThreadSafetyOptimizedConstraintBus(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping thread safety test in short mode")
 	}
 
@@ -276,7 +276,7 @@ func TestConstraintIsolationAfterOptimization(t *testing.T) {
 
 // TestRaceConditionDetectionOptimized specifically tests for race conditions in optimized code
 func TestRaceConditionDetectionOptimized(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping race condition test in short mode")
 	}
 

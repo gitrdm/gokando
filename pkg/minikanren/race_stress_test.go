@@ -13,7 +13,7 @@ import (
 // This test uses high concurrency and runs for longer duration to expose
 // subtle timing-dependent race conditions that basic tests might miss.
 func TestStressRaceConditions(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping stress test in short mode")
 	}
 

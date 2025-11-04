@@ -8,7 +8,7 @@ import (
 
 // TestMemoryScaling tests memory usage at different scales
 func TestMemoryScaling(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("Skipping memory scaling test in short mode")
 	}
 

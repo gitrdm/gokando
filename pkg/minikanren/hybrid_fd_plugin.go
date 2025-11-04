@@ -120,6 +120,12 @@ func (fp *FDPlugin) stateToStore(state *SolverState, originalStore *UnifiedStore
 			if err != nil {
 				return nil, err
 			}
+
+			// Inform the SLG engine so relational tables can prune answers that
+			// are now inconsistent with the updated FD domain.
+			// This is a best-effort notification; the engine will internally
+			// synchronize and retract affected answers across all subgoals.
+			GlobalEngine().InvalidateByDomain(int64(v.ID()), domain)
 		}
 	}
 

@@ -252,6 +252,9 @@ func conjHelper(ctx context.Context, goals []Goal, store ConstraintStore) *Strea
 // This represents choice points in the search space. All solutions from
 // all goals are included in the result stream.
 //
+// This implementation evaluates goals eagerly in parallel for maximum throughput.
+// For lazy interleaving evaluation, use Conde instead.
+//
 // Example:
 //
 //	x := Fresh("x")
@@ -273,7 +276,7 @@ func Disj(goals ...Goal) Goal {
 
 			var wg sync.WaitGroup
 
-			// Evaluate all goals concurrently
+			// Evaluate all goals concurrently (eager evaluation)
 			for _, goal := range goals {
 				wg.Add(1)
 				go func(g Goal) {
@@ -309,10 +312,71 @@ func Disj(goals ...Goal) Goal {
 	}
 }
 
-// Conde is an alias for Disj, following miniKanren naming conventions.
+// Conde creates a disjunction goal with lazy interleaving evaluation.
+// Unlike Disj which eagerly evaluates all branches in parallel, Conde
+// interleaves results from branches, pulling from each branch on demand.
+// This enables efficient stream consumption when only a few solutions are needed.
+//
 // "conde" represents "count" in Spanish, indicating enumeration of choices.
+// This is the standard miniKanren conde with fair interleaving.
+//
+// Example:
+//
+//	x := Fresh("x")
+//	goal := Conde(Eq(x, NewAtom(1)), Eq(x, NewAtom(2)))  // x can be 1 or 2
 func Conde(goals ...Goal) Goal {
-	return Disj(goals...)
+	if len(goals) == 0 {
+		return Failure
+	}
+
+	if len(goals) == 1 {
+		return goals[0]
+	}
+
+	return func(ctx context.Context, store ConstraintStore) *Stream {
+		stream := NewStream()
+
+		go func() {
+			defer stream.Close()
+
+			// Evaluate all goal streams lazily
+			streams := make([]*Stream, len(goals))
+			for i, goal := range goals {
+				streams[i] = goal(ctx, store)
+			}
+
+			// Interleave results from all streams in round-robin fashion
+			activeStreams := len(streams)
+			for activeStreams > 0 {
+				for i := 0; i < len(streams); i++ {
+					if streams[i] == nil {
+						continue // This stream is exhausted
+					}
+
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+
+					// Try to take one result from this stream
+					results, hasMore := streams[i].Take(1)
+
+					if len(results) > 0 {
+						stream.Put(results[0])
+					}
+
+					if !hasMore {
+						// This stream is exhausted
+						streams[i] = nil
+						activeStreams--
+					}
+				}
+			}
+		}()
+
+		return stream
+	}
 }
 
 // Run executes a goal and returns up to n solutions.
@@ -477,7 +541,7 @@ func List(terms ...Term) Term {
 func Appendo(l1, l2, l3 Term) Goal {
 	return Disj(
 		// Base case: appending empty list to l2 gives l2
-		Conj(Eq(l1, NewAtom(nil)), Eq(l2, l3)),
+		Conj(Eq(l1, Nil), Eq(l2, l3)),
 
 		// Recursive case: l1 = (a . d), l3 = (a . res), append(d, l2, res)
 		func(ctx context.Context, store ConstraintStore) *Stream {

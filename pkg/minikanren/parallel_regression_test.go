@@ -9,7 +9,7 @@ import (
 // TestParallelSearch_EnumerateAllCounts validates that enumerate-all problems
 // return the exact expected number of solutions across multiple worker counts.
 func TestParallelSearch_EnumerateAllCounts(t *testing.T) {
-	if testing.Short() {
+	if testing.Short() && !shouldRunHeavy() {
 		t.Skip("skip enumerate-all regression counts in short mode")
 	}
 

@@ -245,7 +245,7 @@ func (gcb *GlobalConstraintBus) UnregisterStore(storeID string) {
 	if _, exists := gcb.storeRegistry[storeID]; exists {
 		delete(gcb.storeRegistry, storeID)
 		gcb.refCount--
-		
+
 		// Auto-shutdown when no stores remain
 		if gcb.refCount <= 0 && !gcb.shutdown {
 			gcb.shutdown = true
@@ -274,12 +274,10 @@ func (gcb *GlobalConstraintBus) AddCrossStoreConstraint(constraint Constraint) e
 		Timestamp:  atomic.AddInt64(&gcb.eventCounter, 1),
 	}
 
-	select {
-	case gcb.events <- event:
+	if gcb.trySend(event) {
 		return nil
-	default:
-		return fmt.Errorf("constraint bus event queue full")
 	}
+	return fmt.Errorf("constraint bus event queue full")
 }
 
 // CoordinateBinding attempts to bind a variable across all relevant stores.
@@ -350,6 +348,23 @@ func (gcb *GlobalConstraintBus) processEvents() {
 		case <-gcb.shutdownCh:
 			return
 		}
+	}
+}
+
+// trySend attempts a non-blocking send of an event.
+// It is safe to call concurrently with Shutdown/close; if the channel is closed,
+// the panic is recovered and the send is treated as a no-op (returns false).
+func (gcb *GlobalConstraintBus) trySend(event ConstraintEvent) (ok bool) {
+	defer func() {
+		if r := recover(); r != nil {
+			ok = false
+		}
+	}()
+	select {
+	case gcb.events <- event:
+		return true
+	default:
+		return false
 	}
 }
 

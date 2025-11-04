@@ -169,14 +169,8 @@ func (lcs *LocalConstraintStoreImpl) AddBinding(varID int64, term Term) error {
 			Term:      term,
 			Timestamp: atomic.AddInt64(&lcs.globalBus.eventCounter, 1),
 		}
-
-		// Non-blocking send to avoid deadlocks
-		select {
-		case lcs.globalBus.events <- event:
-		default:
-			// Event queue full - log but don't fail the binding
-			// In production, this might warrant more sophisticated handling
-		}
+		// Non-blocking send; safe even if bus is shutting down
+		_ = lcs.globalBus.trySend(event)
 	}
 
 	return nil
@@ -260,23 +254,10 @@ func (lcs *LocalConstraintStoreImpl) Clone() ConstraintStore {
 		clone.constraints[i] = constraint.Clone()
 	}
 
-	// Register clone with global bus if available
-	if lcs.globalBus != nil {
-		lcs.globalBus.RegisterStore(clone)
-
-		// Notify about cloning event
-		event := ConstraintEvent{
-			Type:      StoreCloned,
-			StoreID:   cloneID,
-			Timestamp: atomic.AddInt64(&lcs.globalBus.eventCounter, 1),
-		}
-
-		select {
-		case lcs.globalBus.events <- event:
-		default:
-			// Event queue full - continue anyway
-		}
-	}
+	// Do NOT register clones with the global bus. Clones are ephemeral evaluation
+	// contexts and registering each clone causes unbounded growth in the bus registry
+	// with no corresponding shutdown, leading to goroutine leaks and timeouts in tests.
+	// Cross-store coordination (if required) should be handled at higher levels.
 
 	return clone
 }
