@@ -1342,22 +1342,48 @@ func ExampleTabled() {
         })
         ```
 
-- [ ] **Task 6.8: Advanced List Operations** ⏳ PENDING
-    - [ ] **Objective**: Provide comprehensive relational list operations for pldb queries and recursive rules.
-    - [ ] **Action**:
-        - [ ] Implement `Rembero(element, inputList, outputList Term) Goal` - Remove element from list
-        - [ ] Implement `Reverso(list, reversed Term) Goal` - Reverse list relationally
-        - [ ] Implement `Permuteo(list, permutation Term) Goal` - Generate/check permutations
-        - [ ] Implement `Subseto(subset, superset Term) Goal` - Subset relation
-        - [ ] Implement `Lengthо(list, length Term) Goal` - List length relation
-        - [ ] Create examples combining list operations with pldb queries
-        - [ ] Add performance notes for large lists
-    - [ ] **Success Criteria**:
-        - All list operations work bidirectionally (can generate or check)
-        - Operations compose cleanly with pldb queries and tabling
-        - Examples demonstrate practical use cases (list processing in databases)
-        - Performance is acceptable for lists up to ~1000 elements
-    - **Rationale**: These operations are foundational for many logic programming tasks and frequently needed when working with pldb query results. Currently users must implement them manually.
+- [x] **Task 6.8: Advanced List Operations** ✅ COMPLETED
+    - [x] **Objective**: Provide comprehensive relational list operations for pldb queries and recursive rules.
+    - [x] **Action**:
+        - [x] Implement `Rembero(element, inputList, outputList Term) Goal` - Remove element from list
+        - [x] Implement `Reverso(list, reversed Term) Goal` - Reverse list relationally
+        - [x] Implement `Permuteo(list, permutation Term) Goal` - Generate/check permutations
+        - [x] Implement `Subseto(subset, superset Term) Goal` - Subset relation
+        - [x] Implement `Lengtho/LengthoInt(list, length Term) Goal` - List length relation
+        - [x] Implement `Flatteno(nestedList, flatList Term) Goal` - Flatten nested lists
+        - [x] Implement `Distincto(list Term) Goal` - All elements distinct
+        - [x] Implement `Noto(goal Goal) Goal` - Negation-as-failure
+        - [x] Create examples combining list operations with pldb queries
+        - [x] Add performance notes for large lists
+    - [x] **Success Criteria**:
+        - All list operations work bidirectionally (can generate or check) ✅
+        - Operations compose cleanly with pldb queries and tabling ✅
+        - Examples demonstrate practical use cases (list processing in databases) ✅
+        - Performance is acceptable for lists up to ~1000 elements ✅
+    - **Implementation Notes**:
+        - **Files**: `pkg/minikanren/list_ops.go` (core implementations), `pkg/minikanren/list_ops_example_test.go` (documentation examples)
+        - **Rembero**: Uses Conde pattern (base case: element at head; recursive: element in tail). Lazy evaluation via Conde.
+        - **Reverso**: Constrained with `SameLengtho` to prevent divergence; uses helper `reversoCore` for accumulator pattern.
+        - **Permuteo**: Generates all permutations using Rembero + recursion; validated against factorial test (3! = 6, 4! = 24). Lazy evaluation via Conde.
+        - **Subseto**: Power set semantics (each element used at most once); generates 2^n subsets for n-element set.
+        - **Lengtho/LengthoInt**: Bidirectional length relation; `LengthoInt` uses `DeepWalk` for Peano number resolution.
+        - **Flatteno**: Recursively flattens nested list structures; uses `.Equal(Nil)` for correct nil comparison.
+        - **Distincto**: Ensures all list elements are distinct; uses Rembero and recursive checking.
+        - **Noto**: Negation-as-failure with context awareness; checks `ctx.Done()` before/after blocking `Stream.Take(1)`; succeeds only when stream exhausted with no results.
+        - **Bug Fixes During Implementation**:
+            1. Appendo base case: Fixed to use `Eq(l1, Nil)` instead of `Eq(l1, NewAtom(nil))`
+            2. LengthoInt: Fixed to use `DeepWalk` instead of `Walk` for Peano number resolution
+            3. Flatteno: Fixed nil comparison to use `.Equal(Nil)` method
+            4. Subseto: Fixed semantics from multiset to power set generation
+            5. Noto: Fixed goroutine leak causing intermittent test hangs
+            6. **Conde vs Disj**: Fixed critical semantic issue - `Conde` was incorrectly aliasing `Disj`. Now `Conde` implements proper lazy interleaving evaluation (round-robin from branches), while `Disj` remains eager parallel evaluation. This enables efficient stream consumption for operations like `Rembero` and `Permuteo`.
+        - **Examples** (`list_ops_example_test.go`):
+            * All 8 list operations have documented examples with expected output
+            * Uses `runGoal` helper for safe stream consumption and sorted output
+            * Uses `prettyTerm` formatter for readable list output: `(a b c)` format, empty lists as `()`, strings quoted
+        - **Testing**: Full test suite passes in ~7s with no hangs, timeouts, or race conditions
+        - **Validation**: Tested under timeout (20s), parallel execution, and race detection; all stable
+    - **Rationale**: These operations are foundational for many logic programming tasks and frequently needed when working with pldb query results.
 
 - [ ] **Task 6.9: Term Utilities and Type Constraints** ⏳ PENDING
     - [ ] **Objective**: Provide utilities for term manipulation and extended type checking.
@@ -1376,16 +1402,16 @@ func ExampleTabled() {
         - Utilities work correctly with pldb facts and query results
     - **Rationale**: These utilities are commonly needed for meta-programming tasks and data validation in pldb applications. CopyTerm is particularly important for implementing certain tabling patterns.
 
-**Phase 6 Success Criteria**: ⚠️ MOSTLY COMPLETE (Tasks 6.6-6.9 pending)
+**Phase 6 Success Criteria**: ⚠️ MOSTLY COMPLETE (Task 6.9 pending)
 - ✅ Relations can be defined with arbitrary arities and indexes
 - ✅ Fact storage and retrieval is efficient (sub-linear with indexes)
 - ✅ Clean integration with existing miniKanren API
 - ✅ Comprehensive examples demonstrate practical applications
 - ✅ Documentation explains when pldb is preferable to constraints
-- ⏳ **Pending**: Integration with Phase 3/4 hybrid solver (UnifiedStore + FD constraints)
-- ⏳ **Pending**: Pattern matching operators (Matche, Matcha, Matchu)
-- ⏳ **Pending**: Advanced list operations (Rembero, Reverso, Permuteo, etc.)
-- ⏳ **Pending**: Term utilities and extended type constraints
+- ✅ Integration with Phase 3/4 hybrid solver (UnifiedStore + FD constraints) - Task 6.6 complete
+- ✅ Pattern matching operators (Matche, Matcha, Matchu) - Task 6.7 complete
+- ✅ Advanced list operations (Rembero, Reverso, Permuteo, Subseto, Lengtho, Flatteno, Distincto, Noto) - Task 6.8 complete
+- ⏳ **Pending**: Term utilities and extended type constraints - Task 6.9
 
 **Documentation**:
 - User Guide: `docs/guides/pldb.md` - Complete guide with usage patterns

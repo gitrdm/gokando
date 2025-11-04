@@ -11,6 +11,8 @@ import (
 //   - Given element and outputList, can generate possible inputLists
 //   - Given inputList and outputList, can determine what element was removed
 //
+// Uses lazy evaluation (Conde) for efficient stream consumption.
+//
 // Example:
 //
 //	// Remove 2 from [1,2,3]: output is [1,3]
@@ -19,7 +21,7 @@ import (
 //	// Generate lists that when 2 is removed give [1,3]
 //	Rembero(NewAtom(2), input, List(NewAtom(1), NewAtom(3)))
 func Rembero(element, inputList, outputList Term) Goal {
-	return Disj(
+	return Conde(
 		// Base case: input is (element . rest), output is rest
 		func(ctx context.Context, store ConstraintStore) *Stream {
 			rest := Fresh("rest")
@@ -131,6 +133,7 @@ func Reverso(list, reversed Term) Goal {
 //
 // Note: This generates n! permutations for a list of length n.
 // Use with caution for lists longer than ~8-10 elements.
+// Uses lazy evaluation (Conde) for efficient stream consumption.
 //
 // Example:
 //
@@ -140,7 +143,7 @@ func Reverso(list, reversed Term) Goal {
 //	// Verify [3,1,2] is a permutation of [1,2,3]
 //	Permuteo(List(NewAtom(1), NewAtom(2), NewAtom(3)), List(NewAtom(3), NewAtom(1), NewAtom(2)))
 func Permuteo(list, permutation Term) Goal {
-	return Disj(
+	return Conde(
 		// Base case: empty list has only the empty permutation
 		Conj(
 			Eq(list, Nil),

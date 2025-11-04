@@ -553,6 +553,55 @@ func TestPermuteo_Performance(t *testing.T) {
 	}
 }
 
+// TestPermuteo_LazySemantics tests that Permuteo uses lazy evaluation.
+// With lazy semantics (Conde), requesting only 1 solution should be fast
+// even for large lists, as it doesn't need to compute all permutations.
+func TestPermuteo_LazySemantics(t *testing.T) {
+	// Use a larger list that would have many permutations (8! = 40320)
+	list := List(
+		NewAtom(1), NewAtom(2), NewAtom(3), NewAtom(4),
+		NewAtom(5), NewAtom(6), NewAtom(7), NewAtom(8),
+	)
+
+	// Request only 1 permutation
+	result := Run(1, func(q *Var) Goal {
+		return Permuteo(list, q)
+	})
+
+	if len(result) != 1 {
+		t.Fatalf("Expected 1 result, got %d", len(result))
+	}
+
+	// Verify it's a valid permutation by checking it has the same length
+	perm := result[0]
+	lenResult := Run(1, func(check *Var) Goal {
+		return LengthoInt(perm, check)
+	})
+
+	if len(lenResult) == 0 || !lenResult[0].Equal(NewAtom(8)) {
+		t.Errorf("Permutation has wrong length: got %v, want 8", lenResult)
+	}
+
+	// Request just 5 permutations (not all 40320)
+	result5 := Run(5, func(q *Var) Goal {
+		return Permuteo(list, q)
+	})
+
+	if len(result5) != 5 {
+		t.Fatalf("Expected 5 results, got %d", len(result5))
+	}
+
+	// Verify all 5 are distinct permutations
+	seen := make(map[string]bool)
+	for i, perm := range result5 {
+		key := perm.String()
+		if seen[key] {
+			t.Errorf("Duplicate permutation at index %d: %v", i, perm)
+		}
+		seen[key] = true
+	}
+}
+
 // TestReverso_LargeList tests reversing larger lists.
 func TestReverso_LargeList(t *testing.T) {
 	// Create a list of 10 elements
