@@ -548,6 +548,7 @@ func TestTabledQuery_Join(t *testing.T) {
 			db.Query(parent, p, gc),
 		)
 
+
 		store2 := NewLocalConstraintStore(NewGlobalConstraintBus())
 		stream2 := goal2(ctx, store2)
 		results2, _ := stream2.Take(10)
@@ -563,3 +564,141 @@ func TestTabledQuery_Join(t *testing.T) {
 		}
 	})
 }
+
+// TestInvalidateRelationFineGrained tests that InvalidateRelation only clears
+// the specified predicate's cached answers, leaving other predicates intact.
+func TestInvalidateRelationFineGrained(t *testing.T) {
+	// Create a fresh engine for this test to avoid interference
+	engine := NewSLGEngine(DefaultSLGConfig())
+	oldEngine := GlobalEngine()
+	defer func() {
+		// Restore global engine after test
+		SetGlobalEngine(oldEngine)
+	}()
+	SetGlobalEngine(engine)
+
+	// Set up two different relations
+	edge, err := DbRel("edge", 2, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent, err := DbRel("parent", 2, 0, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Create databases with facts
+	edgeDB := NewDatabase()
+	edgeDB, _ = edgeDB.AddFact(edge, NewAtom("a"), NewAtom("b"))
+	edgeDB, _ = edgeDB.AddFact(edge, NewAtom("b"), NewAtom("c"))
+
+	parentDB := NewDatabase()
+	parentDB, _ = parentDB.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
+	parentDB, _ = parentDB.AddFact(parent, NewAtom("bob"), NewAtom("charlie"))
+
+	ctx := context.Background()
+
+	// Query both predicates to populate the cache
+	t.Run("populate cache", func(t *testing.T) {
+		x, y := Fresh("x"), Fresh("y")
+
+		// Query edge predicate
+		edgeGoal := TabledQuery(edgeDB, edge, "edge", x, y)
+		store1 := NewLocalConstraintStore(NewGlobalConstraintBus())
+		stream1 := edgeGoal(ctx, store1)
+		results1, _ := stream1.Take(10)
+		if len(results1) != 2 {
+			t.Errorf("Expected 2 edge results, got %d", len(results1))
+		}
+
+		// Query parent predicate
+		parentGoal := TabledQuery(parentDB, parent, "parent", x, y)
+		store2 := NewLocalConstraintStore(NewGlobalConstraintBus())
+		stream2 := parentGoal(ctx, store2)
+		results2, _ := stream2.Take(10)
+		if len(results2) != 2 {
+			t.Errorf("Expected 2 parent results, got %d", len(results2))
+		}
+	})
+
+	// Verify both predicates are cached
+	stats := engine.Stats()
+	initialCachedSubgoals := stats.CachedSubgoals
+	if initialCachedSubgoals < 2 {
+		t.Errorf("Expected at least 2 cached subgoals, got %d", initialCachedSubgoals)
+	}
+
+	// Invalidate only the edge predicate
+	t.Run("invalidate edge predicate", func(t *testing.T) {
+		InvalidateRelation("edge")
+	})
+
+	// Check that edge predicate was cleared
+	t.Run("verify edge cleared", func(t *testing.T) {
+		stats := engine.Stats()
+		newCachedSubgoals := stats.CachedSubgoals
+		
+		// Should have fewer cached subgoals now
+		if newCachedSubgoals >= initialCachedSubgoals {
+			t.Errorf("Expected fewer cached subgoals after invalidation, got %d (was %d)", 
+				newCachedSubgoals, initialCachedSubgoals)
+		}
+	})
+
+	// Verify parent predicate is still cached (cache hit)
+	t.Run("verify parent still cached", func(t *testing.T) {
+		x, y := Fresh("x"), Fresh("y")
+
+		// Save current cache hit count
+		preQueryStats := engine.Stats()
+		preHits := preQueryStats.CacheHits
+
+		// Query parent again - should hit cache
+		parentGoal := TabledQuery(parentDB, parent, "parent", x, y)
+		store := NewLocalConstraintStore(NewGlobalConstraintBus())
+		stream := parentGoal(ctx, store)
+		results, _ := stream.Take(10)
+
+		if len(results) != 2 {
+			t.Errorf("Expected 2 parent results, got %d", len(results))
+		}
+
+		// Verify it was a cache hit
+		postQueryStats := engine.Stats()
+		postHits := postQueryStats.CacheHits
+
+		if postHits <= preHits {
+			t.Errorf("Expected cache hit for parent predicate after edge invalidation, hits: %d -> %d", 
+				preHits, postHits)
+		}
+	})
+
+	// Verify edge predicate was actually cleared (cache miss)
+	t.Run("verify edge was actually cleared", func(t *testing.T) {
+		x, y := Fresh("x"), Fresh("y")
+
+		// Save current cache miss count
+		preQueryStats := engine.Stats()
+		preMisses := preQueryStats.CacheMisses
+
+		// Query edge again - should miss cache
+		edgeGoal := TabledQuery(edgeDB, edge, "edge", x, y)
+		store := NewLocalConstraintStore(NewGlobalConstraintBus())
+		stream := edgeGoal(ctx, store)
+		results, _ := stream.Take(10)
+
+		if len(results) != 2 {
+			t.Errorf("Expected 2 edge results, got %d", len(results))
+		}
+
+		// Verify it was a cache miss
+		postQueryStats := engine.Stats()
+		postMisses := postQueryStats.CacheMisses
+
+		if postMisses <= preMisses {
+			t.Errorf("Expected cache miss for edge predicate after invalidation, misses: %d -> %d", 
+				preMisses, postMisses)
+		}
+	})
+}
+

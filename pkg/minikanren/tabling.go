@@ -827,6 +827,16 @@ func (st *SubgoalTable) Clear() {
 	st.totalSubgoals.Store(0)
 }
 
+// Delete removes a specific entry from the table by hash.
+// Returns true if the entry was found and deleted.
+func (st *SubgoalTable) Delete(hash uint64) bool {
+	_, existed := st.entries.LoadAndDelete(hash)
+	if existed {
+		st.totalSubgoals.Add(-1)
+	}
+	return existed
+}
+
 // TotalSubgoals returns the total number of subgoals created.
 func (st *SubgoalTable) TotalSubgoals() int64 {
 	return st.totalSubgoals.Load()

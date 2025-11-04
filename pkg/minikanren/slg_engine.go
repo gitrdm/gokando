@@ -71,6 +71,10 @@ type SLGEngine struct {
 	// Cached set of nodes detected as part of SCCs containing a negative edge
 	negMu        sync.RWMutex
 	negUndefined map[uint64]bool
+
+	// Predicate tracking: maps predicateID to set of subgoal entry hashes
+	predicateMu      sync.RWMutex
+	predicateEntries map[string]map[uint64]struct{}
 }
 
 type parentSet struct {
@@ -428,11 +432,12 @@ func NewSLGEngine(config *SLGConfig) *SLGEngine {
 		enableWFSTrace()
 	}
 	return &SLGEngine{
-		subgoals:     NewSubgoalTable(),
-		config:       config,
-		strata:       make(map[string]int),
-		depAdj:       make(map[uint64]map[uint64]*edgePolarity),
-		negUndefined: make(map[uint64]bool),
+		subgoals:         NewSubgoalTable(),
+		config:           config,
+		strata:           make(map[string]int),
+		depAdj:           make(map[uint64]map[uint64]*edgePolarity),
+		negUndefined:     make(map[uint64]bool),
+		predicateEntries: make(map[string]map[uint64]struct{}),
 	}
 }
 
@@ -566,6 +571,78 @@ func (e *SLGEngine) Clear() {
 	e.negMu.Lock()
 	e.negUndefined = make(map[uint64]bool)
 	e.negMu.Unlock()
+
+	// Clear predicate tracking
+	e.predicateMu.Lock()
+	e.predicateEntries = make(map[string]map[uint64]struct{})
+	e.predicateMu.Unlock()
+}
+
+// registerPredicate registers a subgoal entry with the predicate tracking system.
+// This should be called when a new entry is created.
+func (e *SLGEngine) registerPredicate(pattern *CallPattern, hash uint64) {
+	if pattern == nil {
+		return
+	}
+	predicateID := pattern.PredicateID()
+
+	e.predicateMu.Lock()
+	defer e.predicateMu.Unlock()
+
+	if e.predicateEntries[predicateID] == nil {
+		e.predicateEntries[predicateID] = make(map[uint64]struct{})
+	}
+	e.predicateEntries[predicateID][hash] = struct{}{}
+}
+
+// ClearPredicate removes all cached subgoals for a specific predicate.
+// This enables fine-grained invalidation when a relation's facts change.
+// Returns the number of subgoal entries that were invalidated.
+func (e *SLGEngine) ClearPredicate(predicateID string) int {
+	e.predicateMu.Lock()
+	hashes := e.predicateEntries[predicateID]
+	if hashes == nil {
+		e.predicateMu.Unlock()
+		return 0
+	}
+	// Copy hashes to avoid holding the lock during deletion
+	hashList := make([]uint64, 0, len(hashes))
+	for hash := range hashes {
+		hashList = append(hashList, hash)
+	}
+	// Clear the predicate's entry set
+	delete(e.predicateEntries, predicateID)
+	e.predicateMu.Unlock()
+
+	// Remove each subgoal entry from the table
+	count := 0
+	for _, hash := range hashList {
+		entry := e.subgoals.GetByHash(hash)
+		if entry != nil {
+			// Remove from subgoal table
+			e.subgoals.Delete(hash)
+			count++
+
+			// Clean up dependency tracking for this entry
+			e.removeReverseDependency(hash, entry)
+
+			// Clean up WFS dependency graph
+			e.depMu.Lock()
+			delete(e.depAdj, hash)
+			// Also remove as child from all parents
+			for _, children := range e.depAdj {
+				delete(children, hash)
+			}
+			e.depMu.Unlock()
+
+			// Remove from negative SCC tracking if present
+			e.negMu.Lock()
+			delete(e.negUndefined, hash)
+			e.negMu.Unlock()
+		}
+	}
+
+	return count
 }
 
 // GoalEvaluator is a function that evaluates a goal and returns answer bindings.
@@ -630,6 +707,11 @@ func (e *SLGEngine) Evaluate(ctx context.Context, pattern *CallPattern, evaluato
 	// Check if subgoal already exists
 	entry, isNew := e.subgoals.GetOrCreate(pattern)
 
+	// Register new entry with predicate tracking
+	if isNew {
+		e.registerPredicate(pattern, pattern.Hash())
+	}
+
 	// If called within another evaluator, record dependency (parent -> entry)
 	if parentRaw := ctx.Value(slgParentKey{}); parentRaw != nil {
 		if parent, ok := parentRaw.(*SubgoalEntry); ok && parent != entry {
@@ -673,6 +755,11 @@ func (e *SLGEngine) evaluateWithHandshake(ctx context.Context, pattern *CallPatt
 
 	// Get or create subgoal entry
 	entry, isNew := e.subgoals.GetOrCreate(pattern)
+
+	// Register new entry with predicate tracking
+	if isNew {
+		e.registerPredicate(pattern, pattern.Hash())
+	}
 
 	// Capture pre-start sequence before potentially starting producer
 	preSeq := entry.EventSeq()

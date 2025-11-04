@@ -282,10 +282,13 @@ func ExampleTabledQuery_groundQuery() {
 	// Edge a->b exists
 }
 
-// ExampleInvalidateRelation demonstrates relation-specific cache invalidation.
-// Note: Current implementation clears entire cache; future versions may support
-// fine-grained invalidation.
+// ExampleInvalidateRelation demonstrates fine-grained cache invalidation.
+// InvalidateRelation now clears only the specified predicate, leaving other
+// cached predicates intact. This is more efficient than clearing the entire cache.
 func ExampleInvalidateRelation() {
+	// Start with a clean cache to make the example deterministic
+	InvalidateAll()
+
 	edge, _ := DbRel("edge", 2, 0, 1)
 	db := NewDatabase()
 	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
@@ -293,19 +296,20 @@ func ExampleInvalidateRelation() {
 	x := Fresh("x")
 	y := Fresh("y")
 
-	// Populate cache
+	// Populate cache with edge_rel predicate
 	goal := TabledQuery(db, edge, "edge_rel", x, y)
 	ctx := context.Background()
 	store := NewLocalConstraintStore(NewGlobalConstraintBus())
 	stream := goal(ctx, store)
 	stream.Take(10)
 
-	// Invalidate this specific relation (currently clears all)
+	// Invalidate only the edge_rel predicate
 	InvalidateRelation("edge_rel")
 
 	engine := GlobalEngine()
 	stats := engine.Stats()
 
+	// With fine-grained invalidation, only edge_rel is cleared
 	fmt.Printf("Cache cleared: %v\n", stats.CachedSubgoals == 0)
 
 	// Output:

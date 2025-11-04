@@ -380,9 +380,9 @@ func TabledRelation(db *Database, rel *Relation, predicateID string) func(...Ter
 // InvalidateRelation removes all cached answers for queries involving a specific relation.
 // This should be called when the relation's facts change (AddFact/RemoveFact).
 //
-// Note: This is a conservative invalidation strategy. The SLG engine doesn't currently
-// provide fine-grained predicate-level invalidation, so we use global Clear().
-// For production use, track which facts affect which cached answers.
+// The SLG engine now provides fine-grained predicate-level invalidation, removing
+// only the cached answers for the specified predicateID while preserving unrelated
+// tabled predicates. This is more efficient than clearing the entire table.
 //
 // Parameters:
 //   - predicateID: The predicate identifier used in TabledQuery calls
@@ -390,12 +390,10 @@ func TabledRelation(db *Database, rel *Relation, predicateID string) func(...Ter
 // Example:
 //
 //	db = db.AddFact(edge, NewAtom("c"), NewAtom("d"))
-//	InvalidateRelation("path")  // Clear all cached answers
+//	InvalidateRelation("path")  // Clear only "path" predicate answers
 func InvalidateRelation(predicateID string) {
-	// TODO: Implement fine-grained invalidation in SLGEngine
-	// For now, clear the entire table when any relation changes
 	engine := GlobalEngine()
-	engine.Clear()
+	engine.ClearPredicate(predicateID)
 }
 
 // InvalidateAll clears the entire SLG answer table.
