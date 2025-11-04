@@ -347,6 +347,145 @@ func RecursiveRule(db *Database, baseRel *Relation, predicateID string, args []T
 	}
 }
 
+// TabledRecursivePredicate builds a true recursive, tabled predicate over a base relation.
+// It returns a predicate constructor that can be called with arguments to form a Goal.
+//
+// Parameters:
+//   - db: pldb database
+//   - baseRel: base relation providing direct facts (e.g., parent for ancestor)
+//   - predicateID: unique predicate name for tabling (e.g., "ancestor")
+//   - recursive: function that, given a self predicate for recursive calls and
+//     the current call arguments, returns the recursive case goal.
+//
+// The produced predicate P(...args) succeeds if either:
+//   - baseRel(...args) holds (base case), or
+//   - recursive(self, ...args) holds where self is the tabled predicate itself
+//
+// Example usage:
+//
+//	ancestor := TabledRecursivePredicate(db, parent, "ancestor", func(self func(...Term) Goal, args ...Term) Goal {
+//	    x, y := args[0], args[1]
+//	    z := Fresh("z")
+//	    return Conj(
+//	        db.Query(parent, x, z),
+//	        self(z, y),
+//	    )
+//	})
+//	goal := ancestor(Fresh("x"), Fresh("y"))
+func TabledRecursivePredicate(db *Database, baseRel *Relation, predicateID string, recursive func(self func(...Term) Goal, args ...Term) Goal) func(...Term) Goal {
+	if db == nil || baseRel == nil || recursive == nil || predicateID == "" {
+		return func(...Term) Goal { return Failure }
+	}
+
+	// Build an evaluator for a specific argument vector.
+	var makeEvaluator func(callArgs []Term) GoalEvaluator
+	makeEvaluator = func(callArgs []Term) GoalEvaluator {
+		// Extract variable IDs present in call arguments
+		varIDs := make([]int64, 0, len(callArgs))
+		for _, a := range callArgs {
+			if v, ok := a.(*Var); ok {
+				varIDs = append(varIDs, v.id)
+			}
+		}
+
+		// Define self as a tabled call to the same predicate using a fresh evaluator for callArgs.
+		self := func(args ...Term) Goal {
+			return func(ctx context.Context, store ConstraintStore) *Stream {
+				// Instantiate arguments with current bindings
+				instantiated := make([]Term, len(args))
+				for i, a := range args {
+					instantiated[i] = store.GetSubstitution().Walk(a)
+				}
+				pattern := NewCallPattern(predicateID, instantiated)
+				engine := GlobalEngine()
+				// Use an evaluator specific to these instantiated args
+				ev := makeEvaluator(instantiated)
+				resultChan, err := engine.Evaluate(ctx, pattern, ev)
+				if err != nil {
+					s := NewStream()
+					s.Close()
+					return s
+				}
+				return streamFromAnswers(ctx, store, resultChan, instantiated)
+			}
+		}
+
+		// Build the combined goal for this call: base OR recursive
+		return func(ctx context.Context, answers chan<- map[int64]Term) error {
+			// Evaluate base first to seed answers for potential self-loops
+			emitFromGoal := func(goal Goal) error {
+				freshStore := NewLocalConstraintStore(NewGlobalConstraintBus())
+				stream := goal(ctx, freshStore)
+				if stream == nil {
+					return nil
+				}
+				const batchSize = 100
+				for {
+					stores, hasMore := stream.Take(batchSize)
+					for _, nextStore := range stores {
+						answer := make(map[int64]Term, len(varIDs))
+						for _, varID := range varIDs {
+							if binding := nextStore.GetBinding(varID); binding != nil {
+								answer[varID] = binding
+							}
+						}
+						if len(answer) > 0 || len(varIDs) == 0 {
+							select {
+							case answers <- answer:
+							case <-ctx.Done():
+								return ctx.Err()
+							}
+						}
+					}
+					if !hasMore {
+						return nil
+					}
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					default:
+					}
+				}
+			}
+
+			// Base case
+			if err := emitFromGoal(db.Query(baseRel, callArgs...)); err != nil {
+				return err
+			}
+
+			// Recursive case
+			if err := emitFromGoal(recursive(self, callArgs...)); err != nil {
+				return err
+			}
+			return nil
+		}
+	}
+
+	// Return the predicate constructor
+	return func(args ...Term) Goal {
+		if len(args) != baseRel.Arity() {
+			return Failure
+		}
+		return func(ctx context.Context, store ConstraintStore) *Stream {
+			// Instantiate with current bindings
+			instantiated := make([]Term, len(args))
+			for i, a := range args {
+				instantiated[i] = store.GetSubstitution().Walk(a)
+			}
+			pattern := NewCallPattern(predicateID, instantiated)
+			engine := GlobalEngine()
+			ev := makeEvaluator(instantiated)
+			resultChan, err := engine.Evaluate(ctx, pattern, ev)
+			if err != nil {
+				s := NewStream()
+				s.Close()
+				return s
+			}
+			return streamFromAnswers(ctx, store, resultChan, instantiated)
+		}
+	}
+}
+
 // TabledRelation provides a convenient wrapper for creating tabled predicates
 // over pldb relations. It returns a constructor function that builds tabled goals.
 //
