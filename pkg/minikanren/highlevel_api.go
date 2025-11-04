@@ -101,6 +101,18 @@ func (m *Model) IntVarsWithNames(names []string, min, max int) []*FDVariable {
 	return m.NewVariablesWithNames(names, d)
 }
 
+// IntVarValues creates a new FD variable whose domain is exactly the provided
+// non-contiguous set of values. If name is non-empty, the variable is named.
+// Duplicate values are ignored. Empty or all non-positive values yield an
+// empty domain which will cause the model to be immediately infeasible.
+func (m *Model) IntVarValues(values []int, name string) *FDVariable {
+	d := DomainValues(values...)
+	if name != "" {
+		return m.NewVariableWithName(d, name)
+	}
+	return m.NewVariable(d)
+}
+
 // AllDifferent posts an AllDifferent constraint over vars.
 func (m *Model) AllDifferent(vars ...*FDVariable) error {
 	if len(vars) == 0 {
@@ -117,6 +129,79 @@ func (m *Model) AllDifferent(vars ...*FDVariable) error {
 // LinearSum posts Σ coeffs[i]*vars[i] = total, using bounds-consistent propagation.
 func (m *Model) LinearSum(vars []*FDVariable, coeffs []int, total *FDVariable) error {
 	c, err := NewLinearSum(vars, coeffs, total)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// Cumulative posts a Cumulative(starts, durations, demands, capacity) global
+// constraint to the model. See NewCumulative for contract and semantics.
+func (m *Model) Cumulative(starts []*FDVariable, durations, demands []int, capacity int) error {
+	c, err := NewCumulative(starts, durations, demands, capacity)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// NoOverlap posts a NoOverlap(starts, durations) global constraint to the model.
+// This is modeled via Cumulative with unit demands and capacity 1.
+func (m *Model) NoOverlap(starts []*FDVariable, durations []int) error {
+	c, err := NewNoOverlap(starts, durations)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// GlobalCardinality posts a GCC over vars with per-value min/max occurrence bounds.
+// See NewGlobalCardinality for requirements regarding slice lengths and indexing.
+func (m *Model) GlobalCardinality(vars []*FDVariable, minCount, maxCount []int) error {
+	c, err := NewGlobalCardinality(vars, minCount, maxCount)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// LexLess posts a strict lexicographic ordering constraint X < Y.
+func (m *Model) LexLess(xs, ys []*FDVariable) error {
+	c, err := NewLexLess(xs, ys)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// LexLessEq posts a non-strict lexicographic ordering X <= Y.
+func (m *Model) LexLessEq(xs, ys []*FDVariable) error {
+	c, err := NewLexLessEq(xs, ys)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// Regular posts a Regular(vars, numStates, start, acceptStates, delta) DFA constraint.
+func (m *Model) Regular(vars []*FDVariable, numStates, start int, acceptStates []int, delta [][]int) error {
+	c, err := NewRegular(vars, numStates, start, acceptStates, delta)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// Table posts an extensional Table constraint over the given variables and rows.
+func (m *Model) Table(vars []*FDVariable, rows [][]int) error {
+	c, err := NewTable(vars, rows)
 	if err != nil {
 		return err
 	}
@@ -211,6 +296,85 @@ func Solutions(goal Goal, vars ...*Var) []map[string]Term {
 func SolutionsCtx(ctx context.Context, n int, goal Goal, vars ...*Var) []map[string]Term {
 	return SolutionsN(ctx, n, goal, vars...)
 }
+
+// RowsN runs a goal and returns up to n rows of reified Terms projected in the
+// order of vars provided. Each row corresponds to one solution. If no vars are
+// provided, each row contains a single Atom(nil) to preserve cardinality. When
+// n<=0, all solutions are returned (which may not terminate for infinite goals).
+func RowsN(ctx context.Context, n int, goal Goal, vars ...*Var) [][]Term {
+	store := NewLocalConstraintStore(NewGlobalConstraintBus())
+	stream := goal(ctx, store)
+
+	rows := make([][]Term, 0)
+	for len(rows) < n || n <= 0 {
+		batchSize := 10
+		if n > 0 {
+			rem := n - len(rows)
+			if rem < batchSize {
+				batchSize = rem
+			}
+		}
+		rs, more := stream.Take(batchSize)
+		for _, st := range rs {
+			if len(vars) == 0 {
+				rows = append(rows, []Term{st.GetSubstitution().DeepWalk(NewAtom(nil))})
+				continue
+			}
+			row := make([]Term, len(vars))
+			for i, v := range vars {
+				row[i] = st.GetSubstitution().DeepWalk(v)
+			}
+			rows = append(rows, row)
+			if n > 0 && len(rows) >= n {
+				break
+			}
+		}
+		if !more || (n > 0 && len(rows) >= n) {
+			break
+		}
+	}
+	return rows
+}
+
+// Rows is RowsN with n<=0 (all results). WARNING: may not terminate on goals
+// with infinite streams.
+func Rows(goal Goal, vars ...*Var) [][]Term { return RowsN(context.Background(), 0, goal, vars...) }
+
+// IntsN solves for a single variable and returns up to n integer values.
+// Non-int bindings are skipped. When n<=0, all results are returned.
+func IntsN(ctx context.Context, n int, goal Goal, v *Var) []int {
+	rows := RowsN(ctx, n, goal, v)
+	out := make([]int, 0, len(rows))
+	for _, r := range rows {
+		if len(r) == 1 {
+			if iv, ok := AsInt(r[0]); ok {
+				out = append(out, iv)
+			}
+		}
+	}
+	return out
+}
+
+// Ints is IntsN with n<=0 (all results).
+func Ints(goal Goal, v *Var) []int { return IntsN(context.Background(), 0, goal, v) }
+
+// StringsN solves for a single variable and returns up to n string values.
+// Non-string bindings are skipped. When n<=0, all results are returned.
+func StringsN(ctx context.Context, n int, goal Goal, v *Var) []string {
+	rows := RowsN(ctx, n, goal, v)
+	out := make([]string, 0, len(rows))
+	for _, r := range rows {
+		if len(r) == 1 {
+			if sv, ok := AsString(r[0]); ok {
+				out = append(out, sv)
+			}
+		}
+	}
+	return out
+}
+
+// Strings is StringsN with n<=0 (all results).
+func Strings(goal Goal, v *Var) []string { return StringsN(context.Background(), 0, goal, v) }
 
 // FormatSolutions pretty-prints a slice of solutions for human-friendly output.
 // Each solution is rendered as "name: value, name2: value2" with lists and strings
