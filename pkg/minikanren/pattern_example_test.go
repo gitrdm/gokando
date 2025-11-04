@@ -70,11 +70,11 @@ func ExampleMatchu() {
 	// Classify numbers with mutually exclusive ranges
 	classify := func(n int) string {
 		result := Run(1, func(q *Var) Goal {
-			return Matchu(NewAtom(n),
-				NewClause(NewAtom(0), Eq(q, NewAtom("zero"))),
-				NewClause(NewAtom(1), Eq(q, NewAtom("one"))),
-				NewClause(NewAtom(2), Eq(q, NewAtom("two"))),
-			)
+			return CaseIntMap(NewAtom(n), map[int]string{
+				0: "zero",
+				1: "one",
+				2: "two",
+			}, q)
 		})
 
 		if len(result) == 0 {
@@ -212,12 +212,17 @@ func ExampleMatcha_deterministicChoice() {
 func ExampleMatchu_validation() {
 	// Validate that a value matches exactly one category
 	validate := func(val int) (string, bool) {
+		// Alternative implementation for demonstration purposes
+		// return Matchu(NewAtom(val),
+		//		NewClause(NewAtom(1), Eq(q, NewAtom("category-A"))),
+		//		NewClause(NewAtom(2), Eq(q, NewAtom("category-B"))),
+		//		NewClause(NewAtom(3), Eq(q, NewAtom("category-C"))),
 		result := Run(1, func(q *Var) Goal {
-			return Matchu(NewAtom(val),
-				NewClause(NewAtom(1), Eq(q, NewAtom("category-A"))),
-				NewClause(NewAtom(2), Eq(q, NewAtom("category-B"))),
-				NewClause(NewAtom(3), Eq(q, NewAtom("category-C"))),
-			)
+			return CaseIntMap(NewAtom(val), map[int]string{
+				1: "category-A",
+				2: "category-B",
+				3: "category-C",
+			}, q)
 		})
 
 		if len(result) == 0 {

@@ -736,3 +736,37 @@ func ValuesString(results []map[string]Term, name string) []string {
 	}
 	return out
 }
+
+// CaseIntMap builds a ready-to-use Goal that maps integer values to string
+// atoms according to the provided mapping. The helper creates a deterministic
+// sequence of pattern clauses (sorted by key) and returns a Goal equivalent to
+// calling Matche(term, clauses...).
+//
+// Example usage:
+//
+//	goal := CaseIntMap(valueTerm, map[int]string{0: "zero", 1: "one"}, q)
+//	// then run or combine `goal` with other goals
+func CaseIntMap(term Term, mapping map[int]string, q *Var) Goal {
+	// Sort keys for deterministic clause order
+	keys := make([]int, 0, len(mapping))
+	for k := range mapping {
+		keys = append(keys, k)
+	}
+	if len(keys) == 0 {
+		// No mapping - return a failing goal
+		return func(ctx context.Context, store ConstraintStore) *Stream {
+			stream := NewStream()
+			stream.Close()
+			return stream
+		}
+	}
+	sort.Ints(keys)
+
+	clauses := make([]PatternClause, 0, len(keys))
+	for _, k := range keys {
+		v := mapping[k]
+		clauses = append(clauses, NewClause(NewAtom(k), Eq(q, NewAtom(v))))
+	}
+
+	return Matche(term, clauses...)
+}
