@@ -193,4 +193,3 @@ func ExampleNoto() {
 	// Noto(fail) succeeds: true
 	// Noto(success) fails: true
 }
-
