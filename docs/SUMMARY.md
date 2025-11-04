@@ -23,6 +23,7 @@
 - [Guides Overview](guides/README.md)
 - [Contributing](guides/contributing.md)
 - [FAQ](guides/faq.md)
+- [HLAPI v1.0 Scope](guides/hlapi-scope.md)
 
 ## Performance Profiles
 

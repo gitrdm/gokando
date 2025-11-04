@@ -85,8 +85,11 @@ func ExampleRationalLinearSum_percentageCalculation() {
 
 	// Base salary: $50,000
 	baseSalary := model.NewVariable(NewBitSetDomainFromValues(100000, []int{50000}))
-	// Total with 10% bonus
-	totalPay := model.NewVariable(NewBitSetDomain(100000))
+	// Total with 10% bonus. Use a realistic, narrower domain to keep the example fast.
+	// Wide dense domains cause ScaledDivision to enumerate large ranges for arc-consistency.
+	// Here we bound to [54_000..56_000] which still demonstrates propagation clearly
+	// while keeping runtime well under a second.
+	totalPay := model.NewVariable(DomainRange(54000, 56000))
 
 	// Constraint: totalPay = 1.1 * baseSalary = (11/10) * baseSalary
 	coeffs := []Rational{NewRational(11, 10)} // 110% = 11/10
