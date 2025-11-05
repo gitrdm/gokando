@@ -64,6 +64,10 @@ func Fresho(name *Atom, term Term) Goal {
 
 // FreshnessConstraint enforces that a nominal name does not occur free in a term.
 // The constraint is local and re-evaluates when any variable inside the term binds.
+//
+// Note: LocalConstraintStore validates constraints on AddConstraint; if this
+// freshness is already violated under current bindings, the add will be rejected
+// with an error and the constraint will not be stored.
 type FreshnessConstraint struct {
 	id   string
 	name *Atom

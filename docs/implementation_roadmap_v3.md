@@ -1610,9 +1610,7 @@ func ExampleTabled() {
 
 ---
 
-### Phase 7.1: Nominal Logic Programming ⏳ PLANNED
-
-### Phase 7.1: Nominal Logic Programming ⏳ PLANNED
+### Phase 7.1: Nominal Logic Programming ✅ COMPLETED (core, 2025-11-05)
 
 **Objective**: Enable reasoning about variable binding and scope (alpha-equivalence), supporting meta-programming and compiler applications.
 
@@ -1620,46 +1618,58 @@ func ExampleTabled() {
 
 **Prerequisites**: Phase 7.0 foundational operators should be complete, as nominal logic may leverage relational arithmetic and advanced control flow patterns.
 
-- [ ] **Task 7.1.1: Design Nominal Variable System**
-    - [ ] **Objective**: Create the foundation for nominal variables and binding.
-    - [ ] **Action**:
-        - [ ] Define `NominalVar` type distinct from regular logic variables
-        - [ ] Implement nominal variable generation with `NomFresh(name string) *NominalVar`
-        - [ ] Design representation for binding constructs (`Tie`)
-        - [ ] Implement freshness constraint tracking
-    - [ ] **Success Criteria**: Nominal variables can be created and distinguished from regular variables.
-    - **Design Considerations**:
-        - Nominal variables are atoms but with special properties
-        - Freshness is a constraint, not a structural property
-        - Need efficient freshness constraint propagation
+> Semantics note (implementation detail): The LocalConstraintStore validates constraints at add-time. For nominal logic, this means a FreshnessConstraint that is immediately violated by the current bindings will be rejected when added (AddConstraint returns an error) rather than being stored in a pending state. Tests and examples should account for this immediate-rejection behavior.
 
-- [ ] **Task 7.1.2: Implement Binding and Freshness**
-    - [ ] **Objective**: Support name binding and freshness constraints.
-    - [ ] **Action**:
-        - [ ] Implement `Tie(v *NominalVar, body Term) *Tie` for λ-abstraction style binding
-        - [ ] Implement `Hash(v1, v2 *NominalVar) Goal` for freshness constraints (v1 ≠ v2)
-        - [ ] Implement freshness propagation in constraint store
-        - [ ] Handle freshness in unification
-    - [ ] **Success Criteria**: Binding and freshness constraints work correctly in isolation.
+**Delivered (core features)**
+- TieTerm/Lambda: binder form representing λ name . body (`pkg/minikanren/nominal.go`).
+- Fresho/NewFreshnessConstraint: freshness constraint (name does not occur free in term) with pending semantics for unbound vars; immediate add-time rejection when violated.
+- AlphaEqo/NewAlphaEqConstraint: alpha-equivalence constraint (Tie-aware) with environment-based binder mapping.
+- NomFresh(prefix): helper for generating unique nominal atoms.
+- NominalPlugin: plugin integrates with HybridSolver; validates nominal constraints during propagation.
+- Tests and examples: regression tests in `pkg/minikanren/nominal_test.go` and user-facing examples in `pkg/minikanren/nominal_example_test.go`.
+- Docs: API reference at `docs/api-reference/nominal.md`; code docs include the add-time validation note.
+
+**Design decisions**
+- Nominal names are represented by `*Atom` (no separate NominalVar type). Binding is encoded structurally via `TieTerm`.
+- Alpha-equivalence is modeled as a constraint (no changes to the base unifier). This keeps nominal reasoning modular and plugin-driven.
+
+- [x] **Task 7.1.1: Design Nominal Variable System**
+    - [x] **Objective**: Create the foundation for nominal names and binding.
+    - [x] **Action**:
+        - [x] Use `*Atom` to represent nominal names (no distinct NominalVar type); generate with `NomFresh(prefix) *Atom`.
+        - [x] Design representation for binding constructs (`Tie`/`Lambda`).
+        - [x] Implement freshness constraint tracking (FreshnessConstraint).
+    - [x] **Success Criteria**: Nominal names can be created and used in binder structures.
+    - **Design Considerations**:
+        - Names-as-atoms keeps interop simple; binding modeled structurally via `TieTerm`.
+        - Freshness implemented as a first-class constraint with efficient local propagation.
+
+- [x] **Task 7.1.2: Implement Binding and Freshness**
+    - [x] **Objective**: Support name binding and freshness constraints.
+    - [x] **Action**:
+        - [x] Implemented `Tie(name *Atom, body Term) *TieTerm` (λ-abstraction binding).
+        - [x] Implemented `Fresho(name *Atom, term Term) Goal` for freshness; underlying `FreshnessConstraint` with add-time validation.
+        - [x] Freshness propagation via LocalConstraintStore and NominalPlugin; no changes to core unifier.
+    - [x] **Success Criteria**: Binding and freshness constraints work correctly in isolation and within HybridSolver propagation.
     - **Example API**:
         ```go
         // Represent: λa. (λb. a)
-        NomFresh2(func(a, b *NominalVar) Goal {
+        Fresh(func(a *Var) Goal { /* standard logic var */ }); // nominal names are Atoms
+        NomFresh2(func(a, b *Atom) Goal {
             return Eq(
                 q,
-                Lambda(Tie(a, Lambda(Tie(b, a)))),
+                Lambda(a, Lambda(b, a)),
             )
         })
         ```
 
-- [ ] **Task 7.1.3: Implement Alpha-Equivalence**
-    - [ ] **Objective**: Make unification respect binding structure.
-    - [ ] **Action**:
-        - [ ] Extend unification to handle `Tie` structures
-        - [ ] Implement alpha-equivalence checking (renaming bound variables)
-        - [ ] Ensure freshness constraints are enforced during unification
-        - [ ] Test with lambda calculus examples
-    - [ ] **Success Criteria**: Terms that are alpha-equivalent unify; terms that differ modulo renaming don't.
+- [x] **Task 7.1.3: Implement Alpha-Equivalence**
+    - [x] **Objective**: Make nominal reasoning respect binding structure.
+    - [x] **Action**:
+        - [x] Implemented `AlphaEqo(left, right) Goal` with `AlphaEqConstraint` (Tie-aware) and environment-based binder mapping.
+        - [x] Kept base unifier unchanged; alpha-equivalence is expressed and enforced via constraint solving.
+        - [x] Tested basic and nested lambda cases; integrated with HybridSolver.
+    - [x] **Success Criteria**: Terms equal modulo renaming satisfy the constraint; non-equivalent structures violate it; pending status when variables unresolved.
     - **Test Cases**:
         - `λa.a` ≡ `λb.b` (alpha-equivalent)
         - `λa.λb.a` ≡ `λx.λy.x` (alpha-equivalent)
@@ -1678,22 +1688,27 @@ func ExampleTabled() {
         - Type inference for simply-typed lambda calculus
         - Program transformation preserving alpha-equivalence
 
-- [ ] **Task 7.1.5: Testing and Documentation**
-    - [ ] **Objective**: Ensure correctness of nominal logic implementation.
-    - [ ] **Action**:
-        - [ ] Test freshness constraint propagation
-        - [ ] Test alpha-equivalence in various contexts
-        - [ ] Test substitution without capture
-        - [ ] Create comprehensive examples
-        - [ ] Document nominal logic concepts for Go users
-    - [ ] **Success Criteria**: All nominal logic tests pass; examples are clear and correct.
+- [x] **Task 7.1.5: Testing and Documentation**
+    - [x] **Objective**: Ensure correctness of nominal logic implementation.
+    - [x] **Action**:
+        - [x] Added unit tests for freshness and alpha-equivalence (including nested binders, bound vs free occurrences, pending semantics).
+        - [x] Added user-facing examples for Fresho and AlphaEqo in `pkg/minikanren/nominal_example_test.go`.
+        - [x] Wrote API reference `docs/api-reference/nominal.md` and code-level literate comments.
+        - [x] Documented LocalConstraintStore immediate-rejection semantics for FreshnessConstraint.
+    - [x] **Success Criteria**: All nominal tests and examples pass; documentation reflects actual behavior.
 
-**Phase 7.1 Success Criteria**:
-- Nominal variables and binding work correctly
-- Alpha-equivalence is properly implemented
-- Lambda calculus substitution works without capture
-- Examples demonstrate meta-programming capabilities
-- Documentation explains when nominal logic is useful
+**Phase 7.1 Current Status**:
+- Implementation: Core nominal logic delivered (binders, freshness, alpha-equivalence, plugin integration).
+- Tests/Examples: Comprehensive unit tests and examples are included and passing.
+- Documentation: API reference and code docs updated; store semantics documented.
+- Follow-ons: Advanced applications (capture-avoiding substitution, type inference examples) are deferred to future iterations.
+
+**Phase 7.1 Success Criteria (core)**:
+- [x] Binding and freshness work correctly (including pending detection, immediate rejection on violation)
+- [x] Alpha-equivalence is implemented and enforced via constraints
+- [x] Examples demonstrate nominal operations and plugin integration
+- [x] Documentation explains when and how to use nominal logic
+- [ ] Lambda calculus substitution without capture (deferred)
 
 **Phase 7 Overall Priority Notes**:
 - **Phase 7.0** (Foundational Operators): MEDIUM-HIGH priority

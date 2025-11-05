@@ -9,6 +9,8 @@ This module adds nominal constructs to gokanlogic, enabling reasoning about bind
 
 Constraints implement the project-wide `Constraint` interface and are processed by the `NominalPlugin` in the HybridSolver. They are purely local and thread-safe.
 
+Note: When using LocalConstraintStore, constraints are validated at add-time. A `Fresho` goal that creates a freshness constraint already violated by current bindings will cause `AddConstraint` to return an error; such a constraint is not recorded as pending.
+
 ## Examples
 
 - Freshness under binders:
