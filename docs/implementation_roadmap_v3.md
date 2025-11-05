@@ -1708,7 +1708,7 @@ func ExampleTabled() {
 - [x] Alpha-equivalence is implemented and enforced via constraints
 - [x] Examples demonstrate nominal operations and plugin integration
 - [x] Documentation explains when and how to use nominal logic
-- [ ] Lambda calculus substitution without capture (deferred)
+- [x] Lambda calculus substitution without capture
 
 **Phase 7 Overall Priority Notes**:
 - **Phase 7.0** (Foundational Operators): MEDIUM-HIGH priority

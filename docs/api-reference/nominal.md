@@ -6,6 +6,7 @@ This module adds nominal constructs to gokanlogic, enabling reasoning about bind
 - Fresho(name, term): goal adding a freshness constraint that `name` does not occur free in `term`.
 - AlphaEqo(left, right): goal adding an alpha-equivalence constraint between two terms, treating Tie binders modulo renaming.
 - NomFresh(prefix): helper that produces fresh nominal name atoms with unique suffixes (e.g., `x#42`).
+- Substo(term, name, replacement, out): goal relating `out` to the capture-avoiding substitution of all free occurrences of `name` in `term` with `replacement`.
 
 Constraints implement the project-wide `Constraint` interface and are processed by the `NominalPlugin` in the HybridSolver. They are purely local and thread-safe.
 
@@ -50,3 +51,34 @@ func ExampleAlphaEqo_basic() {
 ```
 
 See `pkg/minikanren/nominal_example_test.go` for more examples.
+
+## Substitution without capture (Substo)
+
+Substo performs λ-calculus style substitution respecting binders encoded with `Tie`/`Lambda`:
+
+- If the binder equals the target name, substitution does not enter the body.
+- If the binder is fresh for the replacement, substitution proceeds under the same binder.
+- Otherwise, the binder is alpha-renamed to a fresh nominal atom (via `NomFresh`) before substitution to avoid capture.
+
+Notes:
+- Substo is a Goal that computes deterministically with current bindings. If its decision depends on unresolved logic variables (e.g., freshness cannot yet be decided), it yields no solution until more information becomes available.
+- For nominal freshness checks, the same add-time validation rule applies: `Fresho` used internally in derivation is validated immediately in the LocalConstraintStore.
+
+Example:
+
+```go
+func ExampleSubsto_avoidCapture() {
+    a := NewAtom("a")
+    b := NewAtom("b")
+    term := Lambda(b, a) // λb.a
+
+    results := Run(1, func(q *Var) Goal {
+        return Substo(term, a, b, q)
+    })
+
+    tie := results[0].(*TieTerm)
+    // binderIsB:false, bodyIsB:true — binder was renamed, body became b
+    fmt.Printf("binderIsB:%v bodyIsB:%v\n", tie.name.Equal(b), tie.body.Equal(b))
+    // Output: binderIsB:false bodyIsB:true
+}
+```
