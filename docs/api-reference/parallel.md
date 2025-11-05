@@ -1,3 +1,8 @@
+---
+title: parallel API
+render_with_liquid: false
+---
+
 # parallel API
 
 Complete API documentation for the parallel package.

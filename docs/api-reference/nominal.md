@@ -1,3 +1,8 @@
+---
+title: Nominal Logic (Phase 7.1)
+render_with_liquid: false
+---
+
 # Nominal Logic (Phase 7.1)
 
 This module adds nominal constructs to gokanlogic, enabling reasoning about binders and alpha-equivalence.
