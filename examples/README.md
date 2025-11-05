@@ -152,34 +152,9 @@ This example showcases the impressive capabilities of the modern FD solver:
 - **Effective propagation**: Combined constraints prune the search space efficiently
 - **Modern architecture**: Professional constraint solver design
 
-This example demonstrates that the FD solver has evolved into a production-ready constraint programming system capable of solving challenging real-world combinatorial problems.
 ```
 
-**Sample Output:**
-```
-=== Knight's Tour on 5x5 Board ===
-
-Found 2 complete assignments, validating against knight move rules...
-✓ Expected result: constraint validation working - no valid knight's tour found among 2 assignments
-
-✓ FD Solver successfully exercised!
-
-This example demonstrates:
-- FDStore with AllDifferent constraints for uniqueness
-- Custom constraint framework using public domain access methods
-- Post-assignment validation of complex combinatorial constraints
-
-Note: Complete knight's tours require sophisticated constraint
-propagation algorithms. The solver finds assignments satisfying
-uniqueness, but knight move constraints are validated separately.
-
-This reveals an important limitation: while the framework works,
-some constraint problems need stronger propagation algorithms.
-```
-
-#### FD Solver Capabilities and Current Limitations
-
-Based on the current FD solver implementation, here are key insights about its constraint capabilities:
+Based on the current FD solver implementation, here are key features related to its constraint capabilities:
 
 **✅ Currently Implemented and Working:**
 - **BitSet-based finite domains** with efficient 1-based indexing
@@ -195,7 +170,6 @@ Based on the current FD solver implementation, here are key insights about its c
 **🔍 Key Insights:**
 - The FD solver excels at **basic combinatorial problems** with AllDifferent and arithmetic constraints
 - **Knight's tours require specialized global constraints** like circuit/path constraints for modeling graph structures
-- Current implementation demonstrates **validation capabilities** but knight move constraints are complex
 - The **constraint framework is solid** - many other global constraints work well (see TSP, Table, Regular examples)
 
 **🚀 Current Alternative:**
@@ -626,13 +600,21 @@ Given twelve statements that reference themselves and each other, determine whic
 - Statement 7: "Either statement 2 or 3 is true, but not both."
 
 **Features demonstrated:**
-- Self-referential constraint solving
-- Using `Project` to verify complex interdependent constraints
-- Boolean logic with implications and XOR
-- Unique solution finding with `RunStar`
+- **Modern FD solver** with global constraints (no `Project` needed!)
+- **BoolSum constraint** for counting true statements ("exactly N are true")
+- **ValueEqualsReified** for bidirectional boolean implications
+- **Table constraint** for complex boolean logic (XOR, implication, conjunction)
+- Self-referential constraint satisfaction
+- Unique solution finding with sophisticated constraint propagation
 
-**Implementation note:**
-This puzzle uses `Project` as a constraint verification oracle rather than pure relational programming. The self-referential nature and counting constraints ("exactly N are true") don't map naturally to miniKanren's relational model, so we enumerate the 2^12 boolean space and verify each assignment in Go. This demonstrates a pragmatic approach for constraint satisfaction problems that fall outside miniKanren's sweet spot. For more idiomatic relational examples, see the Zebra and Apartment puzzles.
+**Implementation highlights:**
+This puzzle demonstrates the power of modern global constraints for complex boolean logic. The self-referential nature and counting constraints ("exactly N are true") are now handled directly by the FD solver using:
+- **BoolSum + Reification**: Counting constraints encoded as `BoolSum` over statement variables with reified equality
+- **Table constraints**: Complex boolean formulas (XOR, implication) encoded as extensional constraints
+- **Constraint propagation**: No enumeration needed - constraints guide the search directly
+- **Boolean variables**: Each statement is an FD variable with domain {1=false, 2=true}
+
+This represents a major advancement from the original `Project`-based verification approach, showcasing how sophisticated global constraints can elegantly handle problems that previously required imperative verification.
 
 **Sample Output:**
 ```
@@ -807,28 +789,21 @@ Project(List(col1, col2), func(vals []Term) Goal {
 
 **Trade-off:** Less idiomatic, but far more practical than encoding arithmetic relationally.
 
-#### ⭐ **Verification Oracle** (Twelve Statements)
+#### ⭐⭐⭐⭐ **Modern FD Constraints** (Twelve Statements)
 
-**Twelve Statements** uses miniKanren primarily for enumeration, with `Project` doing heavy verification:
+**Twelve Statements** now showcases modern FD solver capabilities:
+- **BoolSum constraints**: Counting true statements with `BoolSum([S7,S8,S9,S10,S11,S12], total)` 
+- **Reified constraints**: `ValueEqualsReified(total, 3+1, S2)` for "S2 ↔ (exactly 3 are true)"
+- **Table constraints**: Complex boolean logic encoded as extensional constraints
+- **No Project needed**: Pure constraint-based solving with sophisticated propagation
 
-```go
-Project(s, func(vals []Term) Goal {
-    // Extract all 12 boolean values
-    // Verify complex interdependent logic in Go
-    if statement1_implies_statement2 && exactly_N_true(...) {
-        return Success
-    }
-    return Failure
-})
-```
+**Why this is a major improvement:**
+- **Declarative counting**: `BoolSum` directly represents "exactly N are true" 
+- **Bidirectional implications**: Reification handles "statement X is true iff condition Y holds"
+- **Boolean formula encoding**: Table constraints elegantly represent XOR, implication, conjunction
+- **Efficient solving**: Constraint propagation finds the solution without enumeration
 
-**Why deviate:** Self-referential statements with counting constraints ("exactly 3 of the last 6 are true") don't map naturally to relational programming. The problem is inherently imperative.
-
-**When this approach makes sense:**
-- Small search space (2^12 = 4096 states)
-- Constraints are deeply interdependent and numeric
-- Verification logic is clearer in imperative code
-- Alternative would be extremely verbose and unclear
+**Key insight:** Problems that previously required `Project` verification can often be solved with modern global constraints, leading to more elegant and efficient solutions.
 
 ### Choosing Your Approach
 
@@ -837,8 +812,8 @@ Project(s, func(vals []Term) Goal {
 | Symbolic/structural constraints | Pure relational (no `Project`) | Graph coloring, Zebra |
 | Mostly symbolic + some arithmetic | Relational core + `Project` for math | Apartment |
 | Mixed symbolic/numeric | Relational where possible, `Project` for computation | N-Queens |
-| Numeric/counting/self-referential | `Project` verification oracle | Twelve Statements |
-| Large combinatorial (no CLP) | Consider alternative tools | Sudoku (removed) |
+| Boolean logic + counting | Modern FD constraints (BoolSum, Table, Reification) | Twelve Statements |
+| Large combinatorial (no CLP) | Consider alternative tools | - |
 
 ### Performance Boundaries
 

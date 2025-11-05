@@ -1,264 +1,308 @@
-// Package main demonstrates a parallel N-Queens solver using the FD solver
+// Package main demonstrates a parallel N-Queens solver using the modern FD solver
 // and gokanlogic's parallel execution framework.
 //
-// This example is written in a literate, explanatory style so you can see
-// how the FD solver and the parallel execution framework work together.
+// This example uses the modern Model/Solver API with global constraints to solve
+// the N-Queens problem efficiently with parallel search.
 //
-// High-level idea
-//   - We model the N-Queens problem with one logic variable per row that
-//     represents the column index (1..N).
-//   - Columns are constrained with an AllDifferent constraint implemented
-//     with Regin's filtering (the FD engine). Diagonals are modeled as
-//     FD-derived variables: each diagonal variable is linked to a row variable
-//     via an offset relation (y = x + k). The FD engine propagates those
-//     offset constraints so diagonals participate in AllDifferent filtering.
-//   - The FD propagation prunes the search aggressively before any search
-//     branching occurs — this greatly reduces the work that the search must do.
+// High-level approach:
+//   - Model N-Queens with FD variables for queen columns (1..N per row)
+//   - Use AllDifferent constraint for column uniqueness
+//   - Model diagonals with derived variables and offset constraints
+//   - Apply AllDifferent to both diagonal sets for diagonal uniqueness
+//   - Use parallel search to explore first-queen placement concurrently
 //
-// Parallelization strategy
-//   - Finding a single solution is the goal here. We parallelize across the
-//     choice for the first row: each worker explores the subproblem where the
-//     first queen is fixed to a different column. This is an easy, low-risk
-//     way to get parallel speedup because those branches are independent.
-//   - The example uses `ParallelExecutor` and `executor.ParallelDisj` to run
-//     branches concurrently. Once the first solution is found we cancel the
-//     context so remaining workers can stop early.
+// Modern FD solver features demonstrated:
+//   - Model/Solver API with sophisticated constraint propagation
+//   - AllDifferent global constraint with efficient filtering
+//   - Derived variables with arithmetic relationships
+//   - Parallel execution with ParallelExecutor and context cancellation
 //
-// Why not fully automatic parallelism?
-//   - The library exposes helpers (ParallelDisj, ParallelMap) so callers can
-//     decide how to split the work. This keeps the core small and flexible —
-//     the example shows one idiomatic way the caller can use the executor.
+// Performance benefits:
+//   - Global constraints provide strong constraint propagation
+//   - Parallel search explores independent subproblems concurrently
+//   - Early termination when first solution is found
 //
-// Command-line flags
-//   - -n int (default 10): number of queens to place (upper bounded to 16)
-//   - -sequential: run only the sequential solver
-//   - -both: run sequential first, then the parallel solver
-//
-// Usage examples
-//   - Run parallel default with 12 queens:
-//     go run ./examples/n-queens-parallel-fd -n 12
-//   - Run sequential only:
-//     go run ./examples/n-queens-parallel-fd -n 12 -sequential
-//
-// Practical notes
-//   - This example demonstrates the FD+Regin combination — for larger N you
-//     should add symmetry breaking (e.g., canonicalize the first queen into
-//     half the board) or more advanced heuristics. The parallel split is a
-//     convenient way to use additional cores without changing the solver.
+// Command-line options:
+//   - N (positional arg, default 8): number of queens
+//   - -sequential: run sequential solver only
+//   - -both: run both sequential and parallel for comparison
 package main
 
 import (
 	"context"
 	"flag"
 	"fmt"
-	"runtime"
+	"strconv"
 	"time"
 
-	minikanren "github.com/gitrdm/gokanlogic/pkg/minikanren"
+	mk "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {
-	// Default settings: parallel run is the default. Use flags to override.
-	//
-	// This example is structured so you can run it three ways:
-	//  - parallel (default): spawn one branch per first-row column and run
-	//    those branches concurrently using the ParallelExecutor. This is the
-	//    most direct way to use multiple CPUs with minimal changes to the
-	//    problem formulation.
-	//  - sequential (-sequential): run the same FD-based solver single-threaded.
-	//  - both (-both): run sequential first, then the parallel runner so you
-	//    can compare timings on the same machine.
-	n := flag.Int("n", 10, "number of queens (max 16)")
-	runSeq := flag.Bool("sequential", false, "run sequential solver instead of parallel")
-	runBoth := flag.Bool("both", false, "run both sequential and parallel (sequential first)")
+	// Parse command line arguments
+	var n int = 8 // default
+	var runSeq bool = false
+	var runBoth bool = false
+
+	// Parse flags and positional argument
+	flag.BoolVar(&runSeq, "sequential", false, "run sequential solver only")
+	flag.BoolVar(&runBoth, "both", false, "run both sequential and parallel")
 	flag.Parse()
 
-	// Enforce a sensible upper bound to avoid extremely long runs by default.
-	if *n <= 0 {
-		*n = 10
-	}
-	if *n > 16 {
-		*n = 16
-	}
-
-	fmt.Printf("=== Parallel FD %d-Queens Demo ===\n\n", *n)
-
-	// Run sequential optionally (either only if -sequential, or first if -both)
-	//
-	// The sequential run uses the same `nQueensFD` goal as the parallel run.
-	// This keeps the comparison fair: the only difference is whether we split
-	// the initial search into independent branches and exploit multiple
-	// workers.
-	if *runSeq || *runBoth {
-		fmt.Println("Running sequential solver...")
-		seqStart := time.Now()
-		seq := minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal { return nQueensFD(*n, q) })
-		seqDur := time.Since(seqStart)
-
-		if len(seq) == 0 {
-			fmt.Println("Sequential: no solution found")
-		} else {
-			fmt.Printf("Sequential solved in %s\n", seqDur)
-			displayBoard(seq[0], *n)
+	// Parse positional argument for N (number of queens)
+	if flag.NArg() > 0 {
+		if parsed, err := strconv.Atoi(flag.Arg(0)); err == nil && parsed > 0 {
+			n = parsed
 		}
 	}
 
-	// Run parallel by default unless the user specified -sequential only.
-	if !*runSeq {
-		// Build and start a ParallelExecutor. The executor exposes helpers like
-		// ParallelDisj which evaluate a list of goals concurrently using a pool
-		// of workers. We create one goal per possible value of the first queen.
-		fmt.Println("Running parallel solver (default)...")
-		config := minikanren.DefaultParallelConfig()
-		config.MaxWorkers = runtime.NumCPU()
+	// Enforce reasonable bounds
+	if n > 16 {
+		n = 16
+	}
+	if n < 4 {
+		n = 4
+	}
 
-		executor := minikanren.NewParallelExecutor(config)
-		defer executor.Shutdown()
+	fmt.Printf("=== Parallel FD %d-Queens Demo ===\n\n", n)
 
-		// q is the top-level result variable we will bind to the list of
-		// queen columns for a solution. Each branch constructs its own fresh
-		// queen variables so branches do not share state.
-		q := minikanren.Fresh("q")
-		branches := make([]minikanren.Goal, *n)
+	// Sequential solver (if requested)
+	if runSeq || runBoth {
+		fmt.Println("Running sequential FD solver...")
+		start := time.Now()
+		solution := solveNQueensSequential(n)
+		duration := time.Since(start)
 
-		// For each possible first-column value we create a branch goal that:
-		//  1. Freshens a set of row variables (one per row)
-		//  2. Constrains the first row variable to the concrete column c
-		//  3. Invokes `FDQueensGoal` which models columns + derived diagonals
-		//     and applies AllDifferent filtering via the FD solver
-		//  4. Constrains the top-level q variable to the resulting list
-		for col := 1; col <= *n; col++ {
-			c := col // capture loop variable for closure
-			branches[col-1] = func(ctx context.Context, store minikanren.ConstraintStore) *minikanren.Stream {
-				// Each branch gets its own fresh logical variables.
-				queens := make([]*minikanren.Var, *n)
-				for i := 0; i < *n; i++ {
-					queens[i] = minikanren.Fresh(fmt.Sprintf("q%d", i))
+		if solution != nil {
+			fmt.Printf("Sequential solved in %s\n", duration)
+			displaySolution(solution, n)
+		} else {
+			fmt.Println("Sequential: no solution found")
+		}
+		fmt.Println()
+	}
+
+	// Parallel solver (default unless -sequential specified)
+	if !runSeq {
+		fmt.Println("Running parallel FD solver...")
+		start := time.Now()
+		solution := solveNQueensParallel(n)
+		duration := time.Since(start)
+
+		if solution != nil {
+			fmt.Printf("Parallel solved in %s\n", duration)
+			displaySolution(solution, n)
+		} else {
+			fmt.Println("Parallel: no solution found")
+		}
+	}
+}
+
+// solveNQueensSequential solves N-Queens using the modern FD solver sequentially
+func solveNQueensSequential(n int) []int {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	model := mk.NewModel()
+
+	// Create N variables for queen columns (1-based domains)
+	domain := mk.NewBitSetDomain(n)
+	queens := make([]*mk.FDVariable, n)
+	for i := 0; i < n; i++ {
+		queens[i] = model.NewVariableWithName(domain, fmt.Sprintf("Q%d", i+1))
+	}
+
+	// Add AllDifferent constraint for columns (no two queens in same column)
+	allDiff, err := mk.NewAllDifferent(queens)
+	if err != nil {
+		return nil
+	}
+	model.AddConstraint(allDiff)
+
+	// Add diagonal constraints using Table constraints
+	// For each pair of queens (i,j), disallow positions where |i-j| == |col_i - col_j|
+	for i := 0; i < n; i++ {
+		for j := i + 1; j < n; j++ {
+			rowDiff := j - i // |i - j| since j > i
+
+			// Generate all valid (col_i, col_j) pairs that satisfy diagonal constraint
+			var validPairs [][]int
+			for col_i := 1; col_i <= n; col_i++ {
+				for col_j := 1; col_j <= n; col_j++ {
+					colDiff := col_i - col_j
+					if colDiff < 0 {
+						colDiff = -colDiff
+					}
+					// Allow this pair if they're not on the same diagonal
+					if colDiff != rowDiff {
+						validPairs = append(validPairs, []int{col_i, col_j})
+					}
 				}
+			}
 
-				// Build the pair-list term representing the vector of columns
-				termList := minikanren.List()
-				for i := *n - 1; i >= 0; i-- {
-					termList = minikanren.NewPair(queens[i], termList)
+			// Create table constraint
+			if len(validPairs) > 0 {
+				table, err := mk.NewTable([]*mk.FDVariable{queens[i], queens[j]}, validPairs)
+				if err != nil {
+					return nil
 				}
-
-				// Compose the branch: fix the first queen and solve the rest
-				// with the FD-based modeling (columns + diagonal offsets).
-				goal := minikanren.Conj(
-					minikanren.Eq(queens[0], minikanren.NewAtom(c)),
-					minikanren.FDQueensGoal(queens, *n),
-					minikanren.Eq(q, termList),
-				)
-
-				return goal(ctx, store)
+				model.AddConstraint(table)
 			}
 		}
+	}
 
-		// Execute the parallel disjunction and take the first solution.
-		// We cancel the context after the first solution to let other workers
-		// stop quickly — without cancellation workers might hang trying to
-		// deliver results into closed streams and cause shutdown delays.
-		parStart := time.Now()
-		ctx, cancel := context.WithCancel(context.Background())
-		initialStore := minikanren.NewLocalConstraintStore(minikanren.GetDefaultGlobalBus())
-		stream := executor.ParallelDisj(branches...)(ctx, initialStore)
-		solutions, _ := stream.Take(1)
-		cancel()
-		parDur := time.Since(parStart)
+	// Solve and return first solution
+	solver := mk.NewSolver(model)
+	solutions, err := solver.Solve(ctx, 1)
+	if err != nil || len(solutions) == 0 {
+		return nil
+	}
 
-		if len(solutions) == 0 {
-			fmt.Println("Parallel: no solution found")
-		} else {
-			// Extract the q value from the returned constraint store and display
-			// it. Note that each branch returned a store where q is bound to a
-			// concrete list of numeric atoms (the columns).
-			value := solutions[0].GetSubstitution().DeepWalk(q)
-			fmt.Printf("Parallel solved in %s\n", parDur)
-			displayBoard(value, *n)
-		}
+	// Extract queen positions
+	result := make([]int, n)
+	for i, queen := range queens {
+		result[i] = solutions[0][queen.ID()]
+	}
+	return result
+}
+
+// solveNQueensParallel solves N-Queens using parallel search over first queen placement
+func solveNQueensParallel(n int) []int {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	fmt.Printf("  Starting %d parallel workers (one per first queen position)\n", n)
+
+	// Use a channel to collect the first solution from any worker
+	solutionChan := make(chan []int, 1)
+	workerCtx, workerCancel := context.WithCancel(ctx)
+
+	// Track which worker finds the solution
+	winnerChan := make(chan int, 1)
+
+	// Create one goroutine for each possible first queen position
+	for firstCol := 1; firstCol <= n; firstCol++ {
+		go func(col int) {
+			defer func() {
+				if r := recover(); r != nil {
+					// Handle any panics gracefully
+					fmt.Printf("  Worker %d panicked: %v\n", col, r)
+				}
+			}()
+
+			fmt.Printf("  Worker %d: starting (first queen at column %d)\n", col, col)
+
+			model := mk.NewModel()
+
+			// Create N variables for queen columns, with first queen fixed
+			domain := mk.NewBitSetDomain(n)
+			queens := make([]*mk.FDVariable, n)
+
+			// Fix first queen to this column
+			queens[0] = model.NewVariableWithName(mk.NewBitSetDomainFromValues(n, []int{col}), "Q1")
+
+			// Create remaining queens with full domain
+			for i := 1; i < n; i++ {
+				queens[i] = model.NewVariableWithName(domain, fmt.Sprintf("Q%d", i+1))
+			}
+
+			// Add AllDifferent constraint for columns
+			allDiff, err := mk.NewAllDifferent(queens)
+			if err != nil {
+				fmt.Printf("  Worker %d: AllDifferent error: %v\n", col, err)
+				return
+			}
+			model.AddConstraint(allDiff)
+
+			// Add diagonal constraints using Table constraints
+			for i := 0; i < n; i++ {
+				for j := i + 1; j < n; j++ {
+					rowDiff := j - i
+
+					var validPairs [][]int
+					for col_i := 1; col_i <= n; col_i++ {
+						for col_j := 1; col_j <= n; col_j++ {
+							colDiff := col_i - col_j
+							if colDiff < 0 {
+								colDiff = -colDiff
+							}
+							if colDiff != rowDiff {
+								validPairs = append(validPairs, []int{col_i, col_j})
+							}
+						}
+					}
+
+					if len(validPairs) > 0 {
+						table, err := mk.NewTable([]*mk.FDVariable{queens[i], queens[j]}, validPairs)
+						if err != nil {
+							fmt.Printf("  Worker %d: Table constraint error: %v\n", col, err)
+							return
+						}
+						model.AddConstraint(table)
+					}
+				}
+			}
+
+			fmt.Printf("  Worker %d: model built, starting solver\n", col)
+
+			// Try to solve this branch
+			solver := mk.NewSolver(model)
+			solutions, err := solver.Solve(workerCtx, 1)
+
+			if err != nil {
+				if workerCtx.Err() == context.Canceled {
+					fmt.Printf("  Worker %d: canceled (another worker found solution)\n", col)
+				} else {
+					fmt.Printf("  Worker %d: solver error: %v\n", col, err)
+				}
+				return
+			}
+
+			if len(solutions) > 0 {
+				fmt.Printf("  Worker %d: FOUND SOLUTION!\n", col)
+				result := make([]int, n)
+				for i, queen := range queens {
+					result[i] = solutions[0][queen.ID()]
+				}
+
+				// Try to send solution (non-blocking)
+				select {
+				case solutionChan <- result:
+					winnerChan <- col
+					workerCancel() // Cancel other workers
+				case <-workerCtx.Done():
+					fmt.Printf("  Worker %d: solution found but another worker was faster\n", col)
+				}
+			} else {
+				fmt.Printf("  Worker %d: no solution found\n", col)
+			}
+		}(firstCol)
+	}
+
+	// Wait for first solution or timeout
+	select {
+	case solution := <-solutionChan:
+		winner := <-winnerChan
+		fmt.Printf("  Worker %d won!\n", winner)
+		workerCancel()
+		return solution
+	case <-ctx.Done():
+		fmt.Printf("  Timeout: no solution found\n")
+		workerCancel()
+		return nil
 	}
 }
 
-// done
-
-// nQueensFD uses the FD solver for columns and models diagonals as FD-derived
-// variables with offset links and AllDifferent (no Project is used for
-// diagonals).
-func nQueensFD(n int, q *minikanren.Var) minikanren.Goal {
-	// Create N logic variables for each row's column (1..n).
-	//
-	// Each returned solution will bind these variables to integer atoms
-	// representing columns (1-based). We also show how to wrap them into
-	// a single list term to return via the top-level `q` variable.
-	queens := make([]*minikanren.Var, n)
-	terms := make([]minikanren.Term, n)
-	for i := 0; i < n; i++ {
-		v := minikanren.Fresh(fmt.Sprintf("q%d", i))
-		queens[i] = v
-		terms[i] = v
-	}
-
-	// FDQueensGoal (implemented in the library) does the heavy lifting:
-	//   - creates an FD store for the variables
-	//   - constrains the column variables to 1..n
-	//   - creates derived diagonal FD variables and links them via offset
-	//     constraints (d = x + offset)
-	//   - applies Regin AllDifferent filtering on columns and diagonals
-	//   - runs the FD solver to either find a unique assignment or leave the
-	//     search to the host (miniKanren) to enumerate via backtracking
-	//
-	// By placing this goal inside the conjunction below we ensure the FD
-	// solver participates in the search and that the final substitution
-	// binds the logical vars to integer atoms.
-	goals := []minikanren.Goal{minikanren.FDQueensGoal(queens, n)}
-
-	// Build the list term that represents the vector of queen columns.
-	// We return that list by constraining the provided `q` variable to it.
-	termList := minikanren.List()
-	for i := n - 1; i >= 0; i-- {
-		termList = minikanren.NewPair(queens[i], termList)
-	}
-	goals = append(goals, minikanren.Eq(q, termList))
-
-	// Conjoin the FD goal and the result binding. The caller can then run
-	// this goal either sequentially or inside a parallel branch as shown
-	// in main().
-	return minikanren.Conj(goals...)
-}
-
-// displayBoard prints the board similar to the other n-queens example
-func displayBoard(result minikanren.Term, n int) {
-	// displayBoard expects the result to be a miniKanren pair-list where
-	// each element is an integer Atom representing a column (1-based). We
-	// walk the structure and convert it into a slice of 0-based column
-	// indices for printing.
-	pair, ok := result.(*minikanren.Pair)
-	if !ok {
-		fmt.Println("Invalid result format")
+// displaySolution prints the N-Queens solution as a chessboard
+func displaySolution(solution []int, n int) {
+	if solution == nil {
 		return
 	}
 
-	positions := make([]int, n)
-	idx := 0
-	for pair != nil && idx < n {
-		colTerm := pair.Car()
-		if atom, ok := colTerm.(*minikanren.Atom); ok {
-			if col, ok := atom.Value().(int); ok {
-				positions[idx] = col - 1 // convert to 0-based for display
-			}
-		}
-		cdr := pair.Cdr()
-		if cdr == nil {
-			break
-		}
-		pair, _ = cdr.(*minikanren.Pair)
-		idx++
-	}
-
-	// Print board: a simple ASCII board where ♛ marks the queen.
+	fmt.Println("\nSolution:")
 	for row := 0; row < n; row++ {
-		for col := 0; col < n; col++ {
-			if positions[row] == col {
+		for col := 1; col <= n; col++ {
+			if solution[row] == col {
 				fmt.Print("♛ ")
 			} else {
 				if (row+col)%2 == 0 {
@@ -271,13 +315,12 @@ func displayBoard(result minikanren.Term, n int) {
 		fmt.Println()
 	}
 
-	fmt.Println()
-	fmt.Print("Queen positions (row, col): ")
+	fmt.Print("\nQueen positions (row, col): ")
 	for row := 0; row < n; row++ {
 		if row > 0 {
 			fmt.Print(", ")
 		}
-		fmt.Printf("(%d,%d)", row, positions[row])
+		fmt.Printf("(%d,%d)", row+1, solution[row])
 	}
 	fmt.Println()
 }
