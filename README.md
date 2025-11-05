@@ -1,16 +1,16 @@
-# GoKando - Thread-Safe Parallel miniKanren and FD Solver in Go
+# GoKando
 
 [![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gitrdm/gokando/releases)
-[![Go Version](https://img.shields.io/badge/go-1.18%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
+[![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-GoKando is a completely vibe-coded implementation of miniKanren in Go with an integrated finite domain constraint solver. The goal is to provide thread-safe parallel execution and seemless interoperatability between miniKanren and the FD sovler. The miniKanren core provides full relational programming capabilities, while the FD solver handles combinatorial problems. The library is hopefully viable in educational, research, and lightweight applications but your mileage may vary. This is more than a "toy" implementation but much less than industrial strength. 
+GoKando is a Go implementation of miniKanren with a finite-domain (FD) constraint solver and optional parallel execution. It aims to be practical for learning, experiments, and small projects. The core provides relational programming primitives; the FD layer helps with combinatorial search; and a thin high-level API (HLAPI) reduces boilerplate for common tasks. It's not an industrial solver, but it is hopefully useful in some domains that need logic and FD support.
 
 ## Installation
 
 ### Requirements
-- **Go Version**: Go 1.18+ (uses generics and modern concurrency patterns)
-- **OS**: Any platform supporting Go (Linux, macOS, Windows)
+- **Go Version**: Go 1.25+ (per `go.mod`)
+- **OS**: Linux, macOS, or Windows
 
 ### Install from Source
 ```bash
@@ -28,69 +28,69 @@ go test ./...
 go test -bench=. ./...
 ```
 
-### Quick Start
+### Quick Start (relational HLAPI)
 ```go
 package main
 
 import (
     "fmt"
-    "github.com/gitrdm/gokando/pkg/minikanren"
+    mk "github.com/gitrdm/gokando/pkg/minikanren"
 )
 
 func main() {
-    // Simple unification
-    results := minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal {
-        return minikanren.Eq(q, minikanren.NewAtom("hello"))
-    })
-    fmt.Println(results) // [hello]
+    // Simple unification with Solutions + A()
+    q := mk.Fresh("q")
+    sols := mk.Solutions(mk.Eq(q, mk.A("hello")), q)
+    fmt.Println(mk.FormatSolutions(sols)) // [q: "hello"]
 
-    // List operations
-    results = minikanren.Run(1, func(q *minikanren.Var) minikanren.Goal {
-        return minikanren.Appendo(
-            minikanren.List(minikanren.NewAtom(1), minikanren.NewAtom(2)),
-            minikanren.List(minikanren.NewAtom(3)),
-            q,
-        )
-    })
-    fmt.Println(results) // [(1 2 3)]
+    // Working with lists using L() and Appendo
+    q2 := mk.Fresh("q")
+    goal := mk.Appendo(mk.L(1, 2), mk.L(3), q2)
+    sols2 := mk.Solutions(goal, q2)
+    fmt.Println(mk.FormatSolutions(sols2)) // [q: (1 2 3)]
 }
+```
+
+### Quick Start (FD HLAPI)
+```go
+// Create a small FD model with AllDifferent
+m := mk.NewModel()
+x := m.IntVar(1, 3, "x")
+y := m.IntVar(1, 3, "y")
+z := m.IntVar(1, 3, "z")
+_ = m.AllDifferent(x, y, z)
+
+solver := mk.NewSolver(m)
+vals, _ := solver.Solve(context.Background(), 1) // first solution
+_ = vals // values indexed by variable IDs
 ```
 
 ## Documentation
 
-For comprehensive documentation, see the [`docs/`](docs/) directory:
+For more details, see the [`docs/`](docs/) directory:
 
-### Core Concepts
-- **[miniKanren](docs/minikanren/core.md)**: Logic variables, unification, goals, streams, and constraint system
-  - **Complete operator set**: `Fresh`, `Eq`, `Conj`, `Disj`, `Run`, `RunStar`
-  - **Order-independent constraints**: Type constraints (`Symbolo`, `Numbero`), disequality (`Neq`), absence (`Absento`)
-  - **List operations**: `Appendo`, `Caro`, `Cdru`, `Conso`, `Nullo`, `Pairo`, `Membero`
-  - **Advanced features**: Committed choice (`Conda`, `Condu`), projection, cut operators (`Onceo`)
-  - **Parallel execution**: Worker pools, backpressure control, rate limiting, context cancellation
+### Core
+- Relational miniKanren: logic variables, unification, goals, and streams
+    - Common operators: `Fresh`, `Eq`, `Conj`, `Disj`, `Neq`, `Appendo`, etc.
+    - Relational HLAPI helpers: `A`, `L`, `Solutions`, `Rows`, typed collectors (`Ints`, `Strings`, `Pairs*`), `FormatTerm`
+    - Parallel helpers are available; examples show how to split work across goroutines
 
-- **[Finite Domain Solver](docs/minikanren/finite-domains.md)**: Complete FD constraint solver with domain operations, heuristics, and monitoring
-  - **Domain system**: BitSet-based domains, assignment, removal, intersection, union, complement
-  - **Constraint propagation**: AC-3 algorithm, Regin filtering for all-different constraints
-  - **Arithmetic constraints**: Offset links for modeling relationships (e.g., N-Queens diagonals)
-  - **Inequality constraints**: `<`, `<=`, `>`, `>=`, `!=` operators with propagation
-  - **Search heuristics**: Dom/Deg, Domain, Degree, Lexicographic, Random ordering
-  - **Custom constraints**: Extensible framework with `SumConstraint`, `AllDifferentConstraint`
-  - **Monitoring**: Comprehensive statistics, performance tracking, domain reduction metrics
-  - **Integration**: Seamless FD goals (`FDAllDifferentGoal`, `FDQueensGoal`, `FDInequalityGoal`)
+- Finite Domain (FD) solver: domains and constraints for CSP-style search
+    - Variables: `Model.IntVar`, `IntVarValues`, `IntVars`
+    - Constraints: `AllDifferent`, `LexLessEq`, `LinearSum`, `Among`, `Table`, `Regular`, `Cumulative`, `NoOverlap`
+    - Solving: `NewSolver(model)`, `Solve`, and simple `Optimize` helpers
 
 ### Examples and Guides
-- **[Getting Started](docs/getting-started/)**: Tutorials and basic usage examples
-- **[Examples](examples/)**: Complete working examples including Zebra Puzzle and Apartment Floor Puzzle
-- **[API Reference](docs/api-reference/)**: Detailed API documentation
+- **[Getting Started](docs/getting-started/)**: Short walkthroughs
+- **[Examples](examples/)**: Working examples: apartment (FD), graph-coloring (relational), n-queens (relational) and n-queens-parallel-fd (FD + parallel), zebra, sudoku
+- **[API Reference](docs/api-reference/)**: High-level API and package details
 
-## Key Features
+## What you get
 
-- **Complete miniKanren**: All standard operators plus advanced constraints
-- **Thread-Safe**: Safe for concurrent use across goroutines
-- **Parallel Execution**: Configurable worker pools with backpressure control
-- **Finite Domain Solver**: Integrated CSP solver with advanced heuristics
-- **Type-Safe**: Leverages Go's type system for safe relational programming
-- **Well Tested**: Extensive test coverage and comprehensive documentation
+- miniKanren core with common operators and a small HLAPI to cut boilerplate
+- Optional parallel evaluation patterns for splitting independent work
+- An FD solver suitable for many small/medium examples, with a clean model API
+- A set of examples that show both relational and FD styles
 
 ## Testing
 
@@ -110,10 +110,14 @@ go test -bench=. ./...
 
 ## Contributing
 
-1. Ensure all tests pass: `go test ./...`
-2. Run benchmarks to check performance: `go test -bench=. ./...`
-3. Follow Go conventions and document new APIs
-4. Add tests for new functionality
+- Please keep examples and docs runnable: `go test ./...`
+- Prefer small, focused PRs with clear reasoning
+- Document new public APIs and add tests where practical
+
+## Versioning
+
+- Latest tagged release: see Git tags (e.g., `v1.0.0`).
+- Recent repository changes here primarily update examples and documentation; no public API changes were introduced. A patch bump is appropriate. Recommendation: tag `v1.0.1` after merge.
 
 ## License
 
