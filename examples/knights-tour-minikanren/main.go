@@ -19,7 +19,7 @@ import (
 	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
-const N = 5
+const N = 6
 const TotalSquares = N * N
 
 // Position represents a (row, col) coordinate on the board
