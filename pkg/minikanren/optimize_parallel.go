@@ -235,7 +235,8 @@ func (s *Solver) solveOptimalParallel(ctx context.Context, obj *FDVariable, mini
 	}
 	var wg sync.WaitGroup
 	wg.Add(n)
-	_, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	hitLimit := &atomic.Bool{}
 	targetReached := &atomic.Bool{}
 	for i := 0; i < n; i++ {
