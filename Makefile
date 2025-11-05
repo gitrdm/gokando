@@ -21,6 +21,9 @@ docs-proton: ## Generate API and guides via Proton (uses project Proton config)
 	@echo "Running $(PROTON) generate ..."
 	@$(PROTON) generate
 	@echo "Proton generation finished."
+	@echo "Ensuring Jekyll front matter on generated pages..."
+	@chmod +x scripts/ensure-front-matter.sh
+	@./scripts/ensure-front-matter.sh docs/api-reference/*.md docs/generated-examples.md
 
 force: ## The 'force' target is a no-op used for phony dependencies
 	@true
