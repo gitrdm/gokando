@@ -60,7 +60,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 1.0.0
+Version: 1.0.1
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.
@@ -130,7 +130,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 1.0.0
+Version: 1.0.1
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.

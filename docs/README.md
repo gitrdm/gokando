@@ -1,6 +1,6 @@
 # gokando Documentation
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gitrdm/gokando/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)
 
 ## Quick Navigation
 
@@ -291,7 +291,7 @@ Key design principles:
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 1.0.0
+Version: 1.0.1
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.

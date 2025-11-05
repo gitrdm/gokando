@@ -1,6 +1,6 @@
 # GoKando
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gitrdm/gokando/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)
 [![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -116,7 +116,7 @@ go test -bench=. ./...
 
 ## Versioning
 
-- Latest tagged release: see Git tags (e.g., `v1.0.0`).
+- Latest tagged release: see Git tags (e.g., `v1.0.1`).
 - Recent repository changes here primarily update examples and documentation; no public API changes were introduced. A patch bump is appropriate. Recommendation: tag `v1.0.1` after merge.
 
 ## License

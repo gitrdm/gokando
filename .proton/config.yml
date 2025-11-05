@@ -1,7 +1,7 @@
 repository:
     name: gokando
     owner: gitrdm
-    description: '[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gitrdm/gokando/releases)'
+    description: '[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)'
     import_path: github.com/gitrdm/gokando
     branch: master
     url: https://github.com/gitrdm/gokando
@@ -39,7 +39,7 @@ templates:
     custom_templates: []
 gitbook:
     title: gokando
-    description: '[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/gitrdm/gokando/releases)'
+    description: '[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)'
     theme: default
     plugins: []
     structure:
