@@ -1315,7 +1315,7 @@ that can hold domains and participate in constraints.
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 1.0.1
+Version: 1.1.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.

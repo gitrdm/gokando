@@ -1,6 +1,16 @@
 # gokanlogic Documentation
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
+
+## What's new in v1.1.0
+
+- Nominal Logic Programming features:
+  - Application helper: `App(fun, arg)`
+  - Beta reduction and normalization: `BetaReduceo`, `BetaNormalizeo`
+  - Free-name analysis: `FreeNameso`
+  - Simply-typed λ-calculus checker: `TypeChecko` with `ArrType` and env alists
+- Documentation: see API reference for nominal logic at `api-reference/nominal.md`
+- All changes are backward-compatible with existing APIs.
 
 ## Quick Navigation
 

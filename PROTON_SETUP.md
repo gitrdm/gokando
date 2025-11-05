@@ -2,6 +2,8 @@
 
 Your Go project is now configured with **Proton** for automatic documentation generation, complementing the standard `go doc` toolchain.
 
+> Current project version: v1.1.0 (minor release adding Nominal Logic Programming features — App, BetaReduceo, BetaNormalizeo, FreeNameso, TypeChecko). Proton-generated docs include the updated API reference at `docs/api-reference/nominal.md` and a version badge on the docs homepage.
+
 ## Hybrid Documentation Approach
 
 This project uses a **hybrid documentation strategy**:
