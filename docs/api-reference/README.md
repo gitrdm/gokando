@@ -1,3 +1,7 @@
+---
+render_with_liquid: false
+---
+
 # API Reference
 
 Complete API documentation for gokanlogic.

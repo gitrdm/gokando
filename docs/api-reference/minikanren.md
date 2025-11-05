@@ -1,3 +1,7 @@
+---
+render_with_liquid: false
+---
+
 # minikanren API
 
 Complete API documentation for the minikanren package.
