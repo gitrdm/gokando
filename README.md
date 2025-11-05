@@ -4,7 +4,7 @@
 [![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-gokanlogic is a Go implementation of miniKanren with a finite-domain (FD) constraint solver and optional parallel execution. It aims to be practical for learning, experiments, and small projects. The core provides relational programming primitives; the FD layer helps with combinatorial search; and a thin high-level API (HLAPI) reduces boilerplate for common tasks. It's not an industrial solver, but it is hopefully useful in some domains that need logic and FD support.
+gokanlogic is a Go implementation of miniKanren with a finite-domain (FD) constraint solver, nominal logic, and optional parallel execution. It aims to be practical for learning, experiments, and small projects. The core provides relational programming primitives; the FD layer helps with combinatorial search; and a thin high-level API (HLAPI) reduces boilerplate for common tasks. It's not an industrial solver, but it is hopefully useful in some domains that need logic and FD support.
 
 ## Installation
 
