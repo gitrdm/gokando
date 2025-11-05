@@ -1,10 +1,23 @@
-// Package main solves the N-Queens puzzle using GoKando.
+// Package main solves the N-Queens puzzle using GoKando's relational solver.
 //
 // The N-Queens puzzle: Place N queens on an N×N chessboard such that no two queens
 // attack each other. Queens can attack any piece on the same row, column, or diagonal.
 //
-// This implementation uses Project to verify the constraints efficiently for small N (4-8).
-// For larger boards, a more sophisticated constraint propagation approach would be needed.
+// This implementation uses the relational approach with:
+//   - Fresh variables for queen column positions
+//   - Disjunction to enumerate column choices
+//   - Inequality constraints (Neq) for different columns
+//   - Project to verify diagonal constraints
+//
+// HLAPI Features Used:
+//   - Solutions() - Find solutions (replaces Run())
+//   - A() - Create atoms (replaces NewAtom())
+//   - Fresh() - Create logic variables
+//   - Conj/Disj - Conjunction and disjunction
+//   - Eq/Neq - Equality and inequality
+//   - Project() - Extract and verify values
+//
+// For a more scalable FD-based approach, see examples/n-queens-parallel-fd.
 package main
 
 import (
@@ -26,10 +39,10 @@ func main() {
 
 	fmt.Printf("=== Solving the %d-Queens Puzzle ===\n\n", n)
 
-	// Find first solution
-	results := Run(1, func(q *Var) Goal {
-		return nQueens(n, q)
-	})
+	// Find first solution using HLAPI Solutions()
+	q := Fresh("q")
+	goal := nQueens(n, q)
+	results := Solutions(goal, q)
 
 	if len(results) == 0 {
 		fmt.Println("❌ No solution found!")
@@ -37,7 +50,7 @@ func main() {
 	}
 
 	fmt.Printf("✓ Solution found for %d queens!\n\n", n)
-	displayBoard(results[0], n)
+	displayBoard(results[0]["q"], n)
 }
 
 // nQueens solves the N-Queens problem.
@@ -53,7 +66,7 @@ func nQueens(n int, q *Var) Goal {
 	validColumn := func(queen Term) Goal {
 		goals := make([]Goal, n)
 		for col := 0; col < n; col++ {
-			goals[col] = Eq(queen, NewAtom(col))
+			goals[col] = Eq(queen, A(col)) // Use A() HLAPI instead of NewAtom()
 		}
 		return Disj(goals...)
 	}
