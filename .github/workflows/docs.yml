@@ -29,16 +29,33 @@ jobs:
       - name: Install Proton
         run: go install github.com/kolosys/proton/cmd/proton@latest
 
-      - name: Generate documentation
+      - name: Install mdBook
+        run: |
+          curl -L https://github.com/rust-lang/mdBook/releases/download/v0.4.40/mdbook-v0.4.40-x86_64-unknown-linux-gnu.tar.gz | tar xz
+          sudo mv mdbook /usr/local/bin/mdbook
+          mdbook --version
+
+      - name: Generate documentation with Proton
         run: proton generate . --output ./docs
+
+      - name: Extract examples from tests
+        run: |
+          chmod +x scripts/extract-examples.sh
+          ./scripts/extract-examples.sh
+
+      - name: Assemble examples
+        run: make assemble-examples
+
+      - name: Build mdBook static site
+        run: mdbook build
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
 
-      - name: Upload static docs (no Jekyll)
+      - name: Upload mdBook output
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./docs
+          path: ./book
 
   deploy:
     environment:

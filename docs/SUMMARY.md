@@ -1,25 +1,33 @@
 # Summary
 
-- [Introduction](README.md)
+[Introduction](README.md)
 
-## Getting Started
+# Getting Started
 
-- [Packages](packages/README.md)
-  - [parallel](packages/parallel.md)
-  - [minikanren](packages/minikanren.md)
+- [Quick Start](getting-started/main.md)
+- [miniKanren Guide](getting-started/minikanren.md)
+- [Parallel Search Guide](getting-started/parallel.md)
 
-## API Reference
+# API Reference
 
-- [API Overview](api-reference/README.md)
-  - [parallel API](api-reference/parallel.md)
-  - [minikanren API](api-reference/minikanren.md)
+- [miniKanren API](api-reference/minikanren.md)
+- [Nominal Logic API](api-reference/nominal.md)
+- [Parallel Search API](api-reference/parallel.md)
 
-## Examples
+# Examples
 
-- [Examples Overview](examples/README.md)
+- [Code Examples](generated-examples.md)
+- [Example Projects](examples/README.md)
+  - [Apartment](examples/apartment/README.md)
+  - [Graph Coloring](examples/graph-coloring/README.md)
+  - [N-Queens](examples/n-queens/README.md)
+  - [N-Queens Parallel](examples/n-queens-parallel-fd/README.md)
+  - [Send More Money](examples/send-more-money/README.md)
+  - [Sudoku](examples/sudoku/README.md)
+  - [Twelve Statements](examples/twelve-statements/README.md)
+  - [Zebra Puzzle](examples/zebra/README.md)
 
-## Guides
+# Development
 
-- [Guides Overview](guides/README.md)
-- [Contributing](guides/contributing.md)
-- [FAQ](guides/faq.md)
+- [Implementation Roadmap](implementation_roadmap_v3.md)
+- [Performance Analysis](PERFORMANCE_ANALYSIS.md)

@@ -62,6 +62,7 @@ mem.out
 # Documentation build artifacts
 /docs/_build/
 /docs/site/
+/book/
 
 # Example binaries (if any are built)
 /cmd/*/cmd

@@ -1,0 +1,24 @@
+[book]
+title = "gokanlogic"
+authors = ["rdmerrio"]
+description = "Production-quality miniKanren with FD constraints, hybrid solving, and parallel search"
+language = "en"
+multilingual = false
+src = "docs"
+
+[build]
+build-dir = "book"
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "navy"
+git-repository-url = "https://github.com/gitrdm/gokanlogic"
+edit-url-template = "https://github.com/gitrdm/gokanlogic/edit/master/docs/{path}"
+site-url = "/gokanlogic/"
+
+[output.html.search]
+enable = true
+
+[output.html.fold]
+enable = true
+level = 0

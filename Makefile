@@ -10,20 +10,19 @@ help: ## Show this help message
 	@echo "Available targets:" && echo && \
 	awk 'BEGIN {FS=":.*##"} /^[a-zA-Z0-9_.-]+:.*##/ {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | sort
 
-docs: force extract-examples assemble-examples ## Build docs from examples (extract + assemble generated-examples.md)
-	@echo "Docs assembled: docs/generated-examples.md"
+docs: force extract-examples assemble-examples ## Build docs from examples and generate static site with mdBook
+	@command -v mdbook >/dev/null 2>&1 || { echo "Error: mdbook not found. Install: https://rust-lang.github.io/mdBook/guide/installation.html"; exit 1; }
+	@mdbook build
+	@echo "Static docs built in ./book/"
 
-docs-all: docs-proton docs ## Full docs build: Proton + examples (hybrid)
-	@echo "Docs build complete (proton + examples)."
+docs-all: docs-proton docs ## Full docs build: Proton + examples + mdBook (hybrid)
+	@echo "Docs build complete (proton + examples + static site)."
 
 docs-proton: ## Generate API and guides via Proton (uses project Proton config)
 	@command -v $(PROTON) >/dev/null 2>&1 || { echo "Error: '$(PROTON)' not found in PATH"; exit 1; }
 	@echo "Running $(PROTON) generate ..."
 	@$(PROTON) generate
 	@echo "Proton generation finished."
-	@echo "Ensuring Jekyll front matter on generated pages..."
-	@chmod +x scripts/ensure-front-matter.sh
-	@./scripts/ensure-front-matter.sh docs/api-reference/*.md docs/generated-examples.md
 
 force: ## The 'force' target is a no-op used for phony dependencies
 	@true
