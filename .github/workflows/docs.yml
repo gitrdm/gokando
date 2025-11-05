@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: "pages"
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -48,6 +48,9 @@ jobs:
 
       - name: Build mdBook static site
         run: mdbook build
+
+      - name: Add .nojekyll to prevent Jekyll processing
+        run: touch book/.nojekyll
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
