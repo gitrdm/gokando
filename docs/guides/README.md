@@ -356,6 +356,8 @@ management and backpressure control.
 
 ### minikanren
 
+Package minikanren provides finite domain constraint programming with MiniKanren-style logical variables.
+
 Package minikanren adds an Among global constraint.
 
 Among(vars, S, K) counts how many variables in vars take a value from the set S
@@ -658,6 +660,8 @@ Propagation is bidirectional and safe:
 This is used by higher-level globals like Sequence to create membership
 booleans over a fixed set without resorting to large per-value tables.
 
+Package minikanren provides finite domain constraint programming with MiniKanren-style logical variables.
+
 Package minikanren adds a lexicographic ordering global constraint.
 
 This file implements LexLess and LexLessEq over two equal-length vectors
@@ -719,6 +723,26 @@ simple, predictable, and integration-friendly with the solver's fixed-point loop
 Package minikanren provides constraint programming infrastructure.
 This file defines the Model abstraction for declaratively building
 constraint satisfaction problems.
+
+Package minikanren provides constraint propagation for finite-domain variables.
+
+This file implements modulo constraints for integer arithmetic.
+Modulo constraints enforce remainder relationships between variables
+while maintaining pure integer domains and providing bidirectional propagation.
+
+Design Philosophy:
+  - Integer-only: All operations work with positive integer values (≥ 1)
+  - Bidirectional: Propagates both forward (x→remainder) and backward (remainder→x)
+  - AC-3 compatible: Implements standard arc-consistency propagation
+  - Production-ready: Handles edge cases (modulo 1, bounds checking)
+
+Example Use Case:
+In scheduling problems where events repeat cyclically:
+
+	day_of_week = day_number % 7
+	time_slot = minute_offset % 30
+
+The Modulo constraint maintains: x mod modulus = remainder
 
 Package minikanren provides global constraints for finite-domain CP.
 
@@ -915,6 +939,26 @@ The reification architecture follows these principles:
   - Boolean variable must have domain subset of {1,2} (1=false, 2=true)
   - Maintains copy-on-write semantics for parallel search
   - Integrates seamlessly with existing constraint propagation
+
+Package minikanren provides constraint propagation for finite-domain variables.
+
+This file implements scaling constraints for integer arithmetic.
+Scaling constraints enforce multiplicative relationships between variables
+while maintaining pure integer domains and providing bidirectional propagation.
+
+Design Philosophy:
+  - Integer-only: All operations work with integer values
+  - Bidirectional: Propagates both forward (x→result) and backward (result→x)
+  - AC-3 compatible: Implements standard arc-consistency propagation
+  - Production-ready: Handles edge cases (zero, negative, bounds checking)
+
+Example Use Case:
+In resource allocation problems where capacity scales linearly:
+
+	worker_hours = 40
+	total_cost = hourly_rate * worker_hours
+
+The Scale constraint maintains: total_cost = hourly_rate * 40
 
 Package minikanren provides constraint propagation for finite-domain variables.
 

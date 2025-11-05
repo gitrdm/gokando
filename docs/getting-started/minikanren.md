@@ -1,5 +1,7 @@
 # Getting Started with minikanren
 
+Package minikanren provides finite domain constraint programming with MiniKanren-style logical variables.
+
 Package minikanren adds an Among global constraint.
 
 Among(vars, S, K) counts how many variables in vars take a value from the set S
@@ -302,6 +304,8 @@ Propagation is bidirectional and safe:
 This is used by higher-level globals like Sequence to create membership
 booleans over a fixed set without resorting to large per-value tables.
 
+Package minikanren provides finite domain constraint programming with MiniKanren-style logical variables.
+
 Package minikanren adds a lexicographic ordering global constraint.
 
 This file implements LexLess and LexLessEq over two equal-length vectors
@@ -363,6 +367,26 @@ simple, predictable, and integration-friendly with the solver's fixed-point loop
 Package minikanren provides constraint programming infrastructure.
 This file defines the Model abstraction for declaratively building
 constraint satisfaction problems.
+
+Package minikanren provides constraint propagation for finite-domain variables.
+
+This file implements modulo constraints for integer arithmetic.
+Modulo constraints enforce remainder relationships between variables
+while maintaining pure integer domains and providing bidirectional propagation.
+
+Design Philosophy:
+  - Integer-only: All operations work with positive integer values (≥ 1)
+  - Bidirectional: Propagates both forward (x→remainder) and backward (remainder→x)
+  - AC-3 compatible: Implements standard arc-consistency propagation
+  - Production-ready: Handles edge cases (modulo 1, bounds checking)
+
+Example Use Case:
+In scheduling problems where events repeat cyclically:
+
+	day_of_week = day_number % 7
+	time_slot = minute_offset % 30
+
+The Modulo constraint maintains: x mod modulus = remainder
 
 Package minikanren provides global constraints for finite-domain CP.
 
@@ -559,6 +583,26 @@ The reification architecture follows these principles:
   - Boolean variable must have domain subset of {1,2} (1=false, 2=true)
   - Maintains copy-on-write semantics for parallel search
   - Integrates seamlessly with existing constraint propagation
+
+Package minikanren provides constraint propagation for finite-domain variables.
+
+This file implements scaling constraints for integer arithmetic.
+Scaling constraints enforce multiplicative relationships between variables
+while maintaining pure integer domains and providing bidirectional propagation.
+
+Design Philosophy:
+  - Integer-only: All operations work with integer values
+  - Bidirectional: Propagates both forward (x→result) and backward (result→x)
+  - AC-3 compatible: Implements standard arc-consistency propagation
+  - Production-ready: Handles edge cases (zero, negative, bounds checking)
+
+Example Use Case:
+In resource allocation problems where capacity scales linearly:
+
+	worker_hours = 40
+	total_cost = hourly_rate * worker_hours
+
+The Scale constraint maintains: total_cost = hourly_rate * 40
 
 Package minikanren provides constraint propagation for finite-domain variables.
 
@@ -824,6 +868,8 @@ concurrent execution capabilities, designed for production use.
 
 **Import Path:** `github.com/gitrdm/gokanlogic/pkg/minikanren`
 
+Package minikanren provides finite domain constraint programming with MiniKanren-style logical variables.
+
 Package minikanren adds an Among global constraint.
 
 Among(vars, S, K) counts how many variables in vars take a value from the set S
@@ -1126,6 +1172,8 @@ Propagation is bidirectional and safe:
 This is used by higher-level globals like Sequence to create membership
 booleans over a fixed set without resorting to large per-value tables.
 
+Package minikanren provides finite domain constraint programming with MiniKanren-style logical variables.
+
 Package minikanren adds a lexicographic ordering global constraint.
 
 This file implements LexLess and LexLessEq over two equal-length vectors
@@ -1187,6 +1235,26 @@ simple, predictable, and integration-friendly with the solver's fixed-point loop
 Package minikanren provides constraint programming infrastructure.
 This file defines the Model abstraction for declaratively building
 constraint satisfaction problems.
+
+Package minikanren provides constraint propagation for finite-domain variables.
+
+This file implements modulo constraints for integer arithmetic.
+Modulo constraints enforce remainder relationships between variables
+while maintaining pure integer domains and providing bidirectional propagation.
+
+Design Philosophy:
+  - Integer-only: All operations work with positive integer values (≥ 1)
+  - Bidirectional: Propagates both forward (x→remainder) and backward (remainder→x)
+  - AC-3 compatible: Implements standard arc-consistency propagation
+  - Production-ready: Handles edge cases (modulo 1, bounds checking)
+
+Example Use Case:
+In scheduling problems where events repeat cyclically:
+
+	day_of_week = day_number % 7
+	time_slot = minute_offset % 30
+
+The Modulo constraint maintains: x mod modulus = remainder
 
 Package minikanren provides global constraints for finite-domain CP.
 
@@ -1383,6 +1451,26 @@ The reification architecture follows these principles:
   - Boolean variable must have domain subset of {1,2} (1=false, 2=true)
   - Maintains copy-on-write semantics for parallel search
   - Integrates seamlessly with existing constraint propagation
+
+Package minikanren provides constraint propagation for finite-domain variables.
+
+This file implements scaling constraints for integer arithmetic.
+Scaling constraints enforce multiplicative relationships between variables
+while maintaining pure integer domains and providing bidirectional propagation.
+
+Design Philosophy:
+  - Integer-only: All operations work with integer values
+  - Bidirectional: Propagates both forward (x→result) and backward (result→x)
+  - AC-3 compatible: Implements standard arc-consistency propagation
+  - Production-ready: Handles edge cases (zero, negative, bounds checking)
+
+Example Use Case:
+In resource allocation problems where capacity scales linearly:
+
+	worker_hours = 40
+	total_cost = hourly_rate * worker_hours
+
+The Scale constraint maintains: total_cost = hourly_rate * 40
 
 Package minikanren provides constraint propagation for finite-domain variables.
 
@@ -1701,9 +1789,13 @@ func main() {
 
 - **AbsenceConstraint** - AbsenceConstraint implements the absence constraint (absento). It ensures that a specific term does not occur anywhere within another term's structure, providing structural constraint checking. This constraint performs recursive structural inspection to detect the presence of the forbidden term at any level of nesting.
 
+- **Absolute** - - Both variables must be initialized with proper offset-encoded domains - abs_value domain contains only positive results (≥ 1) Mathematical Properties: - |x| ≥ 0 for all real x, but BitSetDomain requires ≥ 1 - |0| = 0 is represented as offset value in the encoding - |-x| = |x| creates symmetry in backward propagation - Self-reference |x| = x implies x ≥ 0 Thread Safety: Immutable after construction. Propagate() is safe for concurrent use.
+
 - **AllDifferent** - Implementation uses Regin's arc-consistency algorithm based on maximum bipartite matching. This achieves stronger pruning than pairwise inequality: Example: X,Y,Z ∈ {1,2} with AllDifferent(X,Y,Z) - Matching algorithm detects impossibility (3 variables, 2 values) - Fails immediately without search - Pairwise X≠Y, Y≠Z, X≠Z would only fail after trying assignments Algorithm complexity: O(n²·d) where n = |variables|, d = max domain size Much more efficient than the exponential search that would be required otherwise.
 
 - **AllDifferentConstraint** - AllDifferentConstraint is a custom version of the all-different constraint This demonstrates how built-in constraints can be reimplemented as custom constraints
+
+- **AlphaEqConstraint** - AlphaEqConstraint checks alpha-equivalence between two terms (Tie-aware).
 
 - **Among** - Among is a global constraint that counts how many variables take values from S.
 
@@ -1783,6 +1875,8 @@ func main() {
 
 - **FactsSpec** - FactsSpec describes facts for a relation for bulk loading.
 
+- **FreshnessConstraint** - FreshnessConstraint enforces that a nominal name does not occur free in a term. The constraint is local and re-evaluates when any variable inside the term binds. Note: LocalConstraintStore validates constraints on AddConstraint; if this freshness is already violated under current bindings, the add will be rejected with an error and the constraint will not be stored.
+
 - **GlobalCardinality** - GlobalCardinality constrains occurrence counts per value across variables.
 
 - **GlobalConstraintBus** - GlobalConstraintBus coordinates constraint checking across multiple local constraint stores. It handles cross-store constraints and provides a coordination point for complex constraint interactions. The bus is designed to minimize coordination overhead - most constraints should be local and not require global coordination.
@@ -1807,6 +1901,10 @@ func main() {
 
 - **InequalityType** - fd_ineq.go: arithmetic inequality constraints for FDStore InequalityType represents the type of inequality constraint
 
+- **IntervalArithmetic** - - Operations maintain mathematical interval arithmetic properties Mathematical Properties: - Containment: x ∈ [min, max] → domain(x) ⊆ [min, max] - Intersection: [a,b] ∩ [c,d] = [max(a,c), min(b,d)] - Union: [a,b] ∪ [c,d] = [min(a,c), max(b,d)] (convex hull) - Sum: [a,b] + [c,d] = [a+c, b+d] - Difference: [a,b] - [c,d] = [a-d, b-c] Thread Safety: Immutable after construction. Propagate() is safe for concurrent use.
+
+- **IntervalOperation** - IntervalOperation represents the type of interval arithmetic operation to perform.
+
 - **LessEqualConstraint** - LessEqualConstraint represents a constraint that x <= y.
 
 - **LessThanConstraint** - LessThanConstraint represents a constraint that x < y. It is evaluated whenever variables become bound.
@@ -1828,6 +1926,10 @@ func main() {
 - **Model** - - Variables: decision variables with finite domains - Constraints: relationships that must hold among variables - Configuration: solver parameters and search heuristics Models are constructed incrementally by adding variables and constraints. Once constructed, models are immutable during solving, enabling safe concurrent access by parallel search workers. Thread safety: Models are safe for concurrent reads during solving, but must be constructed sequentially.
 
 - **ModelConstraint** - ModelConstraint represents a constraint within a model. Constraints restrict the values that variables can take simultaneously. Different constraint types provide different propagation strength: - AllDifferent: ensures variables take distinct values - Arithmetic: enforces arithmetic relationships (x + y = z) - Table: extensional constraints defined by allowed tuples - Global: specialized algorithms for common patterns ModelConstraints are immutable after creation and safe for concurrent access.
+
+- **Modulo** - - Backward propagation: x ⊆ {q*modulus + remainder | q ≥ 0, remainder ∈ remainder.domain} This is arc-consistent propagation suitable for AC-3 and fixed-point iteration. Invariants: - modulus > 0 (enforced at construction) - All variables must have non-nil domains with positive integer values - Empty domain → immediate failure Thread Safety: Immutable after construction. Propagate() is safe for concurrent use.
+
+- **NominalPlugin** - NominalPlugin handles nominal logic constraints (freshness, alpha-equality) within the HybridSolver. Currently, it validates FreshnessConstraint instances against the UnifiedStore's relational bindings.
 
 - **OptimizeOption** - OptimizeOption configures SolveOptimalWithOptions behavior. Use helpers like WithTimeLimit, WithNodeLimit, WithTargetObjective, WithParallelWorkers, and WithHeuristics to customize the search.
 
@@ -1865,6 +1967,8 @@ func main() {
 
 - **SLGStats** - SLGStats provides statistics about engine performance.
 
+- **Scale** - - Backward propagation: x ⊆ {result / multiplier | result ∈ result.domain, result % multiplier == 0} This is arc-consistent propagation suitable for AC-3 and fixed-point iteration. Invariants: - multiplier > 0 (enforced at construction) - All variables must have non-nil domains with positive integer values - Empty domain → immediate failure Thread Safety: Immutable after construction. Propagate() is safe for concurrent use.
+
 - **ScaledDivision** - - Backward propagation: dividend ⊆ {q*divisor...(q+1)*divisor-1 | q ∈ quotient.domain} This is arc-consistent propagation suitable for AC-3 and fixed-point iteration. Invariants: - divisor > 0 (enforced at construction) - All variables must have non-nil domains - Empty domain → immediate failure Thread Safety: Immutable after construction. Propagate() is safe for concurrent use.
 
 - **Sequence** - 
@@ -1900,6 +2004,8 @@ func main() {
 - **TabledDatabase** - from a database. This is useful for applications where all queries should be cached. Example: db := NewDatabase() // ... add facts ... tdb := WithTabledDatabase(db, "mydb") // All queries are automatically tabled goal := tdb.Query(edge, x, y)
 
 - **Term** - Term represents any value in the miniKanren universe. Terms can be atoms, variables, compound structures, or any Go value. All Term implementations must be comparable and thread-safe.
+
+- **TieTerm** - Nominal names are represented as atoms (e.g., NewAtom("a")). TieTerm encodes a binding form that binds a nominal name within body. Semantics: Tie(name, body) roughly corresponds to λ name . body This structure is used by freshness constraints and alpha-aware operations.
 
 - **TruthValue** - TruthValue represents the three-valued logic outcomes under WFS. For negation-as-failure over a subgoal G, the truth of not(G) is: - True:     G completes with no answers - False:    G produces at least one answer - Undefined: G is incomplete (conditional)
 
