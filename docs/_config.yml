@@ -1,0 +1,10 @@
+# GitHub Pages / Jekyll configuration for docs
+# Prevent Liquid from interpreting code-like double braces in generated docs.
+# Layouts and includes still process Liquid; this only affects page content.
+
+# Apply to all pages under docs/
+defaults:
+  - scope:
+      path: ""
+    values:
+      render_with_liquid: false
