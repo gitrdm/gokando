@@ -3,7 +3,7 @@ SHELL := /bin/bash
 # Default tools (override on command line if needed)
 PROTON ?= proton
 
-.PHONY: help docs docs-all docs-proton extract-examples assemble-examples force \
+.PHONY: help docs docs-all docs-proton docs-serve docs-clean extract-examples assemble-examples force \
 	test test-examples test-fast test-race test-bench test-pkg
 
 help: ## Show this help message
@@ -23,6 +23,18 @@ docs-proton: ## Generate API and guides via Proton (uses project Proton config)
 	@echo "Running $(PROTON) generate ..."
 	@$(PROTON) generate
 	@echo "Proton generation finished."
+
+docs-serve: ## Preview docs locally at http://localhost:3000
+	@command -v mdbook >/dev/null 2>&1 || { echo "Error: mdbook not found. Install: https://rust-lang.github.io/mdBook/guide/installation.html"; exit 1; }
+	@echo "Starting mdBook server at http://localhost:3000 ..."
+	@mdbook serve --open
+
+docs-clean: ## Clean generated documentation files
+	@echo "Cleaning generated docs..."
+	@rm -rf book/
+	@rm -rf docs/examples-snippets/
+	@rm -f docs/generated-examples.md
+	@echo "✓ Clean complete"
 
 force: ## The 'force' target is a no-op used for phony dependencies
 	@true

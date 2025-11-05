@@ -8,7 +8,7 @@ repository:
 output:
     directory: /home/rdmerrio/gits/gokanlogic/docs
     clean: false
-    gitbook_config: true
+    gitbook_config: false
 discovery:
     packages:
         auto_discover: true
