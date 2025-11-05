@@ -1,8 +1,3 @@
----
-title: Generated Examples
-render_with_liquid: false
----
-
 # Generated Examples
 ## pkg_minikanren_among_example_test.go-ExampleNewAmong_hybrid.md
 ```go
