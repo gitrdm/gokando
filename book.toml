@@ -14,7 +14,6 @@ default-theme = "rust"
 preferred-dark-theme = "navy"
 git-repository-url = "https://github.com/gitrdm/gokanlogic"
 edit-url-template = "https://github.com/gitrdm/gokanlogic/edit/master/docs/{path}"
-site-url = "/gokanlogic/"
 
 [output.html.search]
 enable = true
