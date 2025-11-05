@@ -2,40 +2,40 @@
 
 ## General
 
-### What is gokando?
+### What is gokanlogic?
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
 
 ### What are the system requirements?
 
 - Go 1.21 or later
 - No external dependencies required
 
-### How do I install gokando?
+### How do I install gokanlogic?
 
 ```bash
-go get github.com/gitrdm/gokando@latest
+go get github.com/gitrdm/gokanlogic@latest
 ```
 
-### Is gokando production ready?
+### Is gokanlogic production ready?
 
-Yes, gokando is designed for production use with a focus on reliability, performance, and safety.
+Yes, gokanlogic is designed for production use with a focus on reliability, performance, and safety.
 
 ## Performance
 
 ### What are the performance characteristics?
 
-gokando is designed for high performance with minimal overhead. See our [performance documentation](performance.md) for detailed benchmarks.
+gokanlogic is designed for high performance with minimal overhead. See our [performance documentation](performance.md) for detailed benchmarks.
 
-### How does gokando handle memory allocation?
+### How does gokanlogic handle memory allocation?
 
-gokando is designed to minimize allocations in hot paths. Most operations are allocation-free in steady state.
+gokanlogic is designed to minimize allocations in hot paths. Most operations are allocation-free in steady state.
 
 ## Usage
 
-### Can I use gokando with other libraries?
+### Can I use gokanlogic with other libraries?
 
-Yes, gokando is designed to work well with the standard library and other Go packages.
+Yes, gokanlogic is designed to work well with the standard library and other Go packages.
 
 ### Are there any gotchas I should know about?
 
@@ -47,8 +47,8 @@ See our [best practices guide](best-practices.md) for common patterns and pitfal
 
 - Check this FAQ
 - Browse the [documentation](../README.md)
-- Search [existing issues](https://github.com/gitrdm/gokando/issues)
-- Open a [new issue](https://github.com/gitrdm/gokando/issues/new)
+- Search [existing issues](https://github.com/gitrdm/gokanlogic/issues)
+- Open a [new issue](https://github.com/gitrdm/gokanlogic/issues/new)
 
 ### How do I report a bug?
 

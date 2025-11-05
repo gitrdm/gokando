@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // TestQueryEvaluator tests the basic conversion from pldb query to GoalEvaluator.

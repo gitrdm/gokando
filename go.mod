@@ -1,4 +1,4 @@
-module github.com/gitrdm/gokando
+module github.com/gitrdm/gokanlogic
 
 go 1.25.3
 

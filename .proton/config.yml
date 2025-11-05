@@ -1,12 +1,12 @@
 repository:
-    name: gokando
+    name: gokanlogic
     owner: gitrdm
-    description: '[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)'
-    import_path: github.com/gitrdm/gokando
+    description: '[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)'
+    import_path: github.com/gitrdm/gokanlogic
     branch: master
-    url: https://github.com/gitrdm/gokando
+    url: https://github.com/gitrdm/gokanlogic
 output:
-    directory: /home/rdmerrio/gits/gokando/docs
+    directory: /home/rdmerrio/gits/gokanlogic/docs
     clean: false
     gitbook_config: true
 discovery:
@@ -38,8 +38,8 @@ templates:
     directory: ""
     custom_templates: []
 gitbook:
-    title: gokando
-    description: '[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)'
+    title: gokanlogic
+    description: '[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)'
     theme: default
     plugins: []
     structure:

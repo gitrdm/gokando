@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func runGoal(goal Goal, vars ...Term) []string {

@@ -5,7 +5,7 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/gitrdm/gokando/internal/parallel"
+	"github.com/gitrdm/gokanlogic/internal/parallel"
 )
 
 // ParallelConfig holds configuration for parallel goal execution.

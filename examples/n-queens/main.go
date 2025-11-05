@@ -1,4 +1,4 @@
-// Package main solves the N-Queens puzzle using GoKando's relational solver.
+// Package main solves the N-Queens puzzle using gokanlogic's relational solver.
 //
 // The N-Queens puzzle: Place N queens on an N×N chessboard such that no two queens
 // attack each other. Queens can attack any piece on the same row, column, or diagonal.
@@ -25,7 +25,7 @@ import (
 	"os"
 	"strconv"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

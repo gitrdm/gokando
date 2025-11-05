@@ -1,5 +1,5 @@
 // Package main demonstrates a parallel N-Queens solver using the FD solver
-// and GoKando's parallel execution framework.
+// and gokanlogic's parallel execution framework.
 //
 // This example is written in a literate, explanatory style so you can see
 // how the FD solver and the parallel execution framework work together.
@@ -54,7 +54,7 @@ import (
 	"runtime"
 	"time"
 
-	minikanren "github.com/gitrdm/gokando/pkg/minikanren"
+	minikanren "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

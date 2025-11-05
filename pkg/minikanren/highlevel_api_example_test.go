@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func ExampleSolutions_basic() {

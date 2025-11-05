@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // ExampleDbRel demonstrates creating a relation with indexed columns.

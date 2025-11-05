@@ -1,8 +1,8 @@
-# GoKanDo Hybrid Solver Implementation Roadmap
+# gokanlogic Hybrid Solver Implementation Roadmap
 
 ## 1. Introduction
 
-This document outlines the phased implementation plan for refactoring and enhancing the GoKanDo solver into a robust, extensible, and production-ready hybrid constraint programming framework. The primary goal is to move from the current prototype-level integration to a tightly-coupled, high-performance system with a clean, user-friendly API.
+This document outlines the phased implementation plan for refactoring and enhancing the gokanlogic solver into a robust, extensible, and production-ready hybrid constraint programming framework. The primary goal is to move from the current prototype-level integration to a tightly-coupled, high-performance system with a clean, user-friendly API.
 
 Each phase is designed to build upon the previous one, ensuring a stable foundation before new features are added. All work must adhere to the strict coding, documentation, and testing standards outlined below.
 
@@ -10,7 +10,7 @@ Each phase is designed to build upon the previous one, ensuring a stable foundat
 
 ## 2. Coding and Documentation Guidelines
 
-> These guidelines ensure consistent, high-quality implementation across all GoKanDo components. Follow these standards for all new code and documentation.
+> These guidelines ensure consistent, high-quality implementation across all gokanlogic components. Follow these standards for all new code and documentation.
 
 ### Code Quality Standards
 
@@ -691,7 +691,7 @@ This section reflects the landed, production-ready SLG/WFS implementation. The p
         - Final non-blocking checks before queuing any delay set ensure we don’t emit a conditional when the inner goal is already complete with zero or more answers.
     - Unfounded sets: Signed dependency graph with Tarjan SCC analysis; SCCs with negative edges are treated as undefined. Cached membership accelerates repeated checks.
     - Public truth API: `TruthValue` and `NegationTruth` expose True/False/Undefined; undefined arises from conditional inner answers or unfounded-set membership. Truth probes are side-effect-free and do not record permanent negative edges.
-    - Tracing: Opt-in, ultra-light tracing for WFS/negation paths controlled via `SLGConfig.DebugWFS` or `GOKANDO_WFS_TRACE=1`.
+    - Tracing: Opt-in, ultra-light tracing for WFS/negation paths controlled via `SLGConfig.DebugWFS` or `gokanlogic_WFS_TRACE=1`.
 
 - Removed/deprecated
     - No timer/peek windows remain. The previous peek knob has been removed/ignored; correctness and shape are fully determined by event ordering and handshake.
@@ -734,7 +734,7 @@ This is essential for:
 
 **Architecture Philosophy**:
 
-Following the established GoKanDo patterns, the tabling infrastructure must be:
+Following the established gokanlogic patterns, the tabling infrastructure must be:
 1. **Thread-safe and parallel-friendly**: Lock-free or minimal locking using Go concurrency primitives
 2. **Zero-copy where possible**: Leverage immutable data structures and copy-on-write semantics
 3. **Memory-efficient**: Use `sync.Pool` for frequently allocated structures
@@ -849,7 +849,7 @@ unreachable(X, Y) :- not(path(X, Y)).
 
 #### **Task 5.5: Public API and User Experience** ⏳
 
-**Objective**: Provide ergonomic, production-ready API following Go idioms and GoKanDo conventions.
+**Objective**: Provide ergonomic, production-ready API following Go idioms and gokanlogic conventions.
 
 **Recommended API Design**:
 
@@ -1457,7 +1457,7 @@ func ExampleTabled() {
 
 **Objective**: Extend the core miniKanren language with foundational operators and utilities that enhance expressiveness before implementing nominal logic.
 
-**Background**: While GoKanDo has excellent constraint programming capabilities, it lacks some fundamental relational operators present in mature miniKanren implementations. These operators improve code clarity, reduce boilerplate, and enable more natural expression of relational programs.
+**Background**: While gokanlogic has excellent constraint programming capabilities, it lacks some fundamental relational operators present in mature miniKanren implementations. These operators improve code clarity, reduce boilerplate, and enable more natural expression of relational programs.
 
 **Priority**: These extensions should be implemented before nominal logic (Phase 7.1+) as they provide foundational capabilities that nominal logic may depend on and they're useful independently for general logic programming.
 
@@ -1662,7 +1662,7 @@ func ExampleTabled() {
 - [ ] **Task 8.1: Design and Implement a High-Level Declarative API**
     - [ ] **Objective**: Abstract away the complexities of the underlying solver framework.
     - [ ] **Action**:
-        - [ ] Create a new API package (`gokando/clp`?) for defining models.
+        - [ ] Create a new API package (`gokanlogic/clp`?) for defining models.
         - [ ] Implement a builder pattern or functional options for creating variables and constraints declaratively.
     - [ ] **Success Criteria**: Users can define complex constraint problems with minimal boilerplate, focusing on the "what," not the "how."
 

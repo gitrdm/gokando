@@ -398,7 +398,7 @@ type SLGConfig struct {
 	EnforceStratification bool
 
 	// DebugWFS enables verbose tracing for WFS/negation synchronization paths.
-	// Prefer enabling via environment variable GOKANDO_WFS_TRACE=1 when possible.
+	// Prefer enabling via environment variable gokanlogic_WFS_TRACE=1 when possible.
 	DebugWFS bool
 
 	// NegationPeekTimeout is deprecated and ignored.

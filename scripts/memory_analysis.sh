@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Comprehensive Memory and Performance Analysis Script for GoKando
+# Comprehensive Memory and Performance Analysis Script for gokanlogic
 # This script demonstrates Go's memory leak detection and profiling capabilities
 
 set -e

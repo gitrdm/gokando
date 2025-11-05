@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // ExampleTabledQuery demonstrates basic tabled queries over pldb relations.

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // ExampleSendMoreMoney_reificationCount demonstrates how to model

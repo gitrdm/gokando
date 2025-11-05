@@ -16,7 +16,7 @@ Key features:
 
 ## Tabling & WFS (SLG)
 
-For recursive relations and negation, GoKanDo includes a production SLG tabling engine implementing Well‑Founded Semantics (WFS):
+For recursive relations and negation, gokanlogic includes a production SLG tabling engine implementing Well‑Founded Semantics (WFS):
 
 - What it is and when to use it: see `docs/minikanren/tabling.md`.
 - How to call it ergonomically: use the wrappers in `pkg/minikanren/slg_wrappers.go` (examples in `pkg/minikanren/slg_wrappers_example_test.go`).
@@ -602,4 +602,4 @@ results := minikanren.ParallelRunWithConfig(100, func(q *minikanren.Var) minikan
 ```
 
 This miniKanren implementation provides a powerful, thread-safe foundation for relational programming in Go, with seamless integration of constraint solving and parallel execution capabilities.</content>
-<parameter name="filePath">/home/rdmerrio/gits/gokando/docs/minikanren/core.md
+<parameter name="filePath">/home/rdmerrio/gits/gokanlogic/docs/minikanren/core.md

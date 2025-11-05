@@ -3,7 +3,7 @@ package minikanren_test
 import (
 	"fmt"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // ExampleNewElementValues demonstrates result = values[index] with propagation.

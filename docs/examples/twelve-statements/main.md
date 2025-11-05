@@ -5,7 +5,7 @@ This example demonstrates basic usage of the library.
 ## Source Code
 
 ```go
-// Package main solves the Twelve Statements puzzle using GoKando.
+// Package main solves the Twelve Statements puzzle using gokanlogic.
 //
 // The puzzle: Given twelve statements about themselves, determine which are true.
 //
@@ -27,7 +27,7 @@ package main
 import (
 	"fmt"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

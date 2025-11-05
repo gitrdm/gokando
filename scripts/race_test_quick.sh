@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Quick Race Detection Script for GoKando
+# Quick Race Detection Script for gokanlogic
 # This script provides fast but effective race detection testing
 
 set -e
 
-echo "⚡ GoKando Quick Race Detection Testing"
+echo "⚡ gokanlogic Quick Race Detection Testing"
 echo "======================================"
 
 echo

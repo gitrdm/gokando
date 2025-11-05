@@ -15,7 +15,7 @@ management and backpressure control.
 ### Import and Setup
 
 ```go
-import "github.com/gitrdm/gokando/internal/parallel"
+import "github.com/gitrdm/gokanlogic/internal/parallel"
 
 // Always check for errors when initializing
 config, err := parallel.New()

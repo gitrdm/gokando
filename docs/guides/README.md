@@ -1,6 +1,6 @@
 # Guides
 
-In-depth guides and best practices for gokando.
+In-depth guides and best practices for gokanlogic.
 
 ## Getting Started
 
@@ -18,7 +18,7 @@ In-depth guides and best practices for gokando.
 ## Advanced Topics
 
 - [Architecture Overview](architecture.md)
-- [Extending gokando](extending.md)
+- [Extending gokanlogic](extending.md)
 - [Integration Patterns](integration.md)
 - [Troubleshooting](troubleshooting.md)
 
@@ -34,7 +34,7 @@ simple relational programming problems.
 
 ### main
 
-Package main solves the apartment floor puzzle using GoKando.
+Package main solves the apartment floor puzzle using gokanlogic.
 
 The puzzle: Baker, Cooper, Fletcher, Miller, and Smith live on different
 floors of an apartment house that contains only five floors.
@@ -70,7 +70,7 @@ the classic 3-coloring problem.
 
 ### main
 
-Package main solves the N-Queens puzzle using GoKando.
+Package main solves the N-Queens puzzle using gokanlogic.
 
 The N-Queens puzzle: Place N queens on an N×N chessboard such that no two queens
 attack each other. Queens can attack any piece on the same row, column, or diagonal.
@@ -84,7 +84,7 @@ For larger boards, a more sophisticated constraint propagation approach would be
 ### main
 
 Package main demonstrates a parallel N-Queens solver using the FD solver
-and GoKando's parallel execution framework.
+and gokanlogic's parallel execution framework.
 
 This example is written in a literate, explanatory style so you can see
 how the FD solver and the parallel execution framework work together.
@@ -142,7 +142,7 @@ Practical notes
 
 ### main
 
-Package main solves the Twelve Statements puzzle using GoKando.
+Package main solves the Twelve Statements puzzle using gokanlogic.
 
 The puzzle: Given twelve statements about themselves, determine which are true.
 
@@ -165,7 +165,7 @@ The puzzle: Given twelve statements about themselves, determine which are true.
 
 ### main
 
-Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
 
 The Zebra puzzle is a logic puzzle with the following constraints:
   - There are five houses.
@@ -279,6 +279,6 @@ concurrent execution capabilities, designed for production use.
 
 ## External Resources
 
-- [GitHub Repository](https://github.com/gitrdm/gokando)
-- [Discussions](https://github.com/gitrdm/gokando/discussions)
-- [Issues](https://github.com/gitrdm/gokando/issues)
+- [GitHub Repository](https://github.com/gitrdm/gokanlogic)
+- [Discussions](https://github.com/gitrdm/gokanlogic/discussions)
+- [Issues](https://github.com/gitrdm/gokanlogic/issues)

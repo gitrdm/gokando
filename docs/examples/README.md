@@ -1,6 +1,6 @@
 # Examples
 
-Working examples and code samples for gokando.
+Working examples and code samples for gokanlogic.
 
 ## Overview
 
@@ -17,8 +17,8 @@ This section contains practical examples demonstrating how to use the various pa
 1. **Clone the repository:**
 
    ```bash
-   git clone https://github.com/gitrdm/gokando.git
-   cd gokando
+   git clone https://github.com/gitrdm/gokanlogic.git
+   cd gokanlogic
    ```
 
 2. **Navigate to examples:**
@@ -45,6 +45,6 @@ We welcome contributions of new examples! See our [Contributing Guide](../guides
 
 ## External Resources
 
-- [GitHub Repository](https://github.com/gitrdm/gokando)
+- [GitHub Repository](https://github.com/gitrdm/gokanlogic)
 - [API Reference](../api-reference/README.md)
 - [Package Documentation](../packages/README.md)

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	mk "github.com/gitrdm/gokando/pkg/minikanren"
+	mk "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // Anytime Optimization Demo: demonstrates SolveOptimalWithOptions returning

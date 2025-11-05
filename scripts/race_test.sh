@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Comprehensive Race Detection Script for GoKando
+# Comprehensive Race Detection Script for gokanlogic
 # This script runs various levels of race detection testing
 
 set -e
 
-echo "🧪 GoKando Comprehensive Race Detection Testing"
+echo "🧪 gokanlogic Comprehensive Race Detection Testing"
 echo "=============================================="
 
 echo

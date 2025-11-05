@@ -1,6 +1,6 @@
 # Examples: twelve-statements
 
-This directory contains examples from: /home/rdmerrio/gits/gokando/examples/twelve-statements
+This directory contains examples from: /home/rdmerrio/gits/gokanlogic/examples/twelve-statements
 
 ## Files
 

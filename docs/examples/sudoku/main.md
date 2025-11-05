@@ -12,7 +12,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gitrdm/gokando/pkg/minikanren"
+	"github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // Simple Sudoku example using the FD layer. Puzzle format: 0 for empty.

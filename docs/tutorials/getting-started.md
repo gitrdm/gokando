@@ -1,6 +1,6 @@
-## Getting started with gokando
+## Getting started with gokanlogic
 
-This short page shows a minimal example of creating a model and variables using the gokando `minikanren` package. The examples below are extracted from the project's Example tests and include deterministic `// Output:` blocks so they can be verified automatically.
+This short page shows a minimal example of creating a model and variables using the gokanlogic `minikanren` package. The examples below are extracted from the project's Example tests and include deterministic `// Output:` blocks so they can be verified automatically.
 
 ### Create a model and variables
 

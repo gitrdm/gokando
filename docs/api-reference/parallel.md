@@ -2,7 +2,7 @@
 
 Complete API documentation for the parallel package.
 
-**Import Path:** `github.com/gitrdm/gokando/internal/parallel`
+**Import Path:** `github.com/gitrdm/gokanlogic/internal/parallel`
 
 ## Package Documentation
 
@@ -553,5 +553,5 @@ func (*WorkerPool) worker()
 ## External Links
 
 - [Package Overview](../packages/parallel.md)
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokando/internal/parallel)
-- [Source Code](https://github.com/gitrdm/gokando/tree/master/internal/parallel)
+- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic/internal/parallel)
+- [Source Code](https://github.com/gitrdm/gokanlogic/tree/master/internal/parallel)

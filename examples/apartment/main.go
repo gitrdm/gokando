@@ -1,4 +1,4 @@
-// Package main solves the apartment floor puzzle using GoKando.
+// Package main solves the apartment floor puzzle using gokanlogic.
 //
 // The puzzle: Baker, Cooper, Fletcher, Miller, and Smith live on different
 // floors of an apartment house that contains only five floors.
@@ -18,7 +18,7 @@ import (
 	"context"
 	"fmt"
 
-	minikanren "github.com/gitrdm/gokando/pkg/minikanren"
+	minikanren "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

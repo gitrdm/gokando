@@ -4,7 +4,7 @@ Best practices and recommended patterns for using the main package effectively.
 
 ## Overview
 
-Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
 
 The Zebra puzzle is a logic puzzle with the following constraints:
   - There are five houses.
@@ -32,7 +32,7 @@ Question: Who owns the zebra?
 ### Import and Setup
 
 ```go
-import "github.com/gitrdm/gokando/examples/zebra"
+import "github.com/gitrdm/gokanlogic/examples/zebra"
 
 // Always check for errors when initializing
 config, err := main.New()

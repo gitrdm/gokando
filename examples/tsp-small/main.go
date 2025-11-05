@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	mk "github.com/gitrdm/gokando/pkg/minikanren"
+	mk "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // small symmetric TSP instance (n=5) with obvious optimal tour

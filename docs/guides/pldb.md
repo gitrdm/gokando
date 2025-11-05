@@ -1,6 +1,6 @@
 # Relational Database (pldb) Guide
 
-This guide covers GoKanDo's relational database system (pldb), which provides efficient in-memory fact storage and querying with indexed access. The pldb system integrates seamlessly with miniKanren goals and SLG tabling for recursive queries.
+This guide covers gokanlogic's relational database system (pldb), which provides efficient in-memory fact storage and querying with indexed access. The pldb system integrates seamlessly with miniKanren goals and SLG tabling for recursive queries.
 
 ## Overview
 
@@ -71,7 +71,7 @@ package main
 import (
     "context"
     "fmt"
-    . "github.com/gitrdm/gokando/pkg/minikanren"
+    . "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

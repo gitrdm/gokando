@@ -2,7 +2,7 @@
 
 Complete API documentation for the minikanren package.
 
-**Import Path:** `github.com/gitrdm/gokando/pkg/minikanren`
+**Import Path:** `github.com/gitrdm/gokanlogic/pkg/minikanren`
 
 ## Optimization API (Phase 4.4)
 
@@ -174,7 +174,7 @@ concurrent execution capabilities, designed for production use.
 
 ### Version
 
-Version represents the current version of the GoKando miniKanren implementation.
+Version represents the current version of the gokanlogic miniKanren implementation.
 
 
 ```go
@@ -4920,5 +4920,5 @@ result := ReturnPooledGlobalBus(/* parameters */)
 ## External Links
 
 - [Package Overview](../packages/minikanren.md)
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokando/pkg/minikanren)
-- [Source Code](https://github.com/gitrdm/gokando/tree/master/pkg/minikanren)
+- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic/pkg/minikanren)
+- [Source Code](https://github.com/gitrdm/gokanlogic/tree/master/pkg/minikanren)

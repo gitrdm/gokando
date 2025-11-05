@@ -1,4 +1,4 @@
-// Package main solves the Twelve Statements puzzle using GoKando's FD solver
+// Package main solves the Twelve Statements puzzle using gokanlogic's FD solver
 // with production global constraints (BoolSum, reification, and Table) — no
 // hybrid workaround.
 //
@@ -34,7 +34,7 @@ import (
 	"fmt"
 	"time"
 
-	mk "github.com/gitrdm/gokando/pkg/minikanren"
+	mk "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

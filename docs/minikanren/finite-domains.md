@@ -603,4 +603,4 @@ func solveNQueens(n int) ([][]int, error) {
 ```
 
 This FD solver provides a powerful, efficient foundation for solving complex combinatorial problems with a clean, idiomatic Go API.</content>
-<parameter name="filePath">/home/rdmerrio/gits/gokando/docs/minikanren/finite-domains.md
+<parameter name="filePath">/home/rdmerrio/gits/gokanlogic/docs/minikanren/finite-domains.md

@@ -1,4 +1,4 @@
-// Package main solves graph coloring problems using GoKando.
+// Package main solves graph coloring problems using gokanlogic.
 //
 // Graph Coloring Problem: Color the vertices of a graph such that no two
 // adjacent vertices share the same color, using the minimum number of colors.
@@ -19,7 +19,7 @@ import (
 	"os"
 	"time"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // A tiny demo of lexicographic ordering X ≤lex Y.

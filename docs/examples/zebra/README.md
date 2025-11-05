@@ -1,6 +1,6 @@
 # Examples: zebra
 
-This directory contains examples from: /home/rdmerrio/gits/gokando/examples/zebra
+This directory contains examples from: /home/rdmerrio/gits/gokanlogic/examples/zebra
 
 ## Files
 

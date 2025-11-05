@@ -4,8 +4,8 @@ structure:
   readme: README.md
   summary: SUMMARY.md
 
-title: gokando
-description: [![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)
+title: gokanlogic
+description: [![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
 
 gitbook: ">=3.2.0"
 

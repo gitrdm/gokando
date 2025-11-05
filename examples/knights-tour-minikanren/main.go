@@ -1,4 +1,4 @@
-// Package main demonstrates the Knight's Tour puzzle using GoKando's miniKanren.
+// Package main demonstrates the Knight's Tour puzzle using gokanlogic's miniKanren.
 //
 // A Knight's Tour is a sequence of moves by a knight on a chessboard such
 // that the knight visits every square exactly once. Knights move in an L-shape:
@@ -16,7 +16,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 const N = 5

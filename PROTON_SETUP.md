@@ -58,4 +58,4 @@ For more details, see: https://github.com/kolosys/proton
    git push
    ```
 
-Your documentation will be available at: `https://gitrdm.github.io/gokando/`
+Your documentation will be available at: `https://gitrdm.github.io/gokanlogic/`

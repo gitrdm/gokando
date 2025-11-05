@@ -1,6 +1,6 @@
 # Examples: sudoku
 
-This directory contains examples from: /home/rdmerrio/gits/gokando/examples/sudoku
+This directory contains examples from: /home/rdmerrio/gits/gokanlogic/examples/sudoku
 
 ## Files
 

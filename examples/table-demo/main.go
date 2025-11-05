@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	mk "github.com/gitrdm/gokando/pkg/minikanren"
+	mk "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // Table Demo: extensional constraint over (Color, Pet, Drink)

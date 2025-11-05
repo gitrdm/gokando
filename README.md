@@ -1,10 +1,10 @@
-# GoKando
+# gokanlogic
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokando/releases)
+[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
 [![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-GoKando is a Go implementation of miniKanren with a finite-domain (FD) constraint solver and optional parallel execution. It aims to be practical for learning, experiments, and small projects. The core provides relational programming primitives; the FD layer helps with combinatorial search; and a thin high-level API (HLAPI) reduces boilerplate for common tasks. It's not an industrial solver, but it is hopefully useful in some domains that need logic and FD support.
+gokanlogic is a Go implementation of miniKanren with a finite-domain (FD) constraint solver and optional parallel execution. It aims to be practical for learning, experiments, and small projects. The core provides relational programming primitives; the FD layer helps with combinatorial search; and a thin high-level API (HLAPI) reduces boilerplate for common tasks. It's not an industrial solver, but it is hopefully useful in some domains that need logic and FD support.
 
 ## Installation
 
@@ -15,8 +15,8 @@ GoKando is a Go implementation of miniKanren with a finite-domain (FD) constrain
 ### Install from Source
 ```bash
 # Clone the repository
-git clone https://github.com/gitrdm/gokando.git
-cd gokando
+git clone https://github.com/gitrdm/gokanlogic.git
+cd gokanlogic
 
 # Install dependencies
 go mod tidy
@@ -34,7 +34,7 @@ package main
 
 import (
     "fmt"
-    mk "github.com/gitrdm/gokando/pkg/minikanren"
+    mk "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

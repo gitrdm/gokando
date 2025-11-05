@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	minikanren "github.com/gitrdm/gokando/pkg/minikanren"
+	minikanren "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

@@ -1,4 +1,4 @@
-// Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+// Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
 //
 // The Zebra puzzle is a logic puzzle with the following constraints:
 //   - There are five houses.
@@ -24,11 +24,11 @@ package main
 import (
 	"fmt"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {
-	fmt.Println("=== Solving the Zebra Puzzle with GoKando ===")
+	fmt.Println("=== Solving the Zebra Puzzle with gokanlogic ===")
 	fmt.Println()
 
 	// Solve the puzzle - we expect exactly one solution

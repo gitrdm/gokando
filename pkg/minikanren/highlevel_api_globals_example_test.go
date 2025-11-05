@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // Example_hlapi_noOverlap demonstrates how to use the HLAPI helper

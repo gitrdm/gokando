@@ -1,6 +1,6 @@
-# GoKanDo Examples
+# gokanlogic Examples
 
-This directory contains complete example programs demonstrating various features of the GoKanDo miniKanren implementation.
+This directory contains complete example programs demonstrating various features of the gokanlogic miniKanren implementation.
 
 ### Send More Money Cryptarithm (Hybrid miniKanren)
 
@@ -85,7 +85,7 @@ Find a 3x3 grid of distinct digits (1-9) where each row, column, and diagonal su
 
 **Features demonstrated:**
 - **Hybrid miniKanren + FD approach**: MiniKanren handles logical structure and result formatting, FD solver manages arithmetic constraints
-- **Unified constraint solving**: Both formalisms work together through GoKanDo's constraint store
+- **Unified constraint solving**: Both formalisms work together through gokanlogic's constraint store
 - **Sum constraints**: Arithmetic constraints for rows, columns, and diagonals
 - **AllDifferent constraint**: Ensures all grid values are unique
 - **Cross-paradigm coordination**: Converting between relational and domain-based representations
@@ -130,7 +130,7 @@ The hybrid approach successfully demonstrates framework integration but reveals 
 - **Magic squares are deceptively complex**: Simple sum constraints hide intricate interdependencies
 - **Current FD solver finds AllDifferent solutions** but struggles with arithmetic consistency
 - **Hybrid approach adds overhead** without solving the core propagation limitations
-- **Commercial CP solvers** use advanced algorithms (e.g., GAC for sum constraints) that GoKanDo lacks
+- **Commercial CP solvers** use advanced algorithms (e.g., GAC for sum constraints) that gokanlogic lacks
 - **Specialized magic square algorithms** (Siamese method, de la Loubère method) might be more effective
 
 **🚀 Future Enhancement Opportunities:**
@@ -237,7 +237,7 @@ Find a sequence of knight moves on a 5x5 chessboard. This example demonstrates c
 
 **Features demonstrated:**
 - **Hybrid constraint solving**: MiniKanren for relational structure + FD for combinatorial optimization
-- **Unified constraint system**: Both approaches working together through GoKanDo's constraint store
+- **Unified constraint system**: Both approaches working together through gokanlogic's constraint store
 - **Knight move constraints**: Defined relationally with domain-aware propagation
 - **Cross-paradigm coordination**: Converting between relational and domain-based representations
 

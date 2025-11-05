@@ -18,7 +18,7 @@ func TestMemoryProfiling(t *testing.T) {
 	}
 
 	// Create a memory profile file
-	f, err := os.Create("gokando_memory.prof")
+	f, err := os.Create("gokanlogic_memory.prof")
 	if err != nil {
 		t.Fatalf("Could not create memory profile: %v", err)
 	}
@@ -100,7 +100,7 @@ func TestMemoryProfiling(t *testing.T) {
 	}
 
 	t.Logf("Memory profiling complete. Analyze with:")
-	t.Logf("  go tool pprof gokando_memory.prof")
+	t.Logf("  go tool pprof gokanlogic_memory.prof")
 	t.Logf("  (pprof) top10")
 	t.Logf("  (pprof) list <function_name>")
 	t.Logf("  (pprof) web")
@@ -114,7 +114,7 @@ func TestCPUProfiling(t *testing.T) {
 	}
 
 	// Create a CPU profile file
-	f, err := os.Create("gokando_cpu.prof")
+	f, err := os.Create("gokanlogic_cpu.prof")
 	if err != nil {
 		t.Fatalf("Could not create CPU profile: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestCPUProfiling(t *testing.T) {
 	t.Logf("  Processed %d results in %v", len(results), duration)
 	t.Logf("  Rate: %.2f results/second", float64(len(results))/duration.Seconds())
 	t.Logf("Analyze with:")
-	t.Logf("  go tool pprof gokando_cpu.prof")
+	t.Logf("  go tool pprof gokanlogic_cpu.prof")
 	t.Logf("  (pprof) top10")
 	t.Logf("  (pprof) list <function_name>")
 	t.Logf("  (pprof) web")

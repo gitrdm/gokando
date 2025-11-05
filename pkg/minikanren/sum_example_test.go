@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	. "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // ExampleNewLinearSum demonstrates a weighted sum equality with bounds

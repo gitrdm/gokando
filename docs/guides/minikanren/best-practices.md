@@ -75,7 +75,7 @@ concurrent execution capabilities, designed for production use.
 ### Import and Setup
 
 ```go
-import "github.com/gitrdm/gokando/pkg/minikanren"
+import "github.com/gitrdm/gokanlogic/pkg/minikanren"
 
 // Always check for errors when initializing
 config, err := minikanren.New()

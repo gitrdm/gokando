@@ -54,7 +54,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/gitrdm/gokando/pkg/minikanren"
+    "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {
@@ -88,7 +88,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/gitrdm/gokando/pkg/minikanren"
+    "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {

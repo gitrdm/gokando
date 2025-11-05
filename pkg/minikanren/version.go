@@ -6,7 +6,7 @@
 // concurrent execution capabilities, designed for production use.
 package minikanren
 
-// Version represents the current version of the GoKando miniKanren implementation.
+// Version represents the current version of the gokanlogic miniKanren implementation.
 const Version = "1.0.1"
 
 // VersionInfo provides detailed version information.

@@ -1,6 +1,6 @@
 # Documentation Roadmap
 
-This roadmap describes a pragmatic plan to create, verify, and publish documentation for the gokando repository. The goal is to produce accurate, runnable, and maintainable docs that are generated from the codebase (using Go Example tests) and published to GitHub Pages.
+This roadmap describes a pragmatic plan to create, verify, and publish documentation for the gokanlogic repository. The goal is to produce accurate, runnable, and maintainable docs that are generated from the codebase (using Go Example tests) and published to GitHub Pages.
 
 ## Principles
 

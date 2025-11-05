@@ -8,7 +8,7 @@ management and backpressure control.
 
 ## Overview
 
-**Import Path:** `github.com/gitrdm/gokando/internal/parallel`
+**Import Path:** `github.com/gitrdm/gokanlogic/internal/parallel`
 
 Package parallel provides advanced parallel execution capabilities
 for miniKanren goals. This package contains internal utilities
@@ -21,7 +21,7 @@ management and backpressure control.
 ### Install the package
 
 ```bash
-go get github.com/gitrdm/gokando/internal/parallel
+go get github.com/gitrdm/gokanlogic/internal/parallel
 ```
 
 ### Verify installation
@@ -33,7 +33,7 @@ package main
 
 import (
     "fmt"
-    "github.com/gitrdm/gokando/internal/parallel"
+    "github.com/gitrdm/gokanlogic/internal/parallel"
 )
 
 func main() {
@@ -58,7 +58,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/gitrdm/gokando/internal/parallel"
+    "github.com/gitrdm/gokanlogic/internal/parallel"
 )
 
 func main() {
@@ -95,6 +95,6 @@ For more detailed examples, see the [Examples](../examples/README.md) section.
 
 ## Documentation Links
 
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokando/internal/parallel)
-- [Source Code](https://github.com/gitrdm/gokando/tree/master/internal/parallel)
-- [GitHub Issues](https://github.com/gitrdm/gokando/issues)
+- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic/internal/parallel)
+- [Source Code](https://github.com/gitrdm/gokanlogic/tree/master/internal/parallel)
+- [GitHub Issues](https://github.com/gitrdm/gokanlogic/issues)

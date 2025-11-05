@@ -1,6 +1,6 @@
 # API Reference
 
-Complete API documentation for gokando.
+Complete API documentation for gokanlogic.
 
 ## Overview
 
@@ -25,7 +25,7 @@ Key APIs:
 
 ### [main](main.md)
 
-Package main solves the apartment floor puzzle using GoKando.
+Package main solves the apartment floor puzzle using gokanlogic.
 
 The puzzle: Baker, Cooper, Fletcher, Miller, and Smith live on different
 floors of an apartment house that contains only five floors.
@@ -75,7 +75,7 @@ Key APIs:
 
 ### [main](main.md)
 
-Package main solves the N-Queens puzzle using GoKando.
+Package main solves the N-Queens puzzle using gokanlogic.
 
 The N-Queens puzzle: Place N queens on an N×N chessboard such that no two queens
 attack each other. Queens can attack any piece on the same row, column, or diagonal.
@@ -96,7 +96,7 @@ Key APIs:
 ### [main](main.md)
 
 Package main demonstrates a parallel N-Queens solver using the FD solver
-and GoKando's parallel execution framework.
+and gokanlogic's parallel execution framework.
 
 This example is written in a literate, explanatory style so you can see
 how the FD solver and the parallel execution framework work together.
@@ -168,7 +168,7 @@ Key APIs:
 
 ### [main](main.md)
 
-Package main solves the Twelve Statements puzzle using GoKando.
+Package main solves the Twelve Statements puzzle using gokanlogic.
 
 The puzzle: Given twelve statements about themselves, determine which are true.
 
@@ -198,7 +198,7 @@ Key APIs:
 
 ### [main](main.md)
 
-Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
 
 The Zebra puzzle is a logic puzzle with the following constraints:
   - There are five houses.
@@ -332,5 +332,5 @@ Key APIs:
 
 ## External References
 
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokando) - Go module documentation
-- [GitHub Repository](https://github.com/gitrdm/gokando) - Source code and issues
+- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic) - Go module documentation
+- [GitHub Repository](https://github.com/gitrdm/gokanlogic) - Source code and issues

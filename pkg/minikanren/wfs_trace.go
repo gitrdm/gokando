@@ -7,14 +7,14 @@ import (
 )
 
 // Lightweight, opt-in tracing for WFS/negation synchronization paths.
-// Enable by setting env var GOKANDO_WFS_TRACE=1 or by setting
+// Enable by setting env var gokanlogic_WFS_TRACE=1 or by setting
 // engine.config.DebugWFS=true (the latter flips the global flag at engine
 // construction time).
 
 var wfsTraceEnabled atomic.Bool
 
 func init() {
-	if os.Getenv("GOKANDO_WFS_TRACE") == "1" {
+	if os.Getenv("gokanlogic_WFS_TRACE") == "1" {
 		wfsTraceEnabled.Store(true)
 	}
 }

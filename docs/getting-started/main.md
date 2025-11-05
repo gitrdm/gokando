@@ -1,6 +1,6 @@
 # Getting Started with main
 
-Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
 
 The Zebra puzzle is a logic puzzle with the following constraints:
   - There are five houses.
@@ -25,9 +25,9 @@ Question: Who owns the zebra?
 
 ## Overview
 
-**Import Path:** `github.com/gitrdm/gokando/examples/zebra`
+**Import Path:** `github.com/gitrdm/gokanlogic/examples/zebra`
 
-Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
 
 The Zebra puzzle is a logic puzzle with the following constraints:
   - There are five houses.
@@ -55,7 +55,7 @@ Question: Who owns the zebra?
 ### Install the package
 
 ```bash
-go get github.com/gitrdm/gokando/examples/zebra
+go get github.com/gitrdm/gokanlogic/examples/zebra
 ```
 
 ### Verify installation
@@ -67,7 +67,7 @@ package main
 
 import (
     "fmt"
-    "github.com/gitrdm/gokando/examples/zebra"
+    "github.com/gitrdm/gokanlogic/examples/zebra"
 )
 
 func main() {
@@ -92,7 +92,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/gitrdm/gokando/examples/zebra"
+    "github.com/gitrdm/gokanlogic/examples/zebra"
 )
 
 func main() {
@@ -115,6 +115,6 @@ For more detailed examples, see the [Examples](../examples/README.md) section.
 
 ## Documentation Links
 
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokando/examples/zebra)
-- [Source Code](https://github.com/gitrdm/gokando/tree/master/examples/zebra)
-- [GitHub Issues](https://github.com/gitrdm/gokando/issues)
+- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic/examples/zebra)
+- [Source Code](https://github.com/gitrdm/gokanlogic/tree/master/examples/zebra)
+- [GitHub Issues](https://github.com/gitrdm/gokanlogic/issues)

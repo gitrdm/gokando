@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide will help you get up and running quickly with gokando.
+This guide will help you get up and running quickly with gokanlogic.
 
 ## Installation
 
@@ -12,13 +12,13 @@ This guide will help you get up and running quickly with gokando.
 ### Install via go get
 
 ```bash
-go get github.com/gitrdm/gokando@latest
+go get github.com/gitrdm/gokanlogic@latest
 ```
 
 ### Install specific version
 
 ```bash
-go get github.com/gitrdm/gokando@v0.1.0
+go get github.com/gitrdm/gokanlogic@v0.1.0
 ```
 
 ## Quick Start
@@ -33,18 +33,18 @@ import (
     "fmt"
     "log"
 
-    "github.com/gitrdm/gokando"
+    "github.com/gitrdm/gokanlogic"
 )
 
 func main() {
     // Your code here
-    fmt.Println("Hello from gokando!")
+    fmt.Println("Hello from gokanlogic!")
 }
 ```
 
 ## Available Packages
 
-gokando provides the following packages:
+gokanlogic provides the following packages:
 
 ### [main](main.md)
 
@@ -61,7 +61,7 @@ simple relational programming problems.
 
 ### [main](main.md)
 
-Package main solves the apartment floor puzzle using GoKando.
+Package main solves the apartment floor puzzle using gokanlogic.
 
 The puzzle: Baker, Cooper, Fletcher, Miller, and Smith live on different
 floors of an apartment house that contains only five floors.
@@ -107,7 +107,7 @@ the classic 3-coloring problem.
 
 ### [main](main.md)
 
-Package main solves the N-Queens puzzle using GoKando.
+Package main solves the N-Queens puzzle using gokanlogic.
 
 The N-Queens puzzle: Place N queens on an N×N chessboard such that no two queens
 attack each other. Queens can attack any piece on the same row, column, or diagonal.
@@ -126,7 +126,7 @@ For larger boards, a more sophisticated constraint propagation approach would be
 ### [main](main.md)
 
 Package main demonstrates a parallel N-Queens solver using the FD solver
-and GoKando's parallel execution framework.
+and gokanlogic's parallel execution framework.
 
 This example is written in a literate, explanatory style so you can see
 how the FD solver and the parallel execution framework work together.
@@ -194,7 +194,7 @@ Practical notes
 
 ### [main](main.md)
 
-Package main solves the Twelve Statements puzzle using GoKando.
+Package main solves the Twelve Statements puzzle using gokanlogic.
 
 The puzzle: Given twelve statements about themselves, determine which are true.
 
@@ -222,7 +222,7 @@ The puzzle: Given twelve statements about themselves, determine which are true.
 
 ### [main](main.md)
 
-Package main solves the famous Zebra puzzle (Einstein's Riddle) using GoKando.
+Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
 
 The Zebra puzzle is a logic puzzle with the following constraints:
   - There are five houses.
@@ -347,10 +347,10 @@ concurrent execution capabilities, designed for production use.
 - [API Reference](../api-reference/README.md) - Complete API documentation
 - [Examples](../examples/README.md) - Working examples and tutorials
 - [Guides](../guides/README.md) - In-depth guides and best practices
-- [GitHub Repository](https://github.com/gitrdm/gokando)
+- [GitHub Repository](https://github.com/gitrdm/gokanlogic)
 
 ## Need Help?
 
-- [GitHub Issues](https://github.com/gitrdm/gokando/issues)
-- [GitHub Discussions](https://github.com/gitrdm/gokando/discussions)
+- [GitHub Issues](https://github.com/gitrdm/gokanlogic/issues)
+- [GitHub Discussions](https://github.com/gitrdm/gokanlogic/discussions)
 - [FAQ](../guides/faq.md)

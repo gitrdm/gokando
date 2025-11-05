@@ -1,6 +1,6 @@
 goos: linux
 goarch: amd64
-pkg: github.com/gitrdm/gokando/pkg/minikanren
+pkg: github.com/gitrdm/gokanlogic/pkg/minikanren
 cpu: AMD Ryzen 9 9950X 16-Core Processor            
 BenchmarkFresh
 BenchmarkFresh-32                         	 2554225	       462.3 ns/op	       0 B/op	       0 allocs/op
@@ -77,4 +77,4 @@ BenchmarkFDVariable_String
 BenchmarkFDVariable_String-32                                              	  207006	      6282 ns/op	     439 B/op	      10 allocs/op
 PASS
 coverage: 39.2% of statements
-ok  	github.com/gitrdm/gokando/pkg/minikanren	133.768s
+ok  	github.com/gitrdm/gokanlogic/pkg/minikanren	133.768s

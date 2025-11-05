@@ -68,7 +68,7 @@ concurrent execution capabilities, designed for production use.
 
 ## Overview
 
-**Import Path:** `github.com/gitrdm/gokando/pkg/minikanren`
+**Import Path:** `github.com/gitrdm/gokanlogic/pkg/minikanren`
 
 Package minikanren provides constraint system infrastructure for order-independent
 constraint logic programming. This file defines the core interfaces and types
@@ -141,7 +141,7 @@ concurrent execution capabilities, designed for production use.
 ### Install the package
 
 ```bash
-go get github.com/gitrdm/gokando/pkg/minikanren
+go get github.com/gitrdm/gokanlogic/pkg/minikanren
 ```
 
 ### Verify installation
@@ -153,7 +153,7 @@ package main
 
 import (
     "fmt"
-    "github.com/gitrdm/gokando/pkg/minikanren"
+    "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {
@@ -178,7 +178,7 @@ import (
     "fmt"
     "log"
 
-    "github.com/gitrdm/gokando/pkg/minikanren"
+    "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {
@@ -287,6 +287,6 @@ For more detailed examples, see the [Examples](../examples/README.md) section.
 
 ## Documentation Links
 
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokando/pkg/minikanren)
-- [Source Code](https://github.com/gitrdm/gokando/tree/master/pkg/minikanren)
-- [GitHub Issues](https://github.com/gitrdm/gokando/issues)
+- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic/pkg/minikanren)
+- [Source Code](https://github.com/gitrdm/gokanlogic/tree/master/pkg/minikanren)
+- [GitHub Issues](https://github.com/gitrdm/gokanlogic/issues)

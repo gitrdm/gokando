@@ -1,6 +1,6 @@
-# GoKanDo High‑Level API Roadmap
+# gokanlogic High‑Level API Roadmap
 
-This document defines the plan to introduce an ergonomic, additive High‑Level API (HLAPI) for GoKanDo. It aims to remove boilerplate seen across examples and tests while preserving composability, performance, and the existing public API.
+This document defines the plan to introduce an ergonomic, additive High‑Level API (HLAPI) for gokanlogic. It aims to remove boilerplate seen across examples and tests while preserving composability, performance, and the existing public API.
 
 Quick recap (LLM-friendly):
 - Goal: Reduce verbosity in common tasks (goal execution, FD modeling, pldb queries, tabling, hybrid glue).

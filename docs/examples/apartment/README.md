@@ -1,6 +1,6 @@
 # Examples: apartment
 
-This directory contains examples from: /home/rdmerrio/gits/gokando/examples/apartment
+This directory contains examples from: /home/rdmerrio/gits/gokanlogic/examples/apartment
 
 ## Files
 

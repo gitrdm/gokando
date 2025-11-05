@@ -3,7 +3,7 @@ package minikanren_test
 import (
 	"fmt"
 
-	"github.com/gitrdm/gokando/pkg/minikanren"
+	"github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 // ExampleNewBitSetDomain demonstrates creating a finite domain with all values from 1 to n.

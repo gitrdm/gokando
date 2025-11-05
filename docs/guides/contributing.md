@@ -1,6 +1,6 @@
-# Contributing to gokando
+# Contributing to gokanlogic
 
-We love your input! We want to make contributing to gokando as easy and transparent as possible.
+We love your input! We want to make contributing to gokanlogic as easy and transparent as possible.
 
 ## Code of Conduct
 
@@ -23,9 +23,9 @@ We use GitHub to sync code to and from our public repository. We'll use GitHub t
 
 In short, when you submit code changes, your submissions are understood to be under the same [MIT License](http://choosealicense.com/licenses/mit/) that covers the project.
 
-## Report bugs using GitHub's [issues](https://github.com/gitrdm/gokando/issues)
+## Report bugs using GitHub's [issues](https://github.com/gitrdm/gokanlogic/issues)
 
-We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/gitrdm/gokando/issues/new).
+We use GitHub issues to track public bugs. Report a bug by [opening a new issue](https://github.com/gitrdm/gokanlogic/issues/new).
 
 ## Write bug reports with detail, background, and sample code
 
