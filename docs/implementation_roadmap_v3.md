@@ -1675,14 +1675,14 @@ func ExampleTabled() {
         - `λa.λb.a` ≡ `λx.λy.x` (alpha-equivalent)
         - `λa.λb.a` ≢ `λa.λb.b` (different structure)
 
-- [ ] **Task 7.1.4: Applications and Examples**
-    - [ ] **Objective**: Demonstrate practical use of nominal logic.
-    - [ ] **Action**:
-        - [ ] Implement lambda calculus substitution without capture
-        - [ ] Implement simple type inference example
-        - [ ] Create compiler transformation examples
-        - [ ] Document common patterns
-    - [ ] **Success Criteria**: Examples show clear advantages over manual variable management.
+- [x] **Task 7.1.4: Applications and Examples**
+    - [x] **Objective**: Demonstrate practical use of nominal logic.
+    - [x] **Action**:
+        - [x] Implement lambda calculus substitution without capture (Substo)
+        - [x] Implement simple type checking/inference example (TypeChecko with ArrType and environments)
+        - [x] Create compiler transformation examples (BetaReduceo one-step, BetaNormalizeo normal form)
+        - [x] Document common patterns (application encoding via Pair/App, free-name extraction)
+    - [x] **Success Criteria**: Examples show clear advantages over manual variable management.
     - **Example Applications**:
         - Beta reduction: `(λx.M) N → M[x:=N]` without capture
         - Type inference for simply-typed lambda calculus
@@ -1699,9 +1699,9 @@ func ExampleTabled() {
 
 **Phase 7.1 Current Status**:
 - Implementation: Core nominal logic delivered (binders, freshness, alpha-equivalence, plugin integration).
-- Tests/Examples: Comprehensive unit tests and examples are included and passing.
-- Documentation: API reference and code docs updated; store semantics documented.
-- Follow-ons: Advanced applications (capture-avoiding substitution, type inference examples) are deferred to future iterations.
+- Applications (7.1.4): Completed — Substo (capture-avoiding substitution), BetaReduceo/BetaNormalizeo (reduction/normalization), FreeNameso (free names), and TypeChecko (simple checker) with environments.
+- Tests/Examples: Comprehensive unit tests and examples are included and passing for all features.
+- Documentation: API reference and code docs updated; store semantics documented; patterns for application, reduction, free names, and type checking documented.
 
 **Phase 7.1 Success Criteria (core)**:
 - [x] Binding and freshness work correctly (including pending detection, immediate rejection on violation)
