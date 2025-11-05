@@ -103,6 +103,8 @@ func solveNQueensSequential(n int) []int {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
+	fmt.Printf("  Building single model with %d queen variables\n", n)
+
 	model := mk.NewModel()
 
 	// Create N variables for queen columns (1-based domains)
@@ -121,6 +123,7 @@ func solveNQueensSequential(n int) []int {
 
 	// Add diagonal constraints using Table constraints
 	// For each pair of queens (i,j), disallow positions where |i-j| == |col_i - col_j|
+	constraintCount := 0
 	for i := 0; i < n; i++ {
 		for j := i + 1; j < n; j++ {
 			rowDiff := j - i // |i - j| since j > i
@@ -147,16 +150,23 @@ func solveNQueensSequential(n int) []int {
 					return nil
 				}
 				model.AddConstraint(table)
+				constraintCount++
 			}
 		}
 	}
+
+	fmt.Printf("  Model built: %d variables, %d constraints\n", n, constraintCount+1)
+	fmt.Printf("  Starting single sequential solver\n")
 
 	// Solve and return first solution
 	solver := mk.NewSolver(model)
 	solutions, err := solver.Solve(ctx, 1)
 	if err != nil || len(solutions) == 0 {
+		fmt.Printf("  Sequential solver: no solution found\n")
 		return nil
 	}
+
+	fmt.Printf("  Sequential solver: FOUND SOLUTION!\n")
 
 	// Extract queen positions
 	result := make([]int, n)

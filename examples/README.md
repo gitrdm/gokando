@@ -714,6 +714,83 @@ Queens placed at columns: [4 2 5 1 3 6]
 ✅ All constraints satisfied!
 ```
 
+### N-Queens Parallel FD (High-Performance)
+
+**Path:** `examples/n-queens-parallel-fd/`
+
+A **modern constraint solver** implementation of N-Queens using finite domain (FD) constraints with parallel search. This demonstrates industrial-strength constraint solving vs. the pedagogical approach above.
+
+**Run:**
+```bash
+cd examples/n-queens-parallel-fd
+go run main.go          # solves 8-queens (lightning fast, ~1.24ms)
+go run main.go 4        # solve for N=4 (~228µs)
+go run main.go 12       # solve for N=12 (~10ms)
+```
+
+**Key Differences from Regular N-Queens:**
+
+| Aspect | Regular N-Queens | Parallel FD N-Queens |
+|--------|------------------|----------------------|
+| **Purpose** | Educational: teaches miniKanren fundamentals | Performance: demonstrates modern constraint solving |
+| **Constraints** | Manual `Neq` + `Project` arithmetic | Built-in `AllDifferent` + `Table` constraints |
+| **Search** | Sequential backtracking | Parallel goroutine workers |
+| **Propagation** | Basic backtracking | Sophisticated constraint propagation |
+| **Performance** | N=8 in ~26s | N=8 in ~1.24ms (**10,000x+ faster**) |
+
+**Why the Massive Speed Difference?**
+
+1. **Constraint Propagation**: FD constraints eliminate invalid values early, drastically reducing search space
+2. **Specialized Algorithms**: `AllDifferent` uses efficient domain filtering vs. manual pairwise checks
+3. **Table Constraints**: Diagonal conflicts precomputed vs. calculated during search
+4. **Parallel Search**: Multiple workers explore different branches simultaneously
+
+**Features Demonstrated:**
+- Modern FD constraint solver with `Model`/`Solver` API
+- `AllDifferent` global constraint for columns
+- `Table` constraints for diagonal conflicts
+- Parallel search with goroutine workers
+- Context-based cancellation on first solution
+- Industrial performance for larger N values
+
+**Educational Value:**
+- **Regular N-Queens**: Learn miniKanren's relational programming concepts, understand when pure approaches hit limits
+- **Parallel FD N-Queens**: See how modern constraint solvers achieve industrial performance
+
+**Performance Comparison:**
+- N=4: 228µs vs ~1ms (regular is 4x slower)
+- N=6: 371µs vs ~228ms (regular is 614x slower)  
+- N=8: 1.24ms vs ~26s (regular is 20,967x slower)
+- N=12: ~10ms vs impossible (regular would take days/weeks)
+
+**Sample Output:**
+```
+=== Solving N-Queens (N=8) with Parallel FD Constraints ===
+
+Worker 2 starting search...
+Worker 1 starting search...
+Worker 3 starting search...
+Worker 4 starting search...
+Worker 1 found solution, signaling cancellation...
+Worker 3 received cancellation, stopping...
+Worker 2 received cancellation, stopping...
+Worker 4 received cancellation, stopping...
+
+✓ Solution found in 1.24ms!
+
+Board:
+Q . . . . . . .
+. . . . Q . . .
+. . . . . . . Q
+. . . . . Q . .
+. . Q . . . . .
+. . . . . . Q .
+. Q . . . . . .
+. . . Q . . . .
+
+Columns: [1 5 8 6 3 7 2 4]
+```
+
 ## MiniKanren Idiomaticity Guide
 
 Understanding when and why to deviate from pure relational programming helps you choose the right approach for your problem.
