@@ -35,13 +35,8 @@ jobs:
           sudo mv mdbook /usr/local/bin/mdbook
           mdbook --version
 
-      - name: Generate documentation with Proton
-        run: proton generate . --output ./docs
-
-      - name: Restore manually curated docs
-        run: |
-          git checkout docs/README.md docs/SUMMARY.md
-          echo "✓ Restored manual README.md and SUMMARY.md"
+      - name: Generate API documentation with Proton
+        run: proton generate . --output ./docs/api-reference
 
       - name: Extract examples from tests
         run: |

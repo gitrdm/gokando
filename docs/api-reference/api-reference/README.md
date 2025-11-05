@@ -1,28 +1,14 @@
-# gokanlogic Documentation
+# API Reference
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
+Complete API documentation for gokanlogic.
 
-## Quick Navigation
+## Overview
 
-### 🚀 [Getting Started](getting-started/README.md)
+This section contains detailed API documentation for all packages. For package overviews and getting started guides, see the [Packages](../packages/README.md) section.
 
-Everything you need to get up and running with gokanlogic.
+## Package APIs
 
-### 📚 [API Reference](api-reference/README.md)
-
-Complete API documentation for all packages.
-
-### 📖 [Examples](examples/README.md)
-
-Working examples and tutorials.
-
-### 📘 [Guides](guides/README.md)
-
-In-depth guides and best practices.
-
-## Package Overview
-
-### parallel
+### [parallel](parallel.md)
 
 Package parallel provides advanced parallel execution capabilities
 for miniKanren goals. This package contains internal utilities
@@ -30,12 +16,16 @@ for managing concurrent goal evaluation with proper resource
 management and backpressure control.
 
 
-- [Getting Started](getting-started/parallel.md)
-- [API Reference](api-reference/parallel.md)
-- [Examples](examples/README.md)
-- [Best Practices](guides/parallel/best-practices.md)
+**[→ Full API Documentation](parallel.md)**
 
-### minikanren
+Key APIs:
+
+- Types and interfaces
+- Functions and methods
+- Constants and variables
+- Detailed usage examples
+
+### [minikanren](minikanren.md)
 
 Package minikanren provides finite domain constraint programming with MiniKanren-style logical variables.
 
@@ -901,17 +891,22 @@ This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.
 
 
-- [Getting Started](getting-started/minikanren.md)
-- [API Reference](api-reference/minikanren.md)
-- [Examples](examples/README.md)
-- [Best Practices](guides/minikanren/best-practices.md)
+**[→ Full API Documentation](minikanren.md)**
 
-## External Resources
+Key APIs:
 
-- [GitHub Repository](https://github.com/gitrdm/gokanlogic)
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic)
-- [Issues & Support](https://github.com/gitrdm/gokanlogic/issues)
+- Types and interfaces
+- Functions and methods
+- Constants and variables
+- Detailed usage examples
 
-## Contributing
+## Navigation
 
-See our [Contributing Guide](guides/contributing.md) to get started.
+- **[Packages](../packages/README.md)** - Package overviews and installation
+- **[Examples](../examples/README.md)** - Working code examples
+- **[Guides](../guides/README.md)** - Best practices and patterns
+
+## External References
+
+- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic) - Go module documentation
+- [GitHub Repository](https://github.com/gitrdm/gokanlogic) - Source code and issues
