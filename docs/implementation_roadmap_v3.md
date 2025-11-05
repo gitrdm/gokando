@@ -1495,7 +1495,7 @@ func ExampleTabled() {
     - **Rationale**: While FD constraints handle most arithmetic needs, relational arithmetic is fundamental to pure logic programming and enables certain patterns that FD constraints don't support well. Important for educational examples and some meta-programming tasks.
     - **Design Note**: Uses direct integer arithmetic with bounds checking rather than Peano numerals for performance.
 
-- [ ] **Task 7.0.2: Advanced Control Flow Operators** ⏳ PENDING
+- [ ] **Task 7.0.2: Advanced Control Flow Operators** ⏳ PLANNED
     - [ ] **Objective**: Provide additional control flow mechanisms for complex search strategies.
     - [ ] **Action**:
         - [ ] Implement `Ifa(condition, thenGoal, elseGoal Goal) Goal` - If-then-else with all solutions
@@ -1509,7 +1509,14 @@ func ExampleTabled() {
         - Clear documentation explains when to use each operator
         - Examples demonstrate advantages over manual goal construction
         - Integration with existing Conda/Condu is clean
+        - All operators work correctly with SLG tabling (no circular dependencies)
+    - **Design Requirements (Lessons from dcg01 branch failure)**:
+        - **Variables must be scoped correctly**: All variables used in control flow goals must be created inside the `Run` closure to be properly projected
+        - **No execution in constructors**: Control flow constructors must not execute goals during pattern construction
+        - **Lazy evaluation compatible**: Must work with both `Conde` (lazy interleaving) and `Disj` (eager parallel)
+        - **SLG compatible**: If used with tabled goals, must not create circular producer-consumer dependencies
     - **Rationale**: These operators provide fine-grained control over search strategy, which is important for optimization and implementing certain algorithms efficiently. Complement existing Conda/Condu.
+    - **Implementation Note**: See `docs/DCG_ARCHITECTURE_ANALYSIS.md` for lessons learned from failed dcg01 implementation.
 
 - [ ] **Task 7.0.3: Constraint Extensions** ✅ **COMPLETED**
     - [x] **Objective**: Fill gaps in FD constraint coverage for specialized applications.
@@ -1594,6 +1601,51 @@ func ExampleTabled() {
         - Table size limits prevent memory exhaustion
     - **Rationale**: Advanced tabling features improve debuggability, enable dynamic program modification, and provide control over memory usage. Important for long-running applications and incremental computation.
 
+- [ ] **Task 7.0.5: Definite Clause Grammars (DCG) with Pattern-Based SLG Integration** ⏳ PLANNED
+    - [ ] **Objective**: Implement production-quality DCG support for parsing and grammar-based applications with proper SLG/WFS tabling integration for left-recursive grammars.
+    - [ ] **Critical Design Requirement**: **Pattern-based architecture** where evaluators construct goal descriptions (data) that SLG orchestrates, rather than executing recursive calls directly.
+    - [ ] **Action**:
+        - [ ] **Phase 1: Pattern Abstraction Layer**
+            - [ ] Define `GoalPattern` interface with `Expand(ctx, store) []Goal` method
+            - [ ] Implement pattern constructors: `TerminalPattern`, `SeqPattern`, `AlternationPattern`
+            - [ ] Add `AsPattern()` method to convert `DCGGoal` to pattern representation
+        - [ ] **Phase 2: SLG Pattern Integration**
+            - [ ] Modify `SLGEngine.Evaluate` to accept and expand `GoalPattern` types
+            - [ ] Implement pattern expansion that routes recursive `NonTerminal` calls through SLG
+            - [ ] Implement fixpoint iteration over pattern-based goals
+        - [ ] **Phase 3: DCG Layer Implementation**
+            - [ ] Implement `Terminal(atom Term) DCGGoal` - Match terminal symbol
+            - [ ] Implement `Seq(goals ...DCGGoal) DCGGoal` - Sequential composition (returns pattern, not executes)
+            - [ ] Implement `Alternation(goals ...DCGGoal) DCGGoal` - Choice (returns pattern, not executes)
+            - [ ] Implement `NonTerminal(name string) DCGGoal` - Grammar nonterminal reference (returns pattern reference)
+            - [ ] Implement `DefineRule(name string, body DCGGoal)` - Non-tabled rule registry
+            - [ ] Implement `TabledDCGRule(name string, body DCGGoal)` - Tabled rule registry for left recursion
+            - [ ] Implement `Parse(ruleName string, input, remainder Term) Goal` - Entry point
+        - [ ] **Phase 4: Validation and Testing**
+            - [ ] Test with all clause orderings (base-first, recursive-first, mixed)
+            - [ ] Test deep left recursion and mutual recursion
+            - [ ] Test right recursion (should work without tabling)
+            - [ ] Verify no timeouts needed for left-recursive grammars
+            - [ ] Performance benchmarks vs. manual parsing
+    - [ ] **Success Criteria** (Production Quality):
+        - ✅ **Clause order independent**: All orderings work (base-first, recursive-first, mixed)
+        - ✅ **No timeouts required**: Left recursion terminates via SLG fixpoint, not timeouts
+        - ✅ **No operational workarounds**: No manual seeds, no inhibit contexts, no base-case-first requirements
+        - ✅ **Deterministic answers**: Same grammar + input → same parse results
+        - ✅ **Clean separation**: DCG layer constructs patterns, SLG orchestrates execution
+        - ✅ **SLG compatible**: No circular producer-consumer dependencies in evaluators
+        - ✅ **Comprehensive tests**: All clause orderings, deep recursion, cycles, edge cases
+    - [ ] **Architecture Reference**: See `docs/DCG_ARCHITECTURE_ANALYSIS.md` for detailed analysis of failed dcg01 approach and correct pattern-based design.
+    - [ ] **Anti-Patterns to Avoid** (from dcg01 failure):
+        - ❌ **Never execute goals in evaluators** - `goalStream := rule.body(...)(ctx, store)` creates circular dependencies
+        - ❌ **Never use Conde/Disj directly in Alternation** - Let SLG orchestrate branch evaluation
+        - ❌ **Never require clause ordering** - If order matters operationally, architecture is wrong
+        - ❌ **Never add operational workarounds** - Band-aids (timeouts, inhibit contexts) mask architectural flaws
+    - **Rationale**: DCG is fundamental for parsing, natural language processing, and grammar-based applications. Proper SLG integration enables left-recursive grammars without operational dependencies. Essential for production parsers and compilers.
+    - **Priority**: MEDIUM-HIGH - Important for PL/compiler applications; should be implemented after control flow operators (7.0.2) are stable
+    - **Estimated Effort**: 2-3 weeks with correct pattern-based architecture from start
+    - **Design Insight**: The key difference between failed and correct implementations is that **patterns are data structures describing goals**, not executed streams. SLG interprets patterns and orchestrates evaluation, detecting recursion and managing fixpoint iteration.
+
 **Phase 7.0 Success Criteria**:
 - Relational arithmetic operators work bidirectionally for common use cases
 - Advanced control flow provides fine-grained search control
@@ -1604,9 +1656,10 @@ func ExampleTabled() {
 
 **Phase 7.0 Priority Notes**:
 - **Task 7.0.1** (Relational Arithmetic): ✅ **COMPLETED** - All bidirectional arithmetic operators implemented with comprehensive tests
-- **Task 7.0.2** (Control Flow): LOW-MEDIUM - Nice to have, existing operators cover most cases
-- **Task 7.0.3** (Constraint Extensions): MEDIUM-HIGH - ScaledDivision complete; Scale and Modulo still needed for scheduling
+- **Task 7.0.2** (Control Flow): MEDIUM - Should be implemented before DCG; control flow operators are simpler and provide foundation
+- **Task 7.0.3** (Constraint Extensions): ✅ **COMPLETED** - All constraint extensions implemented (Scale, Modulo, Absolute, IntervalArithmetic, ScaledDivision)
 - **Task 7.0.4** (Tabling Extensions): MEDIUM - Important for production use and debugging
+- **Task 7.0.5** (DCG with Pattern-Based SLG): MEDIUM-HIGH - Complex but valuable; implement after 7.0.2; see `docs/DCG_ARCHITECTURE_ANALYSIS.md` for architectural requirements
 
 ---
 
