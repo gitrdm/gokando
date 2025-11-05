@@ -31,7 +31,7 @@ func (p *GlobalConstraintBusPool) Put(bus *GlobalConstraintBus) {
 	if bus.shutdown {
 		return // Let it be garbage collected
 	}
-	
+
 	// Clean the bus before returning to pool
 	bus.Reset()
 	p.pool.Put(bus)

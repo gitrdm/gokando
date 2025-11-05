@@ -6,7 +6,14 @@ import (
 )
 
 // ExampleMatche demonstrates exhaustive pattern matching.
-// All matching clauses produce results.
+//
+// This example shows how to classify the structure of a term using
+// exhaustive pattern matching: every clause that matches contributes a
+// result. It's useful to illustrate the difference between the matching
+// strategies provided by the pattern subsystem (Matche/Matcha/Matchu).
+// Low-level pattern constructors are used directly here; the comments show
+// how to express the same intent with the HLAPI-style helpers where
+// applicable.
 func ExampleMatche() {
 	// Classify a list by structure
 	list := List(NewAtom(1), NewAtom(2))
@@ -63,11 +70,11 @@ func ExampleMatchu() {
 	// Classify numbers with mutually exclusive ranges
 	classify := func(n int) string {
 		result := Run(1, func(q *Var) Goal {
-			return Matchu(NewAtom(n),
-				NewClause(NewAtom(0), Eq(q, NewAtom("zero"))),
-				NewClause(NewAtom(1), Eq(q, NewAtom("one"))),
-				NewClause(NewAtom(2), Eq(q, NewAtom("two"))),
-			)
+			return CaseIntMap(NewAtom(n), map[int]string{
+				0: "zero",
+				1: "one",
+				2: "two",
+			}, q)
 		})
 
 		if len(result) == 0 {
@@ -205,12 +212,17 @@ func ExampleMatcha_deterministicChoice() {
 func ExampleMatchu_validation() {
 	// Validate that a value matches exactly one category
 	validate := func(val int) (string, bool) {
+		// Alternative implementation for demonstration purposes
+		// return Matchu(NewAtom(val),
+		//		NewClause(NewAtom(1), Eq(q, NewAtom("category-A"))),
+		//		NewClause(NewAtom(2), Eq(q, NewAtom("category-B"))),
+		//		NewClause(NewAtom(3), Eq(q, NewAtom("category-C"))),
 		result := Run(1, func(q *Var) Goal {
-			return Matchu(NewAtom(val),
-				NewClause(NewAtom(1), Eq(q, NewAtom("category-A"))),
-				NewClause(NewAtom(2), Eq(q, NewAtom("category-B"))),
-				NewClause(NewAtom(3), Eq(q, NewAtom("category-C"))),
-			)
+			return CaseIntMap(NewAtom(val), map[int]string{
+				1: "category-A",
+				2: "category-B",
+				3: "category-C",
+			}, q)
 		})
 
 		if len(result) == 0 {

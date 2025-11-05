@@ -3,6 +3,7 @@ package minikanren
 import (
 	"context"
 	"fmt"
+	"sort"
 )
 
 // ExampleReifiedConstraint shows how to reify a constraint into a boolean.
@@ -19,11 +20,20 @@ func ExampleReifiedConstraint() {
 	model.AddConstraint(reified)
 
 	solver := NewSolver(model)
-	solutions, _ := solver.Solve(context.Background(), 5)
+	solutions, _ := solver.Solve(context.Background(), 0)
 
-	for i := 0; i < len(solutions) && i < 3; i++ {
-		sol := solutions[i]
-		fmt.Printf("X=%d Y=%d B=%t\n", sol[x.ID()], sol[y.ID()], sol[b.ID()] == 2)
+	// Collect and sort output to make the example deterministic.
+	var lines []string
+	for _, sol := range solutions {
+		lines = append(lines, fmt.Sprintf("X=%d Y=%d B=%t", sol[x.ID()], sol[y.ID()], sol[b.ID()] == 2))
 	}
-	// (Output omitted; solution order is not guaranteed.)
+	sort.Strings(lines)
+
+	for i := 0; i < 3 && i < len(lines); i++ {
+		fmt.Println(lines[i])
+	}
+	// Output:
+	// X=1 Y=1 B=true
+	// X=1 Y=2 B=false
+	// X=1 Y=3 B=false
 }

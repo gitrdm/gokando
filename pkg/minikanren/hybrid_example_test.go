@@ -87,7 +87,9 @@ func ExampleNewHybridSolver() {
 	arith, _ := NewArithmetic(x, y, 1)
 	model.AddConstraint(arith)
 
-	// Create plugins
+	// Create plugins explicitly to preserve the canonical demonstration order
+	// (FD plugin followed by Relational). This example intentionally shows
+	// the plugin ordering used elsewhere in the docs.
 	fdPlugin := NewFDPlugin(model)
 	relPlugin := NewRelationalPlugin()
 
@@ -119,12 +121,12 @@ func ExampleHybridSolver_Propagate() {
 	arith, _ := NewArithmetic(x, y, 2)
 	model.AddConstraint(arith)
 
-	// Create solver
-	fdPlugin := NewFDPlugin(model)
-	solver := NewHybridSolver(fdPlugin)
+	// Create solver and baseline store from model helper, then override domains
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 
-	// Create store with initial domains
-	store := NewUnifiedStore()
 	store, _ = store.SetDomain(x.ID(), NewBitSetDomainFromValues(10, []int{3, 4, 5}))
 	store, _ = store.SetDomain(y.ID(), NewBitSetDomain(10))
 
@@ -245,13 +247,12 @@ func ExampleHybridSolver_bidirectionalPropagation() {
 	allDiff, _ := NewAllDifferent([]*FDVariable{x, y, z})
 	model.AddConstraint(allDiff)
 
-	// Create hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(fdPlugin, relPlugin)
+	// Build solver and store from model helper; then set initial domains
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 
-	// Initial state: all variables have domain {1, 2, 3}
-	store := NewUnifiedStore()
 	domain := NewBitSetDomainFromValues(10, []int{1, 2, 3})
 	store, _ = store.SetDomain(x.ID(), domain)
 	store, _ = store.SetDomain(y.ID(), domain)
@@ -303,13 +304,12 @@ func ExampleHybridSolver_realWorldScheduling() {
 	allDiff, _ := NewAllDifferent([]*FDVariable{task1, task2, task3})
 	model.AddConstraint(allDiff)
 
-	// Create hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(fdPlugin, relPlugin)
+	// Create solver and store from model helper; then set initial domains
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		panic(err)
+	}
 
-	// Initial domains: tasks can start at times 1-5
-	store := NewUnifiedStore()
 	timeSlots := NewBitSetDomainFromValues(10, []int{1, 2, 3, 4, 5})
 	store, _ = store.SetDomain(task1.ID(), timeSlots)
 	store, _ = store.SetDomain(task2.ID(), timeSlots)

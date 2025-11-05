@@ -7,7 +7,14 @@ import (
 )
 
 // ExampleCopyTerm demonstrates creating a copy of a term with fresh variables.
-// This is useful for meta-programming and implementing certain relational patterns.
+//
+// Copying terms is a common meta-programming technique used when you need
+// to instantiate templates repeatedly without reusing the same logical
+// variables. The copy operation replaces variables inside the template
+// with fresh ones so subsequent instantiations don't clash with earlier
+// bindings. This example keeps the low-level term constructors visible as
+// commented references while using the HLAPI `Run` helper to execute the
+// example goal.
 func ExampleCopyTerm() {
 	x := Fresh("x")
 	original := List(x, NewAtom("middle"), x)
@@ -27,6 +34,12 @@ func ExampleCopyTerm() {
 }
 
 // ExampleGround demonstrates checking if a term is fully instantiated.
+//
+// Ground-checking is useful for validating inputs before executing a
+// relation that requires fully-bound terms. This example shows both a
+// successful ground check (a bound variable) and a failing check (an
+// unbound variable). The HLAPI `Run` helper is used to run the mini-goals
+// that test groundness and keep the example concise and readable.
 func ExampleGround() {
 	x := Fresh("x")
 

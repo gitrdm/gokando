@@ -210,6 +210,25 @@ func (m *Model) Table(vars []*FDVariable, rows [][]int) error {
 	return nil
 }
 
+// Among posts an Among(vars, S, K) constraint to the model. It counts how many
+// variables in vars take a value from the set S and encodes the count into K
+// (see NewAmong for encoding details).
+func (m *Model) Among(vars []*FDVariable, values []int, k *FDVariable) error {
+	c, err := NewAmong(vars, values, k)
+	if err != nil {
+		return err
+	}
+	m.AddConstraint(c)
+	return nil
+}
+
+// BinPacking posts a bin-packing constraint over items with given sizes and
+// bin capacities. It's a thin wrapper around NewBinPacking.
+func (m *Model) BinPacking(items []*FDVariable, sizes []int, capacities []int) error {
+	_, err := NewBinPacking(m, items, sizes, capacities)
+	return err
+}
+
 // SolveN solves the model and returns up to maxSolutions solutions using the
 // default sequential solver. For advanced control, use NewSolver(m) directly.
 func SolveN(ctx context.Context, m *Model, maxSolutions int) ([][]int, error) {
@@ -716,4 +735,95 @@ func ValuesString(results []map[string]Term, name string) []string {
 		}
 	}
 	return out
+}
+
+// CaseIntMap builds a ready-to-use Goal that maps integer values to string
+// atoms according to the provided mapping. The helper creates a deterministic
+// sequence of pattern clauses (sorted by key) and returns a Goal equivalent to
+// calling Matche(term, clauses...).
+//
+// Example usage:
+//
+//	goal := CaseIntMap(valueTerm, map[int]string{0: "zero", 1: "one"}, q)
+//	// then run or combine `goal` with other goals
+func CaseIntMap(term Term, mapping map[int]string, q *Var) Goal {
+	// Sort keys for deterministic clause order
+	keys := make([]int, 0, len(mapping))
+	for k := range mapping {
+		keys = append(keys, k)
+	}
+	if len(keys) == 0 {
+		// No mapping - return a failing goal
+		return func(ctx context.Context, store ConstraintStore) *Stream {
+			stream := NewStream()
+			stream.Close()
+			return stream
+		}
+	}
+	sort.Ints(keys)
+
+	clauses := make([]PatternClause, 0, len(keys))
+	for _, k := range keys {
+		v := mapping[k]
+		clauses = append(clauses, NewClause(NewAtom(k), Eq(q, NewAtom(v))))
+	}
+
+	return Matche(term, clauses...)
+}
+
+// NewUnifiedStoreFromModel creates a fresh UnifiedStore populated with the
+// model's FD domains and registered model constraints. This is a convenience
+// helper for constructing the hybrid starting store used by the HybridSolver.
+//
+// The function validates the model, copies each variable's initial domain
+// into the store, and adds model constraints so that plugins (e.g. FDPlugin)
+// can discover them during propagation.
+func NewUnifiedStoreFromModel(m *Model) (*UnifiedStore, error) {
+	if m == nil {
+		return nil, fmt.Errorf("NewUnifiedStoreFromModel: nil model")
+	}
+
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+
+	store := NewUnifiedStore()
+
+	// Initialize FD domains from model variables
+	for _, v := range m.Variables() {
+		var err error
+		store, err = store.SetDomain(v.ID(), v.Domain())
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Add all model constraints into the unified store so plugins can see them
+	for _, c := range m.Constraints() {
+		store = store.AddConstraint(c)
+	}
+
+	return store, nil
+}
+
+// NewHybridSolverFromModel builds a HybridSolver wired for the given model and
+// returns it along with a UnifiedStore pre-populated from the model. The
+// returned solver registers both the Relational and FD plugins in that order
+// which is the common configuration for hybrid solving.
+func NewHybridSolverFromModel(m *Model) (*HybridSolver, *UnifiedStore, error) {
+	if m == nil {
+		return nil, nil, fmt.Errorf("NewHybridSolverFromModel: nil model")
+	}
+
+	store, err := NewUnifiedStoreFromModel(m)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	relPlugin := NewRelationalPlugin()
+	fdPlugin := NewFDPlugin(m)
+
+	solver := NewHybridSolver(relPlugin, fdPlugin)
+
+	return solver, store, nil
 }

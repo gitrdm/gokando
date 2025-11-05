@@ -33,9 +33,7 @@ Production-grade optimization is available via branch-and-bound over the FD solv
 - Ergonomics:
   - `FDVariable.Value()` panics if unbound by contract. A safe accessor is available: `FDVariable.TryValue() (int, error)`.
 
-## Global Constraints (additions in Phase 4.3)
-
-Two production global constraints were added with literate Go examples:
+## Global Constraints
 
 - LinearSum — Weighted sum equality with non-negative coefficients enforcing Σ a[i]*x[i] = total with bounds-consistent propagation.
   - Constructor: `NewLinearSum(vars []*FDVariable, coeffs []int, total *FDVariable) (PropagationConstraint, error)`

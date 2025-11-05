@@ -59,11 +59,11 @@ func ExampleDatabase_AddFact() {
 // Queries unify patterns with facts, where Fresh variables act as wildcards.
 func ExampleDatabase_Query_simple() {
 	parent, _ := DbRel("parent", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("charlie"))
-	db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("diana"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"alice", "charlie"},
+		[]interface{}{"bob", "diana"},
+	)
 
 	// Query: Who are alice's children?
 	child := Fresh("child")
@@ -86,11 +86,11 @@ func ExampleDatabase_Query_simple() {
 // This is analogous to SQL joins, enabling complex relational queries.
 func ExampleDatabase_Query_join() {
 	parent, _ := DbRel("parent", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("charlie"))
-	db, _ = db.AddFact(parent, NewAtom("charlie"), NewAtom("diana"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"bob", "charlie"},
+		[]interface{}{"charlie", "diana"},
+	)
 
 	// Query: Find grandparent-grandchild pairs
 	// grandparent(GP, GC) :- parent(GP, P), parent(P, GC)
@@ -119,12 +119,12 @@ func ExampleDatabase_Query_join() {
 // This is useful for finding self-referential relationships.
 func ExampleDatabase_Query_repeated() {
 	edge, _ := DbRel("edge", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	db, _ = db.AddFact(edge, NewAtom("c"), NewAtom("c")) // self-loop
-	db, _ = db.AddFact(edge, NewAtom("d"), NewAtom("d")) // self-loop
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+		[]interface{}{"c", "c"}, // self-loop
+		[]interface{}{"d", "d"}, // self-loop
+	)
 
 	// Query: Find all self-loops
 	x := Fresh("x")
@@ -145,13 +145,13 @@ func ExampleDatabase_Query_repeated() {
 // This shows how pldb can express recursive logic programs similar to Datalog.
 func ExampleDatabase_Query_datalog() {
 	edge, _ := DbRel("edge", 2, 0, 1)
-
 	// Build a graph: a -> b -> c
 	//                ^-------|
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-	db, _ = db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	db, _ = db.AddFact(edge, NewAtom("c"), NewAtom("a"))
+	db := DB().MustAddFacts(edge,
+		[]interface{}{"a", "b"},
+		[]interface{}{"b", "c"},
+		[]interface{}{"c", "a"},
+	)
 
 	// Query: Find all nodes reachable from 'a' in exactly 2 hops
 	// path2(X, Z) :- edge(X, Y), edge(Y, Z)
@@ -188,6 +188,7 @@ func ExampleDatabase_Query_datalog() {
 func ExampleDatabase_RemoveFact() {
 	person, _ := DbRel("person", 1, 0)
 
+	// Create database with some people using low-level API versus the HLAPI for demonstration
 	db := NewDatabase()
 	db, _ = db.AddFact(person, NewAtom("alice"))
 	db, _ = db.AddFact(person, NewAtom("bob"))
@@ -218,11 +219,11 @@ func ExampleDatabase_RemoveFact() {
 // This finds results that match any of several patterns.
 func ExampleDatabase_Query_disjunction() {
 	parent, _ := DbRel("parent", 2, 0, 1)
-
-	db := NewDatabase()
-	db, _ = db.AddFact(parent, NewAtom("alice"), NewAtom("bob"))
-	db, _ = db.AddFact(parent, NewAtom("bob"), NewAtom("charlie"))
-	db, _ = db.AddFact(parent, NewAtom("charlie"), NewAtom("diana"))
+	db := DB().MustAddFacts(parent,
+		[]interface{}{"alice", "bob"},
+		[]interface{}{"bob", "charlie"},
+		[]interface{}{"charlie", "diana"},
+	)
 
 	// Query: Find children of alice OR bob
 	child := Fresh("child")

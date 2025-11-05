@@ -98,6 +98,14 @@ func prettyTerm(t Term) string {
 	return t.String()
 }
 
+// ExampleRembero demonstrates removing duplicate elements from a list while
+// preserving order.
+//
+// This example uses the relational predicate `Rembero` to enumerate all
+// lists obtained from the input after removing duplicate elements. The
+// helper `runGoal` collects and pretty-prints results deterministically
+// so the `// Output:` block remains stable. Low-level list constructors
+// are shown inline where helpful to illustrate construction of terms.
 func ExampleRembero() {
 	q := Fresh("q")
 	goal := Rembero(NewAtom("a"), List(NewAtom("a"), NewAtom("b"), NewAtom("a")), q)
@@ -109,6 +117,11 @@ func ExampleRembero() {
 	// q: ("b" "a")
 }
 
+// ExampleReverso demonstrates reversing a list using relational goals.
+//
+// The `Reverso` relation produces the reversed list as a result. We use
+// the `runGoal` helper to execute the relation and print results in a
+// deterministic order suitable for documentation extraction.
 func ExampleReverso() {
 	q := Fresh("q")
 	goal := Reverso(List(NewAtom(1), NewAtom(2), NewAtom(3)), q)

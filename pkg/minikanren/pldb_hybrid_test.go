@@ -202,14 +202,11 @@ func TestPldb_Hybrid_FactBindingToFDPruning(t *testing.T) {
 	model := NewModel()
 	ageVar := model.NewVariableWithName(NewBitSetDomain(100), "age")
 
-	// 3. Set up hybrid solver with plugins
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(relPlugin, fdPlugin)
-
-	// 4. Create UnifiedStore with FD domain and adapter
-	store := NewUnifiedStore()
-	store, _ = store.SetDomain(ageVar.ID(), ageVar.Domain())
+	// 3. Create a HybridSolver + UnifiedStore populated from the model.
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		t.Fatalf("failed to build hybrid solver from model: %v", err)
+	}
 	adapter := NewUnifiedStoreAdapter(store)
 
 	// 5. Query for alice's age (should bind to 30)
@@ -242,7 +239,7 @@ func TestPldb_Hybrid_FactBindingToFDPruning(t *testing.T) {
 	resultStore := resultAdapter.UnifiedStore()
 
 	// Add binding for FD variable ID
-	resultStore, err := resultStore.AddBinding(int64(ageVar.ID()), NewAtom(30))
+	resultStore, err = resultStore.AddBinding(int64(ageVar.ID()), NewAtom(30))
 	if err != nil {
 		t.Fatalf("failed to bind FD var: %v", err)
 	}
@@ -250,7 +247,8 @@ func TestPldb_Hybrid_FactBindingToFDPruning(t *testing.T) {
 
 	// 7. Run hybrid solver propagation
 	finalStore := resultAdapter.UnifiedStore()
-	propagated, err := solver.Propagate(finalStore)
+	var propagated *UnifiedStore
+	propagated, err = solver.Propagate(finalStore)
 	if err != nil {
 		t.Fatalf("propagation failed: %v", err)
 	}
@@ -421,14 +419,11 @@ func TestPldb_Hybrid_BidirectionalPropagation(t *testing.T) {
 	}
 	ageVar := model.NewVariableWithName(NewBitSetDomainFromValues(101, ageValues), "age")
 
-	// 3. Set up hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(relPlugin, fdPlugin)
-
-	// 4. Create store with FD domains and adapter
-	store := NewUnifiedStore()
-	store, _ = store.SetDomain(ageVar.ID(), ageVar.Domain())
+	// 3. Create a HybridSolver + UnifiedStore populated from the model.
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		t.Fatalf("failed to build hybrid solver from model: %v", err)
+	}
 	adapter := NewUnifiedStoreAdapter(store)
 
 	// 5. Query for alice's age (should bind to 30)
@@ -459,7 +454,8 @@ func TestPldb_Hybrid_BidirectionalPropagation(t *testing.T) {
 
 	// 7. Run propagation
 	finalStore := resultAdapter.UnifiedStore()
-	propagated, err := solver.Propagate(finalStore)
+	var propagated *UnifiedStore
+	propagated, err = solver.Propagate(finalStore)
 	if err != nil {
 		t.Fatalf("propagation failed: %v", err)
 	}
@@ -573,14 +569,11 @@ func TestPldb_Hybrid_EmptyDomainConflict(t *testing.T) {
 	model := NewModel()
 	ageVar := model.NewVariableWithName(NewBitSetDomainFromValues(100, []int{50}), "age")
 
-	// 3. Set up hybrid solver
-	fdPlugin := NewFDPlugin(model)
-	relPlugin := NewRelationalPlugin()
-	solver := NewHybridSolver(relPlugin, fdPlugin)
-
-	// 4. Create store
-	store := NewUnifiedStore()
-	store, _ = store.SetDomain(ageVar.ID(), ageVar.Domain())
+	// 3. Create a HybridSolver + UnifiedStore populated from the model.
+	solver, store, err := NewHybridSolverFromModel(model)
+	if err != nil {
+		t.Fatalf("failed to build hybrid solver from model: %v", err)
+	}
 	adapter := NewUnifiedStoreAdapter(store)
 
 	// 5. Query for alice (age=30) but FD says age must be 50
@@ -603,7 +596,7 @@ func TestPldb_Hybrid_EmptyDomainConflict(t *testing.T) {
 	resultStore, _ = resultStore.AddBinding(int64(ageVar.ID()), NewAtom(30))
 
 	// Propagation should fail due to conflict
-	_, err := solver.Propagate(resultStore)
+	_, err = solver.Propagate(resultStore)
 	if err == nil {
 		t.Error("expected propagation to fail with conflict, but it succeeded")
 	}

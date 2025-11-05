@@ -1,6 +1,6 @@
 # main
 
-This example demonstrates basic usage of the library.
+This example demonstrates solving a constraint satisfaction problem using the FD (Finite Domain) High-Level API.
 
 ## Source Code
 
@@ -22,19 +22,65 @@ This example demonstrates basic usage of the library.
 package main
 
 import (
+	"context"
 	"fmt"
 
-	. "github.com/gitrdm/gokando/pkg/minikanren"
+	minikanren "github.com/gitrdm/gokando/pkg/minikanren"
 )
 
 func main() {
 	fmt.Println("=== Solving the Apartment Floor Puzzle ===")
 	fmt.Println()
 
-	// Solve the puzzle - we expect exactly one solution
-	results := Run(1, floorPuzzle)
+	// Build FD model using HLAPI
+	m := minikanren.NewModel()
 
-	if len(results) == 0 {
+	// Create FD variables for each person's floor (1-5)
+	baker := m.IntVar(1, 5, "baker")
+	cooper := m.IntVar(1, 5, "cooper")
+	fletcher := m.IntVar(1, 5, "fletcher")
+	miller := m.IntVar(1, 5, "miller")
+	smith := m.IntVar(1, 5, "smith")
+
+	// All people must be on different floors (HLAPI global constraint)
+	m.AllDifferent(baker, cooper, fletcher, miller, smith)
+
+	// Baker does not live on the top floor (5)
+	top := m.IntVar(5, 5, "top")
+	c1, _ := minikanren.NewInequality(baker, top, minikanren.NotEqual)
+	m.AddConstraint(c1)
+
+	// Cooper does not live on the bottom floor (1)
+	bottom := m.IntVar(1, 1, "bottom")
+	c2, _ := minikanren.NewInequality(cooper, bottom, minikanren.NotEqual)
+	m.AddConstraint(c2)
+
+	// Fletcher does not live on top or bottom
+	c3, _ := minikanren.NewInequality(fletcher, top, minikanren.NotEqual)
+	m.AddConstraint(c3)
+	c4, _ := minikanren.NewInequality(fletcher, bottom, minikanren.NotEqual)
+	m.AddConstraint(c4)
+
+	// Miller lives on a higher floor than Cooper: cooper < miller
+	c5, _ := minikanren.NewInequality(cooper, miller, minikanren.LessThan)
+	m.AddConstraint(c5)
+
+	// Smith not adjacent to Fletcher
+	m.AddConstraint(notAdjacentConstraint(m, smith, fletcher))
+
+	// Fletcher not adjacent to Cooper
+	m.AddConstraint(notAdjacentConstraint(m, fletcher, cooper))
+
+	// Solve using HLAPI
+	ctx := context.Background()
+	solver := minikanren.NewSolver(m)
+	solutions, err := solver.Solve(ctx, 1)
+	if err != nil {
+		fmt.Printf("❌ Error solving: %v\n", err)
+		return
+	}
+
+	if len(solutions) == 0 {
 		fmt.Println("❌ No solution found!")
 		return
 	}
@@ -42,204 +88,123 @@ func main() {
 	fmt.Println("✓ Solution found!")
 	fmt.Println()
 
-	displaySolution(results[0])
+	displaySolution(solutions[0], baker, cooper, fletcher, miller, smith)
 }
 
-// floorPuzzle defines the complete puzzle as a miniKanren goal.
-// Each person is assigned a floor (1-5, where 5 is the top floor).
-func floorPuzzle(q *Var) Goal {
-	// Create variables for each person's floor
-	baker := Fresh("baker")
-	cooper := Fresh("cooper")
-	fletcher := Fresh("fletcher")
-	miller := Fresh("miller")
-	smith := Fresh("smith")
+// notAdjacentConstraint builds model constraints for "A not adjacent to B"
+// using FD variables and HLAPI constructors.
+func notAdjacentConstraint(m *minikanren.Model, a, b *minikanren.FDVariable) minikanren.ModelConstraint {
+	// A != B
+	c1, _ := minikanren.NewInequality(a, b, minikanren.NotEqual)
 
-	// Create the solution structure
-	solution := List(
-		List(NewAtom("Baker"), baker),
-		List(NewAtom("Cooper"), cooper),
-		List(NewAtom("Fletcher"), fletcher),
-		List(NewAtom("Miller"), miller),
-		List(NewAtom("Smith"), smith),
-	)
+	// A != B + 1
+	bplus := m.IntVar(1, 5, "")
+	c_ar1, _ := minikanren.NewArithmetic(b, bplus, 1)
+	c_neq1, _ := minikanren.NewInequality(a, bplus, minikanren.NotEqual)
 
-	// Valid floors are 1-5
-	floors := []Term{
-		NewAtom(1),
-		NewAtom(2),
-		NewAtom(3),
-		NewAtom(4),
-		NewAtom(5),
-	}
+	// A != B - 1
+	bminus := m.IntVar(1, 5, "")
+	c_ar2, _ := minikanren.NewArithmetic(b, bminus, -1)
+	c_neq2, _ := minikanren.NewInequality(a, bminus, minikanren.NotEqual)
 
-	// Helper to check if a variable is in the valid floor range
-	validFloor := func(floor Term) Goal {
-		goals := make([]Goal, len(floors))
-		for i, f := range floors {
-			goals[i] = Eq(floor, f)
-		}
-		return Disj(goals...)
-	}
-
-	// Helper to check if one floor is higher than another
-	// Uses Project to extract values and compare arithmetically
-	higherThan := func(floor1, floor2 Term) Goal {
-		return Project([]Term{floor1, floor2}, func(vals []Term) Goal {
-			f1, ok1 := vals[0].(*Atom)
-			f2, ok2 := vals[1].(*Atom)
-			if !ok1 || !ok2 {
-				return Failure
-			}
-
-			v1, ok1 := f1.Value().(int)
-			v2, ok2 := f2.Value().(int)
-			if !ok1 || !ok2 {
-				return Failure
-			}
-
-			if v1 > v2 {
-				return Success
-			}
-			return Failure
-		})
-	}
-
-	// Helper to check if two floors are NOT adjacent
-	// Uses Project to extract values and check difference > 1
-	notAdjacent := func(floor1, floor2 Term) Goal {
-		return Project([]Term{floor1, floor2}, func(vals []Term) Goal {
-			f1, ok1 := vals[0].(*Atom)
-			f2, ok2 := vals[1].(*Atom)
-			if !ok1 || !ok2 {
-				return Failure
-			}
-
-			v1, ok1 := f1.Value().(int)
-			v2, ok2 := f2.Value().(int)
-			if !ok1 || !ok2 {
-				return Failure
-			}
-
-			diff := v1 - v2
-			if diff < 0 {
-				diff = -diff
-			}
-
-			if diff > 1 {
-				return Success
-			}
-			return Failure
-		})
-	}
-
-	return Conj(
-		// Return the solution structure
-		Eq(q, solution),
-
-		// Each person must be on a valid floor
-		validFloor(baker),
-		validFloor(cooper),
-		validFloor(fletcher),
-		validFloor(miller),
-		validFloor(smith),
-
-		// All people must be on different floors
-		allDiff(baker, cooper, fletcher, miller, smith),
-
-		// Constraint 1: Baker does not live on the top floor
-		Neq(baker, NewAtom(5)),
-
-		// Constraint 2: Cooper does not live on the bottom floor
-		Neq(cooper, NewAtom(1)),
-
-		// Constraint 3: Fletcher does not live on either the top or the bottom floor
-		Neq(fletcher, NewAtom(1)),
-		Neq(fletcher, NewAtom(5)),
-
-		// Constraint 4: Miller lives on a higher floor than does Cooper
-		higherThan(miller, cooper),
-
-		// Constraint 5: Smith does not live on a floor adjacent to Fletcher's
-		notAdjacent(smith, fletcher),
-
-		// Constraint 6: Fletcher does not live on a floor adjacent to Cooper's
-		notAdjacent(fletcher, cooper),
-	)
+	return newCompositeModelConstraint([]minikanren.ModelConstraint{c1, c_ar1, c_neq1, c_ar2, c_neq2})
 }
 
-// allDiff ensures all terms are different from each other
-func allDiff(terms ...Term) Goal {
-	var goals []Goal
-	for i := 0; i < len(terms); i++ {
-		for j := i + 1; j < len(terms); j++ {
-			goals = append(goals, Neq(terms[i], terms[j]))
+// newCompositeModelConstraint combines multiple ModelConstraints into one.
+func newCompositeModelConstraint(children []minikanren.ModelConstraint) minikanren.ModelConstraint {
+	return &compositeModelConstraint{children: children}
+}
+
+type compositeModelConstraint struct{ children []minikanren.ModelConstraint }
+
+func (c *compositeModelConstraint) Variables() []*minikanren.FDVariable {
+	var out []*minikanren.FDVariable
+	seen := make(map[int]bool)
+	for _, ch := range c.children {
+		for _, v := range ch.Variables() {
+			if !seen[v.ID()] {
+				out = append(out, v)
+				seen[v.ID()] = true
+			}
 		}
 	}
-	return Conj(goals...)
+	return out
 }
 
-// displaySolution pretty-prints the puzzle solution
-func displaySolution(result Term) {
-	pair, ok := result.(*Pair)
-	if !ok {
-		fmt.Println("Invalid result format")
-		return
-	}
+func (c *compositeModelConstraint) Type() string { return "Composite" }
 
+func (c *compositeModelConstraint) String() string { return "CompositeConstraint" }
+
+func (c *compositeModelConstraint) Clone() minikanren.ModelConstraint {
+	copyChildren := make([]minikanren.ModelConstraint, len(c.children))
+	copy(copyChildren, c.children)
+	return &compositeModelConstraint{children: copyChildren}
+}
+
+// displaySolution pretty-prints the FD solution
+func displaySolution(solution []int, baker, cooper, fletcher, miller, smith *minikanren.FDVariable) {
 	fmt.Println("Person    | Floor")
 	fmt.Println("----------|------")
 
-	// Extract each person-floor pair
-	for pair != nil {
-		personFloorPair := pair.Car()
-		if personFloorPair == nil {
-			break
-		}
+	people := []struct {
+		name string
+		v    *minikanren.FDVariable
+	}{
+		{"Baker", baker},
+		{"Cooper", cooper},
+		{"Fletcher", fletcher},
+		{"Miller", miller},
+		{"Smith", smith},
+	}
 
-		pairObj, ok := personFloorPair.(*Pair)
-		if !ok {
-			break
-		}
-
-		name := extractAtom(pairObj.Car())
-		pairObj, _ = pairObj.Cdr().(*Pair)
-		if pairObj == nil {
-			break
-		}
-
-		floor := extractAtom(pairObj.Car())
-
-		fmt.Printf("%-9s | %s\n", name, floor)
-
-		pair, _ = pair.Cdr().(*Pair)
+	for _, p := range people {
+		fmt.Printf("%-9s | %d\n", p.name, solution[p.v.ID()])
 	}
 
 	fmt.Println()
 	fmt.Println("✅ All constraints satisfied!")
 }
 
-// extractAtom extracts the string value from an Atom term
-func extractAtom(term Term) string {
-	if atom, ok := term.(*Atom); ok {
-		return fmt.Sprintf("%v", atom.Value())
-	}
-	return "?"
-}
-
 ```
+
+## Key HLAPI Features Used
+
+- **Model Creation**: `minikanren.NewModel()` - Creates an FD model
+- **Variable Creation**: `m.IntVar(min, max, name)` - Creates FD variables with domain [min, max]
+- **Global Constraints**: `m.AllDifferent(vars...)` - Built-in global constraint
+- **Binary Constraints**: `minikanren.NewInequality(x, y, kind)` - Inequality constraints (LessThan, NotEqual, etc.)
+- **Arithmetic Constraints**: `minikanren.NewArithmetic(src, dst, offset)` - Models `dst = src + offset`
+- **Solver**: `minikanren.NewSolver(m)` - Creates a solver from the model
+- **Search**: `solver.Solve(ctx, maxSolutions)` - Searches for solutions
 
 ## Running the Example
 
 To run this example:
 
 ```bash
-cd apartment
+cd examples/apartment
 go run main.go
 ```
 
 ## Expected Output
 
 ```
-Hello from Proton examples!
+=== Solving the Apartment Floor Puzzle ===
+
+✓ Solution found!
+
+Person    | Floor
+----------|------
+Baker     | 1
+Cooper    | 3
+Fletcher  | 2
+Miller    | 4
+Smith     | 5
+
+✅ All constraints satisfied!
 ```
+
+## Alternative Examples
+
+- **FD with Propagation**: See `examples/apartment_fd/` for an example showing both propagation and search phases
+- **Hybrid Solver**: See `examples/apartment_hybrid/` for hybrid relational+FD propagation

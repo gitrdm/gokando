@@ -3,6 +3,7 @@ package minikanren
 import (
 	"context"
 	"fmt"
+	"sort"
 )
 
 // ExampleCount demonstrates how to count how many variables equal a target value.
@@ -23,12 +24,21 @@ func ExampleCount() {
 	_, _ = NewCount(model, []*FDVariable{x, y, z}, 2, N)
 
 	solver := NewSolver(model)
-	solutions, _ := solver.Solve(context.Background(), 10)
+	solutions, _ := solver.Solve(context.Background(), 0)
 
-	// Print a couple of solutions
-	for i := 0; i < 3 && i < len(solutions); i++ {
-		sol := solutions[i]
-		fmt.Printf("X=%d Y=%d Z=%d count=%d\n", sol[x.ID()], sol[y.ID()], sol[z.ID()], sol[N.ID()]-1)
+	// Collect stringified solutions and sort so output is deterministic.
+	var lines []string
+	for _, sol := range solutions {
+		lines = append(lines, fmt.Sprintf("X=%d Y=%d Z=%d count=%d", sol[x.ID()], sol[y.ID()], sol[z.ID()], sol[N.ID()]-1))
 	}
-	// (Output omitted; solution order is not guaranteed.)
+	sort.Strings(lines)
+
+	// Print the first three sorted solutions
+	for i := 0; i < 3 && i < len(lines); i++ {
+		fmt.Println(lines[i])
+	}
+	// Output:
+	// X=1 Y=1 Z=1 count=0
+	// X=1 Y=1 Z=2 count=1
+	// X=1 Y=1 Z=3 count=0
 }
