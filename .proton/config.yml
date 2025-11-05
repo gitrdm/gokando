@@ -13,11 +13,13 @@ discovery:
     packages:
         auto_discover: true
         include_patterns:
-            - ./...
+            - ./pkg/...
         exclude_patterns:
             - ./vendor/...
             - ./test/...
             - ./.git/...
+            - ./examples/...
+            - ./cmd/...
             - '**/*_test.go'
         manual_packages: []
     api_generation:
@@ -26,8 +28,8 @@ discovery:
         include_tests: false
         include_examples: true
     examples:
-        enabled: true
-        auto_discover: true
+        enabled: false
+        auto_discover: false
         directories: []
     guides:
         enabled: true

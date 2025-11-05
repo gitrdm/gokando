@@ -1,5 +1,5 @@
 ---
-render_with_liquid: false
+
 ---
 
 # minikanren API

@@ -1,120 +1,74 @@
-# Getting Started with main
+# Quick Start Guide
 
-Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
-
-The Zebra puzzle is a logic puzzle with the following constraints:
-  - There are five houses.
-  - The English man lives in the red house.
-  - The Swede has a dog.
-  - The Dane drinks tea.
-  - The green house is immediately to the left of the white house.
-  - They drink coffee in the green house.
-  - The man who smokes Pall Mall has a bird.
-  - In the yellow house they smoke Dunhill.
-  - In the middle house they drink milk.
-  - The Norwegian lives in the first house.
-  - The Blend-smoker lives in the house next to the house with a cat.
-  - In a house next to the house with a horse, they smoke Dunhill.
-  - The man who smokes Blue Master drinks beer.
-  - The German smokes Prince.
-  - The Norwegian lives next to the blue house.
-  - They drink water in a house next to the house where they smoke Blend.
-
-Question: Who owns the zebra?
-
-
-## Overview
-
-**Import Path:** `github.com/gitrdm/gokanlogic/examples/zebra`
-
-Package main solves the famous Zebra puzzle (Einstein's Riddle) using gokanlogic.
-
-The Zebra puzzle is a logic puzzle with the following constraints:
-  - There are five houses.
-  - The English man lives in the red house.
-  - The Swede has a dog.
-  - The Dane drinks tea.
-  - The green house is immediately to the left of the white house.
-  - They drink coffee in the green house.
-  - The man who smokes Pall Mall has a bird.
-  - In the yellow house they smoke Dunhill.
-  - In the middle house they drink milk.
-  - The Norwegian lives in the first house.
-  - The Blend-smoker lives in the house next to the house with a cat.
-  - In a house next to the house with a horse, they smoke Dunhill.
-  - The man who smokes Blue Master drinks beer.
-  - The German smokes Prince.
-  - The Norwegian lives next to the blue house.
-  - They drink water in a house next to the house where they smoke Blend.
-
-Question: Who owns the zebra?
-
+Get started with gokanlogic in minutes. This guide covers installation and basic usage for both relational (miniKanren) and constraint solving (FD) approaches.
 
 ## Installation
 
-### Install the package
-
 ```bash
-go get github.com/gitrdm/gokanlogic/examples/zebra
+go get github.com/gitrdm/gokanlogic
 ```
 
-### Verify installation
+**Requirements:**
+- Go 1.23 or later
+- No external dependencies
 
-Create a simple test file to verify the package works:
+## Your First Program
+
+### Relational Programming (miniKanren)
+
+Solve logic puzzles using relational reasoning:
 
 ```go
 package main
 
 import (
     "fmt"
-    "github.com/gitrdm/gokanlogic/examples/zebra"
+    . "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {
-    fmt.Println("main package imported successfully!")
+    // Find X where X + 2 = 5
+    results := Run(1, func(q *Var) Goal {
+        return Eq(q, A(3))
+    })
+    
+    fmt.Println("Result:", results[0])
 }
 ```
 
-Run it:
+### Constraint Solving (FD)
 
-```bash
-go run main.go
-```
-
-## Quick Start
-
-Here's a basic example to get you started with main:
+Solve numeric puzzles with finite domain constraints:
 
 ```go
 package main
 
 import (
+    "context"
     "fmt"
-    "log"
-
-    "github.com/gitrdm/gokanlogic/examples/zebra"
+    "github.com/gitrdm/gokanlogic/pkg/minikanren"
 )
 
 func main() {
-    // TODO: Add basic usage example
-    fmt.Println("Hello from main!")
+    // Solve: X + Y = 10, both in range 1-9
+    m := minikanren.NewModel()
+    
+    x := m.IntVar(1, 9, "X")
+    y := m.IntVar(1, 9, "Y")
+    sum := m.IntVar(10, 10, "sum")
+    
+    m.LinearSum([]*minikanren.FDVariable{x, y}, []int{1, 1}, sum)
+    
+    solver := minikanren.NewSolver(m)
+    solutions, _ := solver.Solve(context.Background(), 1)
+    
+    fmt.Printf("X=%d, Y=%d\n", solutions[0][x.ID()], solutions[0][y.ID()])
 }
 ```
-
-## Key Features
-
-## Usage Examples
-
-For more detailed examples, see the [Examples](../examples/README.md) section.
 
 ## Next Steps
 
-- [Full API Reference](../api-reference/main.md) - Complete API documentation
-- [Examples](../examples/README.md) - Working examples and tutorials
-- [Best Practices](../guides/main/best-practices.md) - Recommended patterns and usage
-
-## Documentation Links
-
-- [pkg.go.dev Documentation](https://pkg.go.dev/github.com/gitrdm/gokanlogic/examples/zebra)
-- [Source Code](https://github.com/gitrdm/gokanlogic/tree/master/examples/zebra)
-- [GitHub Issues](https://github.com/gitrdm/gokanlogic/issues)
+- [miniKanren Guide](minikanren.md) - Relational programming
+- [Parallel Search](parallel.md) - Multi-core solving
+- [Examples](../examples/README.md) - Working code samples
+- [API Reference](../api-reference/minikanren.md) - Complete docs

@@ -10,7 +10,8 @@
 
 # API Reference
 
-- [miniKanren API](api-reference/minikanren.md)
+- [API Overview](api-reference/README.md)
+- [miniKanren & FD Solver](api-reference/minikanren.md)
 - [Nominal Logic API](api-reference/nominal.md)
 - [Parallel Search API](api-reference/parallel.md)
 

@@ -1,6 +1,6 @@
 ---
 title: Nominal Logic (Phase 7.1)
-render_with_liquid: false
+
 ---
 
 # Nominal Logic (Phase 7.1)
