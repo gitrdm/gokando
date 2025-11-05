@@ -3,6 +3,257 @@ render_with_liquid: false
 ---
 
 # Generated Examples
+## pkg_minikanren_absolute_example_test.go-ExampleNewAbsolute_basic.md
+```go
+func ExampleNewAbsolute_basic() {
+	model := NewModel()
+
+	// Variables: temperature difference and its absolute value
+	// Using offset=20 to represent temperature range [-10, 10] as [10, 30]
+	tempDiff := model.NewVariable(NewBitSetDomainFromValues(31, rangeValues(15, 25)))   // represents [-5, 5]
+	absTempDiff := model.NewVariable(NewBitSetDomainFromValues(11, rangeValues(1, 10))) // represents [0, 9]
+
+	// Constraint: abs_temp_diff = |temp_diff| with offset=20
+	constraint, err := NewAbsolute(tempDiff, 20, absTempDiff)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	tempDomain := solver.GetDomain(nil, tempDiff.ID())
+	absDomain := solver.GetDomain(nil, absTempDiff.ID())
+
+	fmt.Printf("Temperature differences (encoded):")
+	tempDomain.IterateValues(func(v int) {
+		actual := v - 20 // decode from offset
+		fmt.Printf(" %d°C", actual)
+	})
+	fmt.Printf("\nAbsolute differences:")
+	absDomain.IterateValues(func(v int) {
+		if v == 1 {
+			fmt.Printf(" 0°C") // BitSetDomain encodes 0 as 1
+		} else {
+			fmt.Printf(" %d°C", v)
+		}
+	})
+	fmt.Printf("\n")
+
+	// Output: Temperature differences (encoded): -5°C -4°C -3°C -2°C -1°C 0°C 1°C 2°C 3°C 4°C 5°C
+	// Absolute differences: 0°C 2°C 3°C 4°C 5°C
+}
+
+```
+
+
+\n
+## pkg_minikanren_absolute_example_test.go-ExampleNewAbsolute_bidirectionalPropagation.md
+```go
+func ExampleNewAbsolute_bidirectionalPropagation() {
+	model := NewModel()
+
+	// Start with broad domains
+	// Using offset=25 to represent input range [-15, 15] as [10, 40]
+	inputValue := model.NewVariable(NewBitSetDomainFromValues(41, rangeValues(10, 40)))   // represents [-15, 15]
+	absoluteValue := model.NewVariable(NewBitSetDomainFromValues(16, rangeValues(1, 15))) // represents [0, 14]
+
+	// Constraint: absolute_value = |input_value|
+	constraint, err := NewAbsolute(inputValue, 25, absoluteValue)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve to see propagation
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	inputDomain := solver.GetDomain(nil, inputValue.ID())
+	absDomain := solver.GetDomain(nil, absoluteValue.ID())
+
+	fmt.Printf("Input domain (decoded):")
+	inputDomain.IterateValues(func(v int) {
+		actual := v - 25 // decode from offset
+		fmt.Printf(" %d", actual)
+	})
+	fmt.Printf("\nAbsolute value domain:")
+	absDomain.IterateValues(func(v int) {
+		if v == 1 {
+			fmt.Printf(" 0") // BitSetDomain encodes 0 as 1
+		} else {
+			fmt.Printf(" %d", v)
+		}
+	})
+	fmt.Printf("\n")
+
+	// Output: Input domain (decoded): -15 -14 -13 -12 -11 -10 -9 -8 -7 -6 -5 -4 -3 -2 -1 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+	// Absolute value domain: 0 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+}
+
+```
+
+
+\n
+## pkg_minikanren_absolute_example_test.go-ExampleNewAbsolute_distanceCalculation.md
+```go
+func ExampleNewAbsolute_distanceCalculation() {
+	model := NewModel()
+
+	// Variables: position difference and distance
+	// Using offset=15 to represent position difference [-10, 10] as [5, 25]
+	positionDiff := model.NewVariable(NewBitSetDomainFromValues(26, []int{8, 12, 17, 22})) // represents [-7, -3, 2, 7]
+	distance := model.NewVariable(NewBitSetDomainFromValues(11, rangeValues(1, 10)))       // represents [0, 9]
+
+	// Constraint: distance = |position_diff|
+	constraint, err := NewAbsolute(positionDiff, 15, distance)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	diffDomain := solver.GetDomain(nil, positionDiff.ID())
+	distDomain := solver.GetDomain(nil, distance.ID())
+
+	fmt.Printf("Position differences:")
+	diffDomain.IterateValues(func(v int) {
+		actual := v - 15 // decode from offset
+		fmt.Printf(" %d", actual)
+	})
+	fmt.Printf("\nDistances:")
+	distDomain.IterateValues(func(v int) {
+		if v == 1 {
+			fmt.Printf(" 0") // BitSetDomain encodes 0 as 1
+		} else {
+			fmt.Printf(" %d", v)
+		}
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Position differences: -7 -3 2 7
+	// Distances: 2 3 7
+}
+
+```
+
+
+\n
+## pkg_minikanren_absolute_example_test.go-ExampleNewAbsolute_errorCalculation.md
+```go
+func ExampleNewAbsolute_errorCalculation() {
+	model := NewModel()
+
+	// Variables: measurement error and error magnitude
+	// Using offset=50 to represent error range [-30, 30] as [20, 80]
+	measurementError := model.NewVariable(NewBitSetDomainFromValues(81, rangeValues(35, 65))) // represents [-15, 15]
+	errorMagnitude := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(1, 20)))    // represents [0, 19]
+
+	// Constraint: error_magnitude = |measurement_error|
+	constraint, err := NewAbsolute(measurementError, 50, errorMagnitude)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	errorDomain := solver.GetDomain(nil, measurementError.ID())
+	magnitudeDomain := solver.GetDomain(nil, errorMagnitude.ID())
+
+	fmt.Printf("Measurement errors:")
+	first := true
+	errorDomain.IterateValues(func(v int) {
+		if !first {
+			fmt.Printf(",")
+		}
+		actual := v - 50 // decode from offset
+		fmt.Printf(" %d", actual)
+		first = false
+	})
+	fmt.Printf("\nError magnitudes:")
+	first = true
+	magnitudeDomain.IterateValues(func(v int) {
+		if !first {
+			fmt.Printf(",")
+		}
+		if v == 1 {
+			fmt.Printf(" 0") // BitSetDomain encodes 0 as 1
+		} else {
+			fmt.Printf(" %d", v)
+		}
+		first = false
+	})
+	fmt.Printf("\n")
+
+	// Output: Measurement errors: -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+	// Error magnitudes: 0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+}
+
+```
+
+
+\n
+## pkg_minikanren_absolute_example_test.go-ExampleNewAbsolute_selfReference.md
+```go
+func ExampleNewAbsolute_selfReference() {
+	model := NewModel()
+
+	// Variable that represents both input and absolute value
+	// Using offset=10 to represent range [-5, 10] as [5, 20]
+	value := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(5, 20))) // represents [-5, 10]
+
+	// Self-reference constraint: |value| = value (only valid for non-negative values)
+	constraint, err := NewAbsolute(value, 10, value)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domain after propagation
+	valueDomain := solver.GetDomain(nil, value.ID())
+
+	fmt.Printf("Valid self-reference values:")
+	valueDomain.IterateValues(func(v int) {
+		actual := v - 10 // decode from offset
+		fmt.Printf(" %d", actual)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Valid self-reference values: 0 1 2 3 4 5 6 7 8 9 10
+}
+
+```
+
+
+\n
 ## pkg_minikanren_among_example_test.go-ExampleNewAmong_hybrid.md
 ```go
 func ExampleNewAmong_hybrid() {
@@ -1827,6 +2078,325 @@ func ExampleNewHybridRegistry() {
 
 
 \n
+## pkg_minikanren_interval_arithmetic_example_test.go-ExampleNewIntervalArithmetic_bidirectionalSum.md
+```go
+func ExampleNewIntervalArithmetic_bidirectionalSum() {
+	model := NewModel()
+
+	// Variables: component cost and total budget
+	componentCost := model.NewVariable(NewBitSetDomainFromValues(31, rangeValues(1, 30))) // broad range
+	totalBudget := model.NewVariable(NewBitSetDomainFromValues(16, rangeValues(12, 18)))  // constrained budget
+
+	// Constraint: total_budget = component_cost + [3, 7] (assembly costs)
+	constraint, err := NewIntervalArithmetic(componentCost, 3, 7, IntervalSum, totalBudget)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve to see bidirectional propagation
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	costDomain := solver.GetDomain(nil, componentCost.ID())
+	budgetDomain := solver.GetDomain(nil, totalBudget.ID())
+
+	fmt.Printf("Component cost (constrained by budget):")
+	costDomain.IterateValues(func(v int) {
+		fmt.Printf(" $%d", v)
+	})
+	fmt.Printf("\nTotal budget:")
+	budgetDomain.IterateValues(func(v int) {
+		fmt.Printf(" $%d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Component cost (constrained by budget): $5 $6 $7 $8 $9 $10 $11 $12 $13
+	// Total budget: $12 $13 $14 $15 $16
+}
+
+```
+
+
+\n
+## pkg_minikanren_interval_arithmetic_example_test.go-ExampleNewIntervalArithmetic_containment.md
+```go
+func ExampleNewIntervalArithmetic_containment() {
+	model := NewModel()
+
+	// Variable: temperature reading that must be within valid sensor range
+	temperature := model.NewVariable(NewBitSetDomainFromValues(151, rangeValues(1, 150))) // broad initial range
+
+	// Constraint: temperature must be within [20, 80] degrees
+	constraint, err := NewIntervalArithmetic(temperature, 20, 80, IntervalContainment, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domain after propagation
+	tempDomain := solver.GetDomain(nil, temperature.ID())
+
+	fmt.Printf("Valid temperature range:")
+	count := 0
+	tempDomain.IterateValues(func(v int) {
+		if count < 10 { // Show first 10 values
+			fmt.Printf(" %d°C", v)
+			count++
+		}
+	})
+	fmt.Printf("... (20-80°C)\n")
+
+	// Output:
+	// Valid temperature range: 20°C 21°C 22°C 23°C 24°C 25°C 26°C 27°C 28°C 29°C... (20-80°C)
+}
+
+```
+
+
+\n
+## pkg_minikanren_interval_arithmetic_example_test.go-ExampleNewIntervalArithmetic_difference.md
+```go
+func ExampleNewIntervalArithmetic_difference() {
+	model := NewModel()
+
+	// Variables: revenue and net profit
+	revenue := model.NewVariable(NewBitSetDomainFromValues(31, rangeValues(15, 30)))  // revenue 15-30
+	netProfit := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(1, 20))) // net profit
+
+	// Constraint: net_profit = revenue - [5, 12] (operating costs)
+	constraint, err := NewIntervalArithmetic(revenue, 5, 12, IntervalDifference, netProfit)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	revenueDomain := solver.GetDomain(nil, revenue.ID())
+	profitDomain := solver.GetDomain(nil, netProfit.ID())
+
+	fmt.Printf("Revenue:")
+	revenueDomain.IterateValues(func(v int) {
+		fmt.Printf(" $%d", v)
+	})
+	fmt.Printf("\nNet profit:")
+	profitDomain.IterateValues(func(v int) {
+		fmt.Printf(" $%d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Revenue: $15 $16 $17 $18 $19 $20 $21 $22 $23 $24 $25 $26 $27 $28 $29 $30
+	// Net profit: $3 $4 $5 $6 $7 $8 $9 $10 $11 $12 $13 $14 $15 $16 $17 $18 $19 $20
+}
+
+```
+
+
+\n
+## pkg_minikanren_interval_arithmetic_example_test.go-ExampleNewIntervalArithmetic_intersection.md
+```go
+func ExampleNewIntervalArithmetic_intersection() {
+	model := NewModel()
+
+	// Variables: process time and acceptable time window
+	processTime := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(5, 20))) // process takes 5-20 minutes
+	timeWindow := model.NewVariable(NewBitSetDomainFromValues(16, rangeValues(1, 15)))  // acceptable window
+
+	// Constraint: time_window = intersection of process_time with [8, 15]
+	constraint, err := NewIntervalArithmetic(processTime, 8, 15, IntervalIntersection, timeWindow)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	processDomain := solver.GetDomain(nil, processTime.ID())
+	windowDomain := solver.GetDomain(nil, timeWindow.ID())
+
+	fmt.Printf("Process time range:")
+	processDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nAcceptable time window:")
+	windowDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Process time range: 8 9 10 11 12 13 14 15
+	// Acceptable time window: 8 9 10 11 12 13 14 15
+}
+
+```
+
+
+\n
+## pkg_minikanren_interval_arithmetic_example_test.go-ExampleNewIntervalArithmetic_multipleConstraints.md
+```go
+func ExampleNewIntervalArithmetic_multipleConstraints() {
+	model := NewModel()
+
+	// Variables for a resource allocation problem
+	baseAllocation := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(5, 15))) // base allocation
+	totalNeeded := model.NewVariable(NewBitSetDomainFromValues(31, rangeValues(1, 30)))    // total needed
+
+	// Constraint 1: total_needed = base_allocation + [2, 8] (overhead)
+	constraint1, err := NewIntervalArithmetic(baseAllocation, 2, 8, IntervalSum, totalNeeded)
+	if err != nil {
+		panic(err)
+	}
+
+	// Constraint 2: total_needed must be within [10, 20] (resource limits)
+	constraint2, err := NewIntervalArithmetic(totalNeeded, 10, 20, IntervalContainment, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint1)
+	model.AddConstraint(constraint2)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	baseDomain := solver.GetDomain(nil, baseAllocation.ID())
+	totalDomain := solver.GetDomain(nil, totalNeeded.ID())
+
+	fmt.Printf("Base allocation:")
+	baseDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nTotal needed:")
+	totalDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Base allocation: 5 6 7 8 9 10 11 12 13 14 15
+	// Total needed: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+}
+
+```
+
+
+\n
+## pkg_minikanren_interval_arithmetic_example_test.go-ExampleNewIntervalArithmetic_sum.md
+```go
+func ExampleNewIntervalArithmetic_sum() {
+	model := NewModel()
+
+	// Variables: base cost and total cost
+	baseCost := model.NewVariable(NewBitSetDomainFromValues(11, rangeValues(3, 8)))   // base cost 3-8
+	totalCost := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(1, 20))) // total cost
+
+	// Constraint: total_cost = base_cost + [5, 10] (additional fees)
+	constraint, err := NewIntervalArithmetic(baseCost, 5, 10, IntervalSum, totalCost)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	baseDomain := solver.GetDomain(nil, baseCost.ID())
+	totalDomain := solver.GetDomain(nil, totalCost.ID())
+
+	fmt.Printf("Base cost:")
+	baseDomain.IterateValues(func(v int) {
+		fmt.Printf(" $%d", v)
+	})
+	fmt.Printf("\nTotal cost:")
+	totalDomain.IterateValues(func(v int) {
+		fmt.Printf(" $%d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Base cost: $3 $4 $5 $6 $7 $8
+	// Total cost: $8 $9 $10 $11 $12 $13 $14 $15 $16 $17 $18
+}
+
+```
+
+
+\n
+## pkg_minikanren_interval_arithmetic_example_test.go-ExampleNewIntervalArithmetic_union.md
+```go
+func ExampleNewIntervalArithmetic_union() {
+	model := NewModel()
+
+	// Variables: resource availability and total coverage
+	availability := model.NewVariable(NewBitSetDomainFromValues(16, rangeValues(5, 12))) // available slots 5-12
+	coverage := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(1, 20)))     // total coverage
+
+	// Constraint: coverage = union of availability with [8, 18]
+	constraint, err := NewIntervalArithmetic(availability, 8, 18, IntervalUnion, coverage)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	availDomain := solver.GetDomain(nil, availability.ID())
+	coverageDomain := solver.GetDomain(nil, coverage.ID())
+
+	fmt.Printf("Availability range:")
+	availDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nTotal coverage:")
+	coverageDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Availability range: 5 6 7 8 9 10 11 12
+	// Total coverage: 5 6 7 8 9 10 11 12 13 14 15 16 17 18
+}
+
+```
+
+
+\n
 ## pkg_minikanren_lex_example_test.go-ExampleNewLexLessEq.md
 ```go
 func ExampleNewLexLessEq() {
@@ -2277,6 +2847,492 @@ func ExampleSolver_parallelSearch() {
 	// Worker 1 model variables: 3
 	// Worker 2 model variables: 3
 	// Models are shared (same pointer): true
+}
+
+```
+
+
+\n
+## pkg_minikanren_modulo_example_test.go-ExampleNewModulo_basic.md
+```go
+func ExampleNewModulo_basic() {
+	model := NewModel()
+
+	// Variables: day number and day of week
+	dayNumber := model.NewVariable(NewBitSetDomainFromValues(101, rangeValues(1, 100))) // days 1-100
+	dayOfWeek := model.NewVariable(NewBitSetDomainFromValues(8, rangeValues(1, 7)))     // 1=Mon, 2=Tue, ..., 7=Sun
+
+	// Constraint: day_of_week = day_number mod 7
+	// Note: In our encoding, modulo 0 becomes 7 for BitSetDomain compatibility
+	constraint, err := NewModulo(dayNumber, 7, dayOfWeek)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	dayDomain := solver.GetDomain(nil, dayNumber.ID())
+	weekDomain := solver.GetDomain(nil, dayOfWeek.ID())
+
+	fmt.Printf("Day numbers (sample):")
+	count := 0
+	dayDomain.IterateValues(func(v int) {
+		if count < 10 { // Show first 10
+			fmt.Printf(" %d", v)
+			count++
+		}
+	})
+	fmt.Printf("...\nDays of week:")
+	weekDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Day numbers (sample): 1 2 3 4 5 6 7 8 9 10...
+	// Days of week: 1 2 3 4 5 6 7
+}
+
+```
+
+
+\n
+## pkg_minikanren_modulo_example_test.go-ExampleNewModulo_bidirectionalPropagation.md
+```go
+func ExampleNewModulo_bidirectionalPropagation() {
+	model := NewModel()
+
+	// Start with broad domains
+	dividend := model.NewVariable(NewBitSetDomainFromValues(31, rangeValues(10, 30))) // values 10-30
+	remainder := model.NewVariable(NewBitSetDomainFromValues(6, []int{2, 4}))         // specific remainders
+
+	// Constraint: remainder = dividend mod 5
+	constraint, err := NewModulo(dividend, 5, remainder)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve to see propagation
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	divDomain := solver.GetDomain(nil, dividend.ID())
+	remDomain := solver.GetDomain(nil, remainder.ID())
+
+	fmt.Printf("Dividend values:")
+	divDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nRemainder values:")
+	remDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Dividend values: 12 14 17 19 22 24 27 29
+	// Remainder values: 2 4
+}
+
+```
+
+
+\n
+## pkg_minikanren_modulo_example_test.go-ExampleNewModulo_cyclicPatterns.md
+```go
+func ExampleNewModulo_cyclicPatterns() {
+	model := NewModel()
+
+	// Variables: task ID and assigned processor
+	taskID := model.NewVariable(NewBitSetDomainFromValues(21, []int{5, 8, 12, 17, 20})) // specific task IDs
+	processor := model.NewVariable(NewBitSetDomainFromValues(5, rangeValues(1, 4)))     // 4 processors
+
+	// Constraint: processor = task_id mod 4
+	constraint, err := NewModulo(taskID, 4, processor)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	taskDomain := solver.GetDomain(nil, taskID.ID())
+	procDomain := solver.GetDomain(nil, processor.ID())
+
+	fmt.Printf("Task IDs:")
+	taskDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nAssigned processors:")
+	procDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Task IDs: 5 8 12 17 20
+	// Assigned processors: 1 4
+}
+
+```
+
+
+\n
+## pkg_minikanren_modulo_example_test.go-ExampleNewModulo_hashDistribution.md
+```go
+func ExampleNewModulo_hashDistribution() {
+	model := NewModel()
+
+	// Variables: hash value and bucket assignment
+	hashValue := model.NewVariable(NewBitSetDomainFromValues(101, []int{23, 47, 89, 156, 234})) // hash values
+	bucket := model.NewVariable(NewBitSetDomainFromValues(9, rangeValues(1, 8)))                // 8 buckets
+
+	// Constraint: bucket = hash_value mod 8
+	constraint, err := NewModulo(hashValue, 8, bucket)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	hashDomain := solver.GetDomain(nil, hashValue.ID())
+	bucketDomain := solver.GetDomain(nil, bucket.ID())
+
+	fmt.Printf("Hash values:")
+	hashDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nBucket assignments:")
+	bucketDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Hash values: 23 47 89
+	// Bucket assignments: 1 7
+}
+
+```
+
+
+\n
+## pkg_minikanren_modulo_example_test.go-ExampleNewModulo_selfReference.md
+```go
+func ExampleNewModulo_selfReference() {
+	model := NewModel()
+
+	// Variable that represents both dividend and remainder
+	value := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(1, 20))) // values 1-20
+
+	// Self-reference constraint: value mod 7 = value (only valid when value < 7)
+	constraint, err := NewModulo(value, 7, value)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domain after propagation
+	valueDomain := solver.GetDomain(nil, value.ID())
+
+	fmt.Printf("Valid self-reference values:")
+	valueDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Valid self-reference values: 1 2 3 4 5 6
+}
+
+```
+
+
+\n
+## pkg_minikanren_modulo_example_test.go-ExampleNewModulo_timeSlotScheduling.md
+```go
+func ExampleNewModulo_timeSlotScheduling() {
+	model := NewModel()
+
+	// Variables: minute offset and time slot
+	minuteOffset := model.NewVariable(NewBitSetDomainFromValues(121, rangeValues(15, 75))) // minutes 15-75
+	timeSlot := model.NewVariable(NewBitSetDomainFromValues(16, rangeValues(1, 15)))       // 15-minute slots
+
+	// Constraint: time_slot = minute_offset mod 15
+	constraint, err := NewModulo(minuteOffset, 15, timeSlot)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	minuteDomain := solver.GetDomain(nil, minuteOffset.ID())
+	slotDomain := solver.GetDomain(nil, timeSlot.ID())
+
+	fmt.Printf("Minute offsets:")
+	count := 0
+	minuteDomain.IterateValues(func(v int) {
+		if count < 15 { // Show first 15
+			fmt.Printf(" %d", v)
+			count++
+		}
+	})
+	fmt.Printf("...\nTime slots:")
+	slotDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Minute offsets: 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29...
+	// Time slots: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_beta_example_test.go-ExampleBetaNormalizeo_basic.md
+```go
+func ExampleBetaNormalizeo_basic() {
+	a := NewAtom("a")
+	x := NewAtom("x")
+	y := NewAtom("y")
+	term := App(Lambda(a, Lambda(x, a)), y)
+
+	results := Run(1, func(q *Var) Goal { return BetaNormalizeo(term, q) })
+	fmt.Println(results[0])
+	// Output: (tie x . y)
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_beta_example_test.go-ExampleBetaReduceo_basic.md
+```go
+func ExampleBetaReduceo_basic() {
+	a := NewAtom("a")
+	b := NewAtom("b")
+	term := App(Lambda(a, a), b)
+
+	results := Run(1, func(q *Var) Goal { return BetaReduceo(term, q) })
+	fmt.Println(results[0])
+	// Output: b
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_beta_example_test.go-ExampleFreeNameso_basic.md
+```go
+func ExampleFreeNameso_basic() {
+	a := NewAtom("a")
+	b := NewAtom("b")
+	term := Lambda(a, App(a, b))
+
+	results := Run(1, func(q *Var) Goal { return FreeNameso(term, q) })
+	fmt.Println(results[0])
+	// Output: (b . <nil>)
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_example_test.go-ExampleAlphaEqo_basic.md
+```go
+func ExampleAlphaEqo_basic() {
+	a := NewAtom("a")
+	b := NewAtom("b")
+
+	t1 := Lambda(a, a) // λa.a
+	t2 := Lambda(b, b) // λb.b
+
+	results := Run(1, func(q *Var) Goal {
+		return Conj(
+			AlphaEqo(t1, t2),
+			Eq(q, NewAtom(true)),
+		)
+	})
+	fmt.Println(results)
+	// Output: [true]
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_example_test.go-ExampleAlphaEqo_nested.md
+```go
+func ExampleAlphaEqo_nested() {
+	a := NewAtom("a")
+	b := NewAtom("b")
+
+	// λa.λb.a  vs  λa.λb.b  (not alpha-equivalent)
+	t1 := Lambda(a, Lambda(b, a))
+	t2 := Lambda(a, Lambda(b, b))
+
+	ctx := context.Background()
+	goal := AlphaEqo(t1, t2)
+	stream := goal(ctx, NewLocalConstraintStore(NewGlobalConstraintBus()))
+	rs, _ := stream.Take(1)
+	fmt.Println(len(rs))
+	// Output: 0
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_example_test.go-ExampleFresho_basic.md
+```go
+func ExampleFresho_basic() {
+	a := NewAtom("a")
+
+	// term: (tie a . a) — 'a' is bound, not free
+	term := Tie(a, a)
+
+	solutions := Run(1, func(q *Var) Goal {
+		return Conj(
+			Fresho(a, term),
+			Eq(q, NewAtom("ok")),
+		)
+	})
+
+	fmt.Println(solutions)
+	// Output: [ok]
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_example_test.go-ExampleFresho_violation.md
+```go
+func ExampleFresho_violation() {
+	a := NewAtom("a")
+
+	// term: (a . ()) — 'a' appears free in the list
+	list := NewPair(a, Nil)
+
+	ctx := context.Background()
+	goal := Fresho(a, list)
+	stream := goal(ctx, NewLocalConstraintStore(NewGlobalConstraintBus()))
+	results, _ := stream.Take(1)
+	fmt.Println(len(results))
+	// Output: 0
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_subst_example_test.go-ExampleSubsto_avoidCapture.md
+```go
+func ExampleSubsto_avoidCapture() {
+	a := NewAtom("a")
+	b := NewAtom("b")
+	term := Lambda(b, a) // λb.a
+
+	results := Run(1, func(q *Var) Goal {
+		return Substo(term, a, b, q)
+	})
+
+	// Result is λb'. b where b' is fresh (not b)
+	tie := results[0].(*TieTerm)
+	// Print whether binder==b and whether body==b for a stable assertion
+	fmt.Printf("binderIsB:%v bodyIsB:%v\n", tie.name.Equal(b), tie.body.Equal(b))
+	// Output: binderIsB:false bodyIsB:true
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_subst_example_test.go-ExampleSubsto_basic.md
+```go
+func ExampleSubsto_basic() {
+	a := NewAtom("a")
+	b := NewAtom("b")
+	term := NewPair(a, NewPair(NewAtom(1), Nil)) // (a 1)
+
+	results := Run(1, func(q *Var) Goal {
+		return Conj(
+			Substo(term, a, b, q),
+		)
+	})
+
+	// Expect (b . (1 . <nil>)) in Pair notation
+	fmt.Println(results[0])
+	// Output: (b . (1 . <nil>))
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_types_example_test.go-ExampleTypeChecko_app.md
+```go
+func ExampleTypeChecko_app() {
+	b := NewAtom("b")
+	intT := NewAtom("Int")
+	id := NewAtom("id")
+	env := EnvExtend(EnvExtend(Nil, b, intT), id, ArrType(intT, intT))
+	term := App(id, b)
+	results := Run(1, func(q *Var) Goal { return TypeChecko(term, env, intT) })
+	fmt.Println(len(results) > 0)
+	// Output: true
+}
+
+```
+
+
+\n
+## pkg_minikanren_nominal_types_example_test.go-ExampleTypeChecko_lambda.md
+```go
+func ExampleTypeChecko_lambda() {
+	a := NewAtom("a")
+	T := Fresh("T")
+	term := Lambda(a, a)
+	ty := ArrType(T, T)
+	results := Run(1, func(q *Var) Goal { return TypeChecko(term, Nil, ty) })
+	fmt.Println(len(results) > 0)
+	// Output: true
 }
 
 ```
@@ -4211,48 +5267,6 @@ func ExampleTabledDatabase() {
 
 \n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleTabledDatabase_withMutation.md
-```go
-func ExampleTabledDatabase_withMutation() {
-	edge, _ := DbRel("edge", 2, 0, 1)
-	db := NewDatabase()
-	db, _ = db.AddFact(edge, NewAtom("a"), NewAtom("b"))
-
-	tdb := WithTabledDatabase(db, "mutable")
-
-	x := Fresh("x")
-	y := Fresh("y")
-
-	// Query once to populate cache
-	goal := tdb.Query(edge, x, y)
-	ctx := context.Background()
-	store := NewLocalConstraintStore(NewGlobalConstraintBus())
-	stream := goal(ctx, store)
-	results1, _ := stream.Take(10)
-
-	fmt.Printf("Before update: %d edges\n", len(results1))
-
-	// Add a new fact
-	db2, _ := db.AddFact(edge, NewAtom("b"), NewAtom("c"))
-	tdb2 := WithTabledDatabase(db2, "mutable")
-
-	// Clear cache for this predicate
-	InvalidateAll()
-
-	// Query again with new database
-	goal2 := tdb2.Query(edge, x, y)
-	stream2 := goal2(ctx, store)
-	results2, _ := stream2.Take(10)
-
-	fmt.Printf("After update: %d edges\n", len(results2))
-
-	// Output:
-	// Before update: 1 edges
-	// After update: 2 edges
-}
-
-```
-
-
 \n
 ## pkg_minikanren_pldb_slg_recursive_example_test.go-ExampleTabledQuery_grandparent.md
 ```go
@@ -5800,6 +6814,186 @@ func ExampleNewScaledDivision_piCircumference() {
 	// π * 7 * 10000 = 219912 (scaled)
 	// Circumference: 21 units (actual)
 	// Precision: Using π ≈ 3.1416
+}
+
+```
+
+
+\n
+## pkg_minikanren_scale_example_test.go-ExampleNewScale_basic.md
+```go
+func ExampleNewScale_basic() {
+	model := NewModel()
+
+	// Variables: hourly_rate and weekly_cost for a 40-hour work week
+	hourlyRate := model.NewVariable(NewBitSetDomainFromValues(31, []int{20, 25, 30})) // $20, $25, $30
+	weeklyCost := model.NewVariable(NewBitSetDomainFromValues(1201, rangeValues(800, 1200)))
+
+	// Constraint: weekly_cost = hourly_rate * 40
+	constraint, err := NewScale(hourlyRate, 40, weeklyCost)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	hourlyDomain := solver.GetDomain(nil, hourlyRate.ID())
+	weeklyDomain := solver.GetDomain(nil, weeklyCost.ID())
+
+	fmt.Printf("Hourly rates:")
+	hourlyDomain.IterateValues(func(v int) {
+		fmt.Printf(" $%d", v)
+	})
+	fmt.Printf("\nWeekly costs:")
+	weeklyDomain.IterateValues(func(v int) {
+		fmt.Printf(" $%d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Hourly rates: $20 $25 $30
+	// Weekly costs: $800 $1000 $1200
+}
+
+```
+
+
+\n
+## pkg_minikanren_scale_example_test.go-ExampleNewScale_bidirectionalPropagation.md
+```go
+func ExampleNewScale_bidirectionalPropagation() {
+	model := NewModel()
+
+	// Start with loose constraints
+	baseValue := model.NewVariable(NewBitSetDomainFromValues(11, rangeValues(1, 10)))   // 1-10
+	scaledValue := model.NewVariable(NewBitSetDomainFromValues(51, rangeValues(1, 50))) // 1-50
+
+	// Constraint: scaled = base * 7
+	constraint, err := NewScale(baseValue, 7, scaledValue)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve to see propagation
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	baseDomain := solver.GetDomain(nil, baseValue.ID())
+	scaledDomain := solver.GetDomain(nil, scaledValue.ID())
+
+	fmt.Printf("Base values:")
+	baseDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nScaled values:")
+	scaledDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Base values: 1 2 3 4 5 6 7
+	// Scaled values: 7 14 21 28 35 42 49
+}
+
+```
+
+
+\n
+## pkg_minikanren_scale_example_test.go-ExampleNewScale_manufacturing.md
+```go
+func ExampleNewScale_manufacturing() {
+	model := NewModel()
+
+	// Variables: production units and raw material consumption
+	units := model.NewVariable(NewBitSetDomainFromValues(21, rangeValues(5, 20)))        // 5-20 units
+	materials := model.NewVariable(NewBitSetDomainFromValues(301, rangeValues(50, 300))) // material inventory
+
+	// Each unit requires 12 kg of raw material
+	constraint, err := NewScale(units, 12, materials)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	unitsDomain := solver.GetDomain(nil, units.ID())
+	materialsDomain := solver.GetDomain(nil, materials.ID())
+
+	fmt.Printf("Production options:")
+	unitsDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nMaterial usage:")
+	materialsDomain.IterateValues(func(v int) {
+		fmt.Printf(" %dkg", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Production options: 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20
+	// Material usage: 60kg 72kg 84kg 96kg 108kg 120kg 132kg 144kg 156kg 168kg 180kg 192kg 204kg 216kg 228kg 240kg
+}
+
+```
+
+
+\n
+## pkg_minikanren_scale_example_test.go-ExampleNewScale_resourceAllocation.md
+```go
+func ExampleNewScale_resourceAllocation() {
+	model := NewModel()
+
+	// Variables: number of workers and total daily resource units needed
+	workers := model.NewVariable(NewBitSetDomainFromValues(11, []int{2, 3, 4, 5}))            // 2-5 workers
+	totalResources := model.NewVariable(NewBitSetDomainFromValues(101, rangeValues(10, 100))) // available resources
+
+	// Each worker needs 15 resource units per day
+	constraint, err := NewScale(workers, 15, totalResources)
+	if err != nil {
+		panic(err)
+	}
+
+	model.AddConstraint(constraint)
+
+	// Solve
+	solver := NewSolver(model)
+	ctx := context.Background()
+	solver.Solve(ctx, 1)
+
+	// Get final domains after propagation
+	workersDomain := solver.GetDomain(nil, workers.ID())
+	resourcesDomain := solver.GetDomain(nil, totalResources.ID())
+
+	fmt.Printf("Feasible team sizes:")
+	workersDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\nResource requirements:")
+	resourcesDomain.IterateValues(func(v int) {
+		fmt.Printf(" %d", v)
+	})
+	fmt.Printf("\n")
+
+	// Output:
+	// Feasible team sizes: 2 3 4 5
+	// Resource requirements: 30 45 60 75
 }
 
 ```

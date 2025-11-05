@@ -34,10 +34,14 @@ extract-examples: ## Extract code examples from _test.go into docs/examples-snip
 
 assemble-examples: ## Assemble generated examples into a single docs/generated-examples.md
 	@mkdir -p docs
-	@echo "# Generated Examples" > docs/generated-examples.md
+	@echo "---" > docs/generated-examples.md
+	@echo "render_with_liquid: false" >> docs/generated-examples.md
+	@echo "---" >> docs/generated-examples.md
+	@echo "" >> docs/generated-examples.md
+	@echo "# Generated Examples" >> docs/generated-examples.md
 	@for f in docs/examples-snippets/*.md; do \
 		echo "## $$(basename $$f)" >> docs/generated-examples.md; \
-		sed -n '1,2000p' "$$f" >> docs/generated-examples.md; \
+		sed -n '1,2000p' "$$f" | perl -pe 's/\{\{/{% raw %}{{{% endraw %}/g; s/\}\}/{% raw %}}}{% endraw %}/g' >> docs/generated-examples.md; \
 		echo "\n" >> docs/generated-examples.md; \
 	 done
 	@echo "Assembled $$(ls -1 docs/examples-snippets | wc -l) snippets into docs/generated-examples.md"
