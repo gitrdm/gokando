@@ -1,12 +1,12 @@
 # gokanlogic Examples
 
-This directory contains complete example programs demonstrating various features of the gokanlogic miniKanren implementation.
+This directory contains complete example programs demonstrating the comprehensive constraint solving capabilities of the gokanlogic library, including miniKanren, finite domain (FD) solving, and hybrid approaches.
 
-### Send More Money Cryptarithm (Hybrid miniKanren)
+### Send More Money Cryptarithm (FD Solver)
 
 **Path:** `examples/send-more-money/`
 
-The classic cryptarithm puzzle demonstrating **hybrid miniKanren constraint solving** with arithmetic verification.
+The classic cryptarithm puzzle demonstrating **FD solver** with arithmetic constraint solving.
 
 **Run:**
 ```bash
@@ -18,61 +18,38 @@ go run main.go
 Find unique digits for letters S,E,N,D,M,O,R,Y such that SEND + MORE = MONEY, where S and M cannot be zero.
 
 **Features demonstrated:**
-- **Hybrid miniKanren approach**: Relational constraints for uniqueness and domains, Project for arithmetic verification
-- **Cryptarithm solving**: Complex multi-digit arithmetic with carries
-- **Constraint verification**: Using Project to validate arithmetic equations
+- **FD solver with global constraints**: AllDifferent for digit uniqueness
+- **Arithmetic modeling**: Direct constraint representation of cryptarithm equations  
+- **Carry propagation**: Proper handling of multi-digit arithmetic with carries
 - **Leading zero constraints**: Ensuring S and M are non-zero
+- **Efficient solving**: Finds solutions quickly using constraint propagation
 
 **Sample Output:**
 ```
-=== Hybrid miniKanren SEND + MORE = MONEY ===
+=== FD SEND + MORE = MONEY ===
+Letter → Digit mapping:
+  S → 9
+  E → 5
+  N → 6
+  D → 7
+  M → 1
+  O → 0
+  R → 8
+  Y → 2
 
-❌ No solutions found within timeout (0.00s)
-
-This demonstrates the current limitations of the hybrid approach.
-Cryptarithms require sophisticated constraint propagation for
-efficient solving.
-
-Key insights:
-- ✅ Hybrid miniKanren framework works for basic constraints
-- ✅ Arithmetic verification with Project is functional
-- ✅ Uniqueness and domain constraints are handled
-- ℹ️ Complex arithmetic constraints need better propagation
+  9567
++ 1085
+------
+ 10652
 ```
 
-#### Cryptarithm Solving Challenges
+The example now successfully solves the classic SEND + MORE = MONEY cryptarithm using the FD solver with sophisticated constraint propagation. This demonstrates the power of the finite domain constraint solver for arithmetic puzzle solving.
 
-The hybrid approach reveals important differences between cryptarithm solving and other constraint problems:
-
-**✅ Successfully Implemented:**
-- **Relational constraints**: Uniqueness, domain restrictions, leading zero constraints
-- **Arithmetic verification**: Project-based validation of SEND + MORE = MONEY
-- **Hybrid coordination**: MiniKanren handles logical structure, Project handles computation
-
-**❌ Missing Functionality (Future Work):**
-- **Arithmetic constraint propagation**: No domain pruning based on carries and digit relationships
-- **Cryptarithm-specific constraints**: No specialized cryptarithm solving algorithms
-- **Search heuristics**: Basic backtracking without cryptarithm-aware ordering
-- **Constraint modeling**: Arithmetic constraints modeled as verification rather than propagation
-
-**🔍 Key Insights for Cryptarithm Solving:**
-- **Cryptarithms are more constrained than magic squares**: Specific equation vs. general sum constraints
-- **Carry propagation is complex**: Multi-digit arithmetic with interdependent carries
-- **Hybrid approach works but is inefficient**: Finds some solutions for magic squares but struggles with cryptarithms
-- **Specialized cryptarithm algorithms exist**: Commercial solvers use cryptarithm-specific propagation
-
-**🚀 Future Enhancement Opportunities:**
-- Implement cryptarithm-specific constraint propagation (carry analysis)
-- Add arithmetic constraint modeling beyond Project verification
-- Integrate cryptarithm solving algorithms (e.g., from constraint programming literature)
-- Add domain pruning based on arithmetic relationships
-- Consider specialized cryptarithm solvers for comparison
-
-### Magic Square (Hybrid miniKanren + FD)
+### Magic Square (FD Solver)
 
 **Path:** `examples/magic-square/`
 
-The classic 3x3 magic square puzzle demonstrating **hybrid constraint solving** combining miniKanren relational programming with FD solver arithmetic constraints.
+The classic 3x3 magic square puzzle demonstrating **FD solver** with arithmetic and AllDifferent constraints.
 
 **Run:**
 ```bash
@@ -81,65 +58,30 @@ go run main.go
 ```
 
 **The Puzzle:**
-Find a 3x3 grid of distinct digits (1-9) where each row, column, and diagonal sums to 15, using a hybrid approach that combines relational and finite domain constraint solving.
+Find a 3x3 grid of distinct digits (1-9) where each row, column, and diagonal sums to 15, using the FD solver with arithmetic and AllDifferent constraints.
 
 **Features demonstrated:**
-- **Hybrid miniKanren + FD approach**: MiniKanren handles logical structure and result formatting, FD solver manages arithmetic constraints
-- **Unified constraint solving**: Both formalisms work together through gokanlogic's constraint store
-- **Sum constraints**: Arithmetic constraints for rows, columns, and diagonals
-- **AllDifferent constraint**: Ensures all grid values are unique
-- **Cross-paradigm coordination**: Converting between relational and domain-based representations
+- **FD solver with arithmetic constraints**: Sum constraints for rows, columns, and diagonals
+- **AllDifferent constraint**: Ensures all grid values are unique (1-9)
+- **Constraint composition**: Multiple interacting constraint types
+- **Efficient search**: Finding valid magic squares through constraint propagation
 
 **Sample Output:**
 ```
-=== Hybrid miniKanren + FD Magic Square (3x3) ===
-
-❌ No magic squares found within timeout (0.00s)
-
-This demonstrates the current limitations of the hybrid approach.
-The FD solver needs more sophisticated constraint propagation for
-finding magic squares from scratch.
-
-Key insights:
-- ✅ Hybrid miniKanren + FD framework is implemented
-- ✅ MiniKanren handles logical structure and relationships
-- ✅ FD solver handles arithmetic constraints
-- ✅ Unified constraint solving across formalisms works
-- ℹ️ Enhanced propagation algorithms needed for complex arithmetic
+=== FD Magic Square (3x3) ===
+Solution:
+ 2  9  4 
+ 7  5  3 
+ 6  1  8
 ```
 
-#### FD Solver Limitations for Magic Squares
+**Features demonstrated:**
+- **FD solver with arithmetic constraints**: Sum constraints for rows, columns, and diagonals
+- **AllDifferent constraint**: Ensures all grid values are unique (1-9)
+- **Global constraint propagation**: Efficient pruning of incompatible value combinations
+- **Complete constraint satisfaction**: Finding valid 3x3 magic squares efficiently
 
-The hybrid approach successfully demonstrates framework integration but reveals important limitations in the current FD solver implementation:
-
-**✅ Successfully Implemented:**
-- **Hybrid coordination**: MiniKanren and FD solver work together seamlessly
-- **Basic arithmetic constraints**: Sum constraints for rows, columns, diagonals
-- **AllDifferent constraints**: Ensures unique values across the grid
-- **Unified constraint store**: Both formalisms share the same constraint system
-- **Result formatting**: MiniKanren handles relational result presentation
-
-**❌ Missing Functionality (Future Work):**
-- **Advanced propagation algorithms**: Current AC-3 propagation insufficient for complex arithmetic constraints
-- **Global constraints**: Sum constraints need stronger consistency algorithms (e.g., AC-4, SAC)
-- **Arithmetic constraint propagation**: Magic square constraints require sophisticated domain pruning
-- **Constraint learning**: No conflict-directed backjumping or nogood recording
-- **Hybrid search strategies**: Limited coordination between relational and domain search
-
-**🔍 Key Insights for Future Enhancement:**
-- **Magic squares are deceptively complex**: Simple sum constraints hide intricate interdependencies
-- **Current FD solver finds AllDifferent solutions** but struggles with arithmetic consistency
-- **Hybrid approach adds overhead** without solving the core propagation limitations
-- **Commercial CP solvers** use advanced algorithms (e.g., GAC for sum constraints) that gokanlogic lacks
-- **Specialized magic square algorithms** (Siamese method, de la Loubère method) might be more effective
-
-**🚀 Future Enhancement Opportunities:**
-- Implement stronger consistency algorithms (SAC, GAC) for arithmetic constraints
-- Add global sum constraint with efficient propagation
-- Integrate SAT solver for hybrid CP-SAT solving
-- Add symmetry breaking for magic squares
-- Implement specialized magic square construction algorithms
-- Add constraint learning and conflict analysis
+The example successfully demonstrates the power of the FD solver for arithmetic constraint problems, finding valid magic squares where each row, column, and diagonal sums to 15.
 
 ### Knight's Tour (FD Solver)
 
@@ -186,11 +128,33 @@ This reveals an important limitation: while the framework works,
 some constraint problems need stronger propagation algorithms.
 ```
 
-#### FD Solver Capabilities and Limitations
+**Sample Output:**
+```
+=== Knight's Tour on 5x5 Board ===
 
-Based on analysis of the current FD solver implementation, here are key insights about its constraint capabilities and areas for future enhancement:
+Found 2 complete assignments, validating against knight move rules...
+✓ Expected result: constraint validation working - no valid knight's tour found among 2 assignments
 
-**✅ Currently Implemented:**
+✓ FD Solver successfully exercised!
+
+This example demonstrates:
+- FDStore with AllDifferent constraints for uniqueness
+- Custom constraint framework using public domain access methods
+- Post-assignment validation of complex combinatorial constraints
+
+Note: Complete knight's tours require sophisticated constraint
+propagation algorithms. The solver finds assignments satisfying
+uniqueness, but knight move constraints are validated separately.
+
+This reveals an important limitation: while the framework works,
+some constraint problems need stronger propagation algorithms.
+```
+
+#### FD Solver Capabilities and Current Limitations
+
+Based on the current FD solver implementation, here are key insights about its constraint capabilities:
+
+**✅ Currently Implemented and Working:**
 - **BitSet-based finite domains** with efficient 1-based indexing
 - **AC-3 propagation algorithm** for basic constraint consistency
 - **AllDifferent constraints** with both pairwise and Regin filtering (bipartite matching)
@@ -199,26 +163,16 @@ Based on analysis of the current FD solver implementation, here are key insights
 - **Custom constraint framework** for user-defined constraints
 - **Multiple search heuristics** (dom/deg, dom, deg, lex, random)
 - **Backtracking search** with trail-based undo and monitoring capabilities
-
-**❌ Missing Constraint Types (for Knight's Tours and Complex Problems):**
-- **Global constraints**: table, regular, circuit, element, cumulative
-- **Advanced propagation**: AC-4/6, path consistency, singleton arc consistency (SAC), bound consistency (BC)
-- **Modeling constructs**: reification (constraint as boolean variable), channeling
-- **Enhanced search**: conflict-directed backjumping, restarts, learning/no-good recording
+- **Global constraints**: Circuit, Table, Regular, Cumulative, GCC, Among, Lex (see other examples)
 
 **🔍 Key Insights:**
 - The FD solver excels at **basic combinatorial problems** with AllDifferent and arithmetic constraints
-- **Knight's tours require global constraints** like circuit/path constraints for modeling graph structures
-- Current implementation finds AllDifferent solutions but **validates knight moves post-solution** rather than constraining during search
-- **Hybrid approaches** (miniKanren + FD) work for integration but don't solve the core complexity
-- **Specialized algorithms** (Warnsdorff's rule, neural networks) or **commercial CP solvers** may be needed for complete knight's tours
+- **Knight's tours require specialized global constraints** like circuit/path constraints for modeling graph structures
+- Current implementation demonstrates **validation capabilities** but knight move constraints are complex
+- The **constraint framework is solid** - many other global constraints work well (see TSP, Table, Regular examples)
 
-**🚀 Future Enhancement Opportunities:**
-- Add global constraint library (circuit, table, regular constraints)
-- Implement advanced propagation algorithms (AC-4+, SAC)
-- Add reification for modeling complex logical conditions
-- Integrate with SAT solvers for hybrid CP-SAT solving
-- Add symmetry breaking and dominance rules for combinatorial problems
+**🚀 Current Alternative:**
+See the **TSP example with Circuit constraint** which successfully models and solves Hamiltonian cycles, demonstrating that the global constraint framework is robust for many complex combinatorial problems.
 
 ### Knight's Tour (Hybrid miniKanren + FD)
 
@@ -245,7 +199,7 @@ Find a sequence of knight moves on a 5x5 chessboard. This example demonstrates c
 ```
 === Hybrid miniKanren + FD Knight's Tour (5x5) ===
 
-[Program demonstrates hybrid approach but finds complete tours challenging]
+[Demonstrates hybrid framework integration]
 
 Key insights about hybrid solving:
 
@@ -255,10 +209,10 @@ Strengths:
 - FD solver provides efficient combinatorial search
 - Unified constraint system allows both approaches
 
-Limitations:
-- Knight's tour constraints are still very complex
-- Complete tours require sophisticated propagation
-- Hybrid approach adds coordination overhead
+Current approach:
+- Framework successfully integrates multiple paradigms
+- Knight's tour constraints remain challenging for current algorithms
+- Alternative: See TSP example with Circuit constraint for Hamiltonian cycles
 ```
 
 ### Graph Coloring (Australia Map)
@@ -300,6 +254,139 @@ Region Coloring:
   T    : 🔴 red
 
 ✅ Valid 3-coloring found
+```
+
+### Sudoku Puzzle
+
+**Path:** `examples/sudoku/`
+
+A classic Sudoku puzzle demonstrating **FD solver** with AllDifferent constraints and complex constraint propagation.
+
+**Run:**
+```bash
+cd examples/sudoku
+go run main.go
+```
+
+**The Puzzle:**
+Solve a 9x9 Sudoku puzzle where each row, column, and 3x3 box must contain all digits 1-9 exactly once.
+
+**Features demonstrated:**
+- **AllDifferent constraints**: Applied to rows, columns, and 3x3 boxes
+- **Efficient constraint propagation**: Fast solving of complex constraint satisfaction problems
+- **Pre-filled constraints**: Handling partially completed puzzles
+- **Constraint composition**: Multiple overlapping AllDifferent constraints
+
+**Sample Output:**
+```
+Solved in 1.102µs, found 1 solutions
+5 3 4 6 7 8 9 1 2 
+6 7 2 1 9 5 3 4 8 
+1 9 8 3 4 2 5 6 7 
+8 5 9 7 6 1 4 2 3 
+4 2 6 8 5 3 7 9 1 
+7 1 3 9 2 4 8 5 6 
+9 6 1 5 3 7 2 8 4 
+2 8 7 4 1 9 6 3 5 
+3 4 5 2 8 6 1 7 9
+```
+
+### Among Constraint Demo
+
+**Path:** `examples/among-demo/`
+
+Demonstrates the Among global constraint that counts how many variables take values from a specified set.
+
+**Run:**
+```bash
+cd examples/among-demo
+go run main.go
+```
+
+**Features demonstrated:**
+- **Among constraint**: Counting variables that take values from a set
+- **Domain pruning**: Efficient propagation when count bounds are reached
+- **Set membership**: Constraining variables to belong to specific value sets
+
+**Sample Output:**
+```
+=== Among Constraint Demo (count in S) ===
+x1: {1..2}
+x2: {3}
+x3: {3..4}
+K: {2}
+```
+
+### Anytime Optimization
+
+**Path:** `examples/anytime-optimization/`
+
+Demonstrates **anytime optimization** where you can stop early and get valid (though possibly suboptimal) solutions.
+
+**Run:**
+```bash
+cd examples/anytime-optimization
+go run main.go
+```
+
+**Features demonstrated:**
+- **Objective minimization**: Finding optimal solutions with limited resources
+- **Node limits**: Stopping search early with valid solutions
+- **Optimization comparison**: Comparing limited vs unlimited search
+
+**Sample Output:**
+```
+=== Anytime Optimization Demo ===
+
+Minimizing X + 2*Y with a node limit of 3...
+✓ Optimal solution: objective = 3
+  Solution: X=1, Y=1
+
+Now solving without limit to confirm the true optimum...
+✓ True optimum: objective = 3 (X=1, Y=1)
+
+This demonstrates anytime optimization: you can stop early and
+still get a valid (though possibly suboptimal) solution.
+```
+
+### Apartment Floor Puzzle (FD and Hybrid Variants)
+
+**Path:** `examples/apartment_fd/` and `examples/apartment_hybrid/`
+
+Alternative implementations of the apartment puzzle using pure FD solving and hybrid FD approaches.
+
+**Run:**
+```bash
+cd examples/apartment_fd
+go run main.go
+
+# or hybrid version:
+cd examples/apartment_hybrid  
+go run main.go
+```
+
+**Features demonstrated:**
+- **Pure FD constraints**: Modeling the apartment puzzle entirely with FD variables and constraints
+- **Hybrid FD integration**: Combining multiple constraint solving approaches
+- **Constraint equivalence**: Different modeling approaches for the same problem
+
+**Sample Output:**
+```
+=== Apartment puzzle (FD variant) ===
+baker: {1..4}
+cooper: {2..4}
+fletcher: {2..4}
+miller: {3..5}
+smith: {1..5}
+
+Concrete assignment (after search):
+Person    | Floor
+----------|------
+baker     | 1
+cooper    | 3
+fletcher  | 2
+miller    | 4
+smith     | 5
 ```
 
 ### Small TSP (Hamiltonian Cycle with Circuit)
@@ -576,6 +663,32 @@ TRUE statements:
 ✅ 6 true, 6 false
 ```
 
+## Available Global Constraints
+
+The gokanlogic library now includes a comprehensive set of global constraints that enable efficient solving of complex combinatorial problems:
+
+### Implemented Global Constraints
+
+- **Circuit**: Hamiltonian cycle constraints (single cycle visiting all nodes)
+- **Table**: Extensional constraints (allowed tuples)
+- **Regular**: DFA-based pattern constraints
+- **Cumulative**: Resource scheduling constraints
+- **GlobalCardinality (GCC)**: Per-value occurrence bounds
+- **Among**: Count variables taking values from a set
+- **Lexicographic**: Ordering constraints for sequences
+- **AllDifferent**: Uniqueness constraints with efficient propagation
+- **Element**: Indexing constraints (X[I] = V)
+- **Sum**: Arithmetic sum constraints
+- **Count**: Counting occurrences of values
+
+### Constraint Composition
+
+These constraints can be combined effectively to model complex problems. The examples demonstrate various combinations:
+- **Sudoku**: Multiple AllDifferent constraints
+- **TSP**: Circuit + arithmetic optimization
+- **Scheduling**: Cumulative + precedence constraints
+- **Assignment**: GCC + AllDifferent + capacity constraints
+
 ## Running the Examples
 
 All examples are self-contained Go programs. To run any example:
@@ -748,12 +861,30 @@ MiniKanren excels at:
 - ✅ Structural/symbolic relationships
 - ✅ Problems where constraints prune the search effectively
 
-MiniKanren struggles with:
-- ❌ Large combinatorial spaces without constraint propagation
-- ❌ Finite domain arithmetic (lacks CLP(FD) like Prolog)
-- ❌ Problems requiring extensive numeric computation
+FD Solver excels at:
+- ✅ **Combinatorial optimization** with global constraints
+- ✅ **Arithmetic constraint satisfaction** (sum, cardinality, scheduling)
+- ✅ **Pattern matching** and sequence constraints
+- ✅ **Resource allocation** problems
+- ✅ **Graph problems** with specialized constraints (Circuit, Table)
 
-**N-Queens illustrates this:** N=6 works (228ms), but N=8 is slow (26s) due to the combinatorial explosion. Languages with CLP(FD) constraint propagation handle this better.
+Combined approaches struggle with:
+- ❌ Very large combinatorial spaces without effective constraint propagation
+- ❌ Problems requiring extensive floating-point computation
+- ❌ Some highly specialized combinatorial problems (like complete knight's tours)
+
+**Parallel Capabilities:**
+- ✅ **Parallel search** with `ParallelRun` and `ParallelDisj` (see Graph Coloring)
+- ✅ **Multi-core utilization** for constraint satisfaction problems
+- ✅ **Parallel disjunction** for exploring multiple solution branches concurrently
+
+**Performance Examples:**
+- **Sudoku**: Solved in microseconds (~1.1µs)
+- **Send+More=Money**: Fast solution finding
+- **Magic Square**: Efficient 3x3 solution generation
+- **N-Queens**: N=6 works well (~228ms), N=8 slower (~26s) due to combinatorial explosion
+- **Graph Coloring**: Fast parallel solution finding
+- **TSP Circuit**: Efficient Hamiltonian cycle enumeration
 
 ### Best Practices
 
