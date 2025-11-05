@@ -5,20 +5,6 @@ This example demonstrates basic usage of the library.
 ## Source Code
 
 ```go
-// Package main solves the apartment floor puzzle using gokanlogic.
-//
-// The puzzle: Baker, Cooper, Fletcher, Miller, and Smith live on different
-// floors of an apartment house that contains only five floors.
-//
-// Constraints:
-//   - Baker does not live on the top floor.
-//   - Cooper does not live on the bottom floor.
-//   - Fletcher does not live on either the top or the bottom floor.
-//   - Miller lives on a higher floor than does Cooper.
-//   - Smith does not live on a floor adjacent to Fletcher's.
-//   - Fletcher does not live on a floor adjacent to Cooper's.
-//
-// Question: Where does everyone live?
 package main
 
 import (
@@ -29,28 +15,24 @@ import (
 )
 
 func main() {
-	fmt.Println("=== Solving the Apartment Floor Puzzle ===")
-	fmt.Println()
+	fmt.Println("=== Apartment puzzle (FD variant) ===")
 
-	// Build FD model using HLAPI
+	// Build FD model
 	m := minikanren.NewModel()
 
-	// Create FD variables for each person's floor (1-5)
 	baker := m.IntVar(1, 5, "baker")
 	cooper := m.IntVar(1, 5, "cooper")
 	fletcher := m.IntVar(1, 5, "fletcher")
 	miller := m.IntVar(1, 5, "miller")
 	smith := m.IntVar(1, 5, "smith")
 
-	// All people must be on different floors (HLAPI global constraint)
-	m.AllDifferent(baker, cooper, fletcher, miller, smith)
+	// Global AllDifferent (HLAPI)
+	_ = m.AllDifferent(baker, cooper, fletcher, miller, smith)
 
 	// Baker does not live on the top floor (5)
 	top := m.IntVar(5, 5, "top")
 	c1, _ := minikanren.NewInequality(baker, top, minikanren.NotEqual)
 	m.AddConstraint(c1)
-
-	// Cooper does not live on the bottom floor (1)
 	bottom := m.IntVar(1, 1, "bottom")
 	c2, _ := minikanren.NewInequality(cooper, bottom, minikanren.NotEqual)
 	m.AddConstraint(c2)
@@ -66,34 +48,74 @@ func main() {
 	m.AddConstraint(c5)
 
 	// Smith not adjacent to Fletcher
-	m.AddConstraint(notAdjacentConstraint(m, smith, fletcher))
+	m.AddConstraint(mustNotAdjacentConstraint(m, smith, fletcher))
 
 	// Fletcher not adjacent to Cooper
-	m.AddConstraint(notAdjacentConstraint(m, fletcher, cooper))
+	m.AddConstraint(mustNotAdjacentConstraint(m, fletcher, cooper))
 
-	// Solve using HLAPI
-	ctx := context.Background()
-	solver := minikanren.NewSolver(m)
-	solutions, err := solver.Solve(ctx, 1)
+	// Build hybrid solver and populated UnifiedStore via HLAPI helper
+	solver, store, err := minikanren.NewHybridSolverFromModel(m)
 	if err != nil {
-		fmt.Printf("❌ Error solving: %v\n", err)
-		return
+		panic(err)
+	}
+
+	// Run propagation to a fixed point
+	result, err := solver.Propagate(store)
+	if err != nil {
+		panic(err)
+	}
+
+	// Print resulting domains
+	printDomain := func(name string, v *minikanren.FDVariable) {
+		d := result.GetDomain(v.ID())
+		if d == nil {
+			fmt.Printf("%s: <nil>\n", name)
+			return
+		}
+		fmt.Printf("%s: %s\n", name, d.String())
+	}
+
+	printDomain("baker", baker)
+	printDomain("cooper", cooper)
+	printDomain("fletcher", fletcher)
+	printDomain("miller", miller)
+	printDomain("smith", smith)
+
+	// Now run a full solver search to produce a concrete assignment (one solution)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	searcher := minikanren.NewSolver(m)
+	solutions, err := searcher.Solve(ctx, 1)
+	if err != nil {
+		panic(err)
 	}
 
 	if len(solutions) == 0 {
-		fmt.Println("❌ No solution found!")
+		fmt.Println("No solution found by search")
 		return
 	}
 
-	fmt.Println("✓ Solution found!")
+	// Print the concrete assignment found by the solver
 	fmt.Println()
+	fmt.Println("Concrete assignment (after search):")
+	fmt.Println("Person    | Floor")
+	fmt.Println("----------|------")
 
-	displaySolution(solutions[0], baker, cooper, fletcher, miller, smith)
+	sol := solutions[0]
+	// Print only the named person variables in the original order
+	people := []*minikanren.FDVariable{baker, cooper, fletcher, miller, smith}
+	for _, v := range people {
+		name := v.Name()
+		val := sol[v.ID()]
+		fmt.Printf("%-9s | %d\n", name, val)
+	}
 }
 
-// notAdjacentConstraint builds model constraints for "A not adjacent to B"
-// using FD variables and HLAPI constructors.
-func notAdjacentConstraint(m *minikanren.Model, a, b *minikanren.FDVariable) minikanren.ModelConstraint {
+// mustNotAdjacentConstraint builds the three model constraints that
+// implement "A not adjacent to B" for FD variables using HLAPI constructors.
+// It returns a ModelConstraint that is a conjunction of the three constraints.
+func mustNotAdjacentConstraint(m *minikanren.Model, a, b *minikanren.FDVariable) minikanren.ModelConstraint {
 	// A != B
 	c1, _ := minikanren.NewInequality(a, b, minikanren.NotEqual)
 
@@ -107,11 +129,12 @@ func notAdjacentConstraint(m *minikanren.Model, a, b *minikanren.FDVariable) min
 	c_ar2, _ := minikanren.NewArithmetic(b, bminus, -1)
 	c_neq2, _ := minikanren.NewInequality(a, bminus, minikanren.NotEqual)
 
-	return newCompositeModelConstraint([]minikanren.ModelConstraint{c1, c_ar1, c_neq1, c_ar2, c_neq2})
+	return NewCompositeModelConstraint([]minikanren.ModelConstraint{c1, c_ar1, c_neq1, c_ar2, c_neq2})
 }
 
-// newCompositeModelConstraint combines multiple ModelConstraints into one.
-func newCompositeModelConstraint(children []minikanren.ModelConstraint) minikanren.ModelConstraint {
+// NewCompositeModelConstraint composes multiple ModelConstraints into one
+// ModelConstraint for example convenience.
+func NewCompositeModelConstraint(children []minikanren.ModelConstraint) minikanren.ModelConstraint {
 	return &compositeModelConstraint{children: children}
 }
 
@@ -141,30 +164,6 @@ func (c *compositeModelConstraint) Clone() minikanren.ModelConstraint {
 	return &compositeModelConstraint{children: copyChildren}
 }
 
-// displaySolution pretty-prints the FD solution
-func displaySolution(solution []int, baker, cooper, fletcher, miller, smith *minikanren.FDVariable) {
-	fmt.Println("Person    | Floor")
-	fmt.Println("----------|------")
-
-	people := []struct {
-		name string
-		v    *minikanren.FDVariable
-	}{
-		{"Baker", baker},
-		{"Cooper", cooper},
-		{"Fletcher", fletcher},
-		{"Miller", miller},
-		{"Smith", smith},
-	}
-
-	for _, p := range people {
-		fmt.Printf("%-9s | %d\n", p.name, solution[p.v.ID()])
-	}
-
-	fmt.Println()
-	fmt.Println("✅ All constraints satisfied!")
-}
-
 ```
 
 ## Running the Example
@@ -172,7 +171,7 @@ func displaySolution(solution []int, baker, cooper, fletcher, miller, smith *min
 To run this example:
 
 ```bash
-cd apartment
+cd apartment_fd
 go run main.go
 ```
 

@@ -1465,26 +1465,35 @@ func ExampleTabled() {
 
 #### **Phase 7.0: Foundational Relational Operators** ⏳ PLANNED
 
-- [ ] **Task 7.0.1: Relational Arithmetic Operators** ⏳ PENDING
-    - [ ] **Objective**: Provide bidirectional arithmetic relations over natural numbers (Peano numerals or direct integers).
-    - [ ] **Action**:
-        - [ ] Implement `Pluso(x, y, z Term) Goal` - Addition relation (x + y = z)
-        - [ ] Implement `Minuso(x, y, z Term) Goal` - Subtraction relation (x - y = z)
-        - [ ] Implement `Timeso(x, y, z Term) Goal` - Multiplication relation (x × y = z)
-        - [ ] Implement `Divo(x, y, z Term) Goal` - Division relation (x ÷ y = z)
-        - [ ] Implement `Logo(base, exp, result Term) Goal` - Logarithm relation
-        - [ ] Implement `Expo(base, exp, result Term) Goal` - Exponentiation relation
-        - [ ] Implement `LessThanо(x, y Term) Goal` - Relational less-than
-        - [ ] Implement `GreaterThanо(x, y Term) Goal` - Relational greater-than
-        - [ ] Document when to use relational arithmetic vs. FD constraints
-        - [ ] Add performance notes and limits
-    - [ ] **Success Criteria**:
-        - All operations work bidirectionally (can solve for any argument)
-        - Operations compose with other relational goals
-        - Clear documentation explains FD vs. relational arithmetic trade-offs
-        - Examples demonstrate practical use cases
+- [x] **Task 7.0.1: Relational Arithmetic Operators** ✅ **COMPLETED**
+    - [x] **Objective**: Provide bidirectional arithmetic relations over natural numbers (Peano numerals or direct integers).
+    - [x] **Action**:
+        - [x] Implement `Pluso(x, y, z Term) Goal` - Addition relation (x + y = z)
+        - [x] Implement `Minuso(x, y, z Term) Goal` - Subtraction relation (x - y = z)
+        - [x] Implement `Timeso(x, y, z Term) Goal` - Multiplication relation (x × y = z)
+        - [x] Implement `Divo(x, y, z Term) Goal` - Division relation (x ÷ y = z)
+        - [x] Implement `Logo(base, exp, result Term) Goal` - Logarithm relation
+        - [x] Implement `Expo(base, exp, result Term) Goal` - Exponentiation relation
+        - [x] Implement `LessThanо(x, y Term) Goal` - Relational less-than
+        - [x] Implement `GreaterThanо(x, y Term) Goal` - Relational greater-than
+        - [x] Implement `LessEqualo(x, y Term) Goal` - Relational less-than-or-equal
+        - [x] Implement `GreaterEqualo(x, y Term) Goal` - Relational greater-than-or-equal
+        - [x] Document when to use relational arithmetic vs. FD constraints
+        - [x] Add performance notes and limits
+    - [x] **Success Criteria**:
+        - All operations work bidirectionally (can solve for any argument) ✅
+        - Operations compose with other relational goals ✅
+        - Clear documentation explains FD vs. relational arithmetic trade-offs ✅
+        - Examples demonstrate practical use cases ✅
+    - **Implementation Notes**:
+        - **Files**: `pkg/minikanren/relational_arithmetic.go` (874 lines)
+        - **Tests**: 35+ comprehensive tests in `relational_arithmetic_test.go` (all passing)
+        - **Examples**: 17+ example functions in `relational_arithmetic_example_test.go` (all passing)
+        - **Bidirectional Support**: All operations support forward, backward, and verification modes
+        - **Error Handling**: Proper handling of edge cases (division by zero, negative exponents, etc.)
+        - **Integration**: Works seamlessly with existing miniKanren goals and constraints
     - **Rationale**: While FD constraints handle most arithmetic needs, relational arithmetic is fundamental to pure logic programming and enables certain patterns that FD constraints don't support well. Important for educational examples and some meta-programming tasks.
-    - **Design Note**: Can use Peano numerals for true relational arithmetic or hybrid approach with bounds. Should integrate with existing FD arithmetic where beneficial.
+    - **Design Note**: Uses direct integer arithmetic with bounds checking rather than Peano numerals for performance.
 
 - [ ] **Task 7.0.2: Advanced Control Flow Operators** ⏳ PENDING
     - [ ] **Objective**: Provide additional control flow mechanisms for complex search strategies.
@@ -1502,20 +1511,30 @@ func ExampleTabled() {
         - Integration with existing Conda/Condu is clean
     - **Rationale**: These operators provide fine-grained control over search strategy, which is important for optimization and implementing certain algorithms efficiently. Complement existing Conda/Condu.
 
-- [ ] **Task 7.0.3: Constraint Extensions** ⏳ PENDING
+- [ ] **Task 7.0.3: Constraint Extensions** ⏳ **PARTIALLY IMPLEMENTED**
     - [ ] **Objective**: Fill gaps in FD constraint coverage for specialized applications.
     - [ ] **Action**:
         - [ ] Implement `IntervalArithmetic(intervals, operations, result)` - Interval constraint propagation
         - [ ] Implement `Scale(x, k, y *FDVariable) PropagationConstraint` - Scaling constraint (X = k*Y)
+        - [x] Implement `ScaledDivision(dividend, divisor, quotient *FDVariable) PropagationConstraint` - Division constraint (X / k = Y) ✅
         - [ ] Implement `Modulo(x, m, r *FDVariable) PropagationConstraint` - Modular arithmetic (X mod M = R)
         - [ ] Implement `Absolute(x, abs *FDVariable) PropagationConstraint` - Absolute value constraint
-        - [ ] Document constraint semantics and propagation strength
-        - [ ] Add examples for each constraint type
+        - [x] Document constraint semantics and propagation strength ✅
+        - [x] Add examples for each constraint type ✅
     - [ ] **Success Criteria**:
-        - Constraints integrate with existing propagation framework
-        - Bidirectional propagation where feasible
-        - Examples demonstrate practical applications
-        - Performance is competitive with manual constraint composition
+        - Constraints integrate with existing propagation framework ✅ (ScaledDivision)
+        - Bidirectional propagation where feasible ✅ (ScaledDivision)
+        - Examples demonstrate practical applications ✅ (ScaledDivision)
+        - Performance is competitive with manual constraint composition ✅ (ScaledDivision)
+    - **Implementation Status**:
+        - **✅ ScaledDivision**: Production implementation complete (`pkg/minikanren/scaled_division.go`, 271 lines)
+            - Bidirectional propagation: dividend ↔ quotient
+            - 11 comprehensive tests, 4 example functions
+            - Used for scaled integer arithmetic (PicoLisp pattern)
+        - **❌ Scale**: Not implemented (would be X = k*Y)
+        - **❌ Modulo**: Not implemented 
+        - **❌ Absolute**: Not implemented
+        - **❌ IntervalArithmetic**: Not implemented
     - **Rationale**: These constraints fill specific gaps in the FD constraint library. Scale and Modulo are particularly common in scheduling and resource allocation problems. Interval arithmetic enables robust numerical reasoning.
 
 - [ ] **Task 7.0.4: Tabling Extensions** ⏳ PENDING
@@ -1544,9 +1563,9 @@ func ExampleTabled() {
 - Comprehensive documentation with performance guidance
 
 **Phase 7.0 Priority Notes**:
-- **Task 7.0.1** (Relational Arithmetic): MEDIUM - Useful for pure logic programming and education
+- **Task 7.0.1** (Relational Arithmetic): ✅ **COMPLETED** - All bidirectional arithmetic operators implemented with comprehensive tests
 - **Task 7.0.2** (Control Flow): LOW-MEDIUM - Nice to have, existing operators cover most cases
-- **Task 7.0.3** (Constraint Extensions): MEDIUM-HIGH - Scale and Modulo are commonly needed
+- **Task 7.0.3** (Constraint Extensions): MEDIUM-HIGH - ScaledDivision complete; Scale and Modulo still needed for scheduling
 - **Task 7.0.4** (Tabling Extensions): MEDIUM - Important for production use and debugging
 
 ---
@@ -1638,9 +1657,9 @@ func ExampleTabled() {
 
 **Phase 7 Overall Priority Notes**:
 - **Phase 7.0** (Foundational Operators): MEDIUM-HIGH priority
-  - Task 7.0.1 (Relational Arithmetic): MEDIUM - Useful for pure logic programming and education
+  - Task 7.0.1 (Relational Arithmetic): ✅ **COMPLETED** - All operators implemented and tested
   - Task 7.0.2 (Control Flow): LOW-MEDIUM - Nice to have, existing operators cover most cases
-  - Task 7.0.3 (Constraint Extensions): MEDIUM-HIGH - Scale and Modulo are commonly needed
+  - Task 7.0.3 (Constraint Extensions): MEDIUM-HIGH - ScaledDivision complete; Scale and Modulo still commonly needed
   - Task 7.0.4 (Tabling Extensions): MEDIUM - Important for production use and debugging
 - **Phase 7.1** (Nominal Logic): MEDIUM priority for PL/compiler applications, LOW otherwise
   - Implement when type checkers, interpreters, or program transformation tools are needed

@@ -5,12 +5,14 @@ This example demonstrates basic usage of the library.
 ## Source Code
 
 ```go
-// Package main solves graph coloring problems using gokanlogic.package graphcoloring
-
+// Package main solves graph coloring problems using gokanlogic.
+//
 // Graph Coloring Problem: Color the vertices of a graph such that no two
 // adjacent vertices share the same color, using the minimum number of colors.
 //
 // This example demonstrates:
+// - Relational HLAPI with A(), L() term sugar
+// - SolutionsN() for structured result extraction
 // - Pure relational constraints with Neq
 // - Parallel search with ParallelDisj and ParallelRun
 // - Performance comparison between sequential and parallel execution
@@ -63,13 +65,25 @@ func main() {
 	fmt.Println()
 
 	start := time.Now()
-	var results []Term
 
+	// Create fresh variables for regions
+	wa := Fresh("WA")
+	nt := Fresh("NT")
+	sa := Fresh("SA")
+	qld := Fresh("Q")
+	nsw := Fresh("NSW")
+	vic := Fresh("V")
+	tas := Fresh("T")
+
+	var goal Goal
 	if useParallel {
-		results = ParallelRun(1, australiaColoringParallel)
+		goal = australiaColoringParallel(wa, nt, sa, qld, nsw, vic, tas)
 	} else {
-		results = Run(1, australiaColoringSequential)
+		goal = australiaColoringSequential(wa, nt, sa, qld, nsw, vic, tas)
 	}
+
+	// Use HLAPI Rows to get all region colors as a table
+	results := Rows(goal, wa, nt, sa, qld, nsw, vic, tas)
 
 	elapsed := time.Since(start)
 
@@ -92,20 +106,11 @@ func main() {
 }
 
 // australiaColoringSequential solves the graph coloring using sequential search
-func australiaColoringSequential(q *Var) Goal {
-	// Create variables for each region's color
-	wa := Fresh("WA")
-	nt := Fresh("NT")
-	sa := Fresh("SA")
-	qld := Fresh("Q")
-	nsw := Fresh("NSW")
-	vic := Fresh("V")
-	tas := Fresh("T")
-
-	// Available colors
-	red := NewAtom("red")
-	green := NewAtom("green")
-	blue := NewAtom("blue")
+func australiaColoringSequential(wa, nt, sa, qld, nsw, vic, tas *Var) Goal {
+	// Available colors (using HLAPI A() sugar)
+	red := A("red")
+	green := A("green")
+	blue := A("blue")
 
 	// Helper: region can be one of three colors (sequential)
 	color := func(region Term) Goal {
@@ -153,17 +158,6 @@ func australiaColoringSequential(q *Var) Goal {
 		Neq(vic, nsw),
 
 		// T is an island - no adjacencies
-
-		// Return solution
-		Eq(q, List(
-			List(NewAtom("WA"), wa),
-			List(NewAtom("NT"), nt),
-			List(NewAtom("SA"), sa),
-			List(NewAtom("Q"), qld),
-			List(NewAtom("NSW"), nsw),
-			List(NewAtom("V"), vic),
-			List(NewAtom("T"), tas),
-		)),
 	)
 }
 
@@ -175,20 +169,11 @@ func init() {
 }
 
 // australiaColoringParallel solves the graph coloring using parallel search
-func australiaColoringParallel(q *Var) Goal {
-	// Create variables for each region's color
-	wa := Fresh("WA")
-	nt := Fresh("NT")
-	sa := Fresh("SA")
-	qld := Fresh("Q")
-	nsw := Fresh("NSW")
-	vic := Fresh("V")
-	tas := Fresh("T")
-
-	// Available colors
-	red := NewAtom("red")
-	green := NewAtom("green")
-	blue := NewAtom("blue")
+func australiaColoringParallel(wa, nt, sa, qld, nsw, vic, tas *Var) Goal {
+	// Available colors (using HLAPI A() sugar)
+	red := A("red")
+	green := A("green")
+	blue := A("blue")
 
 	// Helper: region can be one of three colors (parallel exploration)
 	colorParallel := func(region Term) Goal {
@@ -241,52 +226,29 @@ func australiaColoringParallel(q *Var) Goal {
 		Neq(vic, nsw),
 
 		// T is an island - no adjacencies
-
-		// Return solution
-		Eq(q, List(
-			List(NewAtom("WA"), wa),
-			List(NewAtom("NT"), nt),
-			List(NewAtom("SA"), sa),
-			List(NewAtom("Q"), qld),
-			List(NewAtom("NSW"), nsw),
-			List(NewAtom("V"), vic),
-			List(NewAtom("T"), tas),
-		)),
 	)
 }
 
-// displaySolution pretty-prints the coloring solution
-func displaySolution(result Term) {
-	regions := []string{"WA", "NT", "SA", "Q", "NSW", "V", "T"}
+// displaySolution pretty-prints the coloring solution using HLAPI result format
+func displaySolution(row []Term) {
+	// Order of variables passed to Rows(): WA, NT, SA, Q, NSW, V, T
+	regionNames := []string{"WA", "NT", "SA", "Q", "NSW", "V", "T"}
 	colors := make(map[string]string)
 
-	// Navigate through the list of region-color pairs
-	current := result
-	for i := 0; i < 7; i++ {
-		pair, ok := current.(*Pair)
-		if !ok {
-			break
+	// Extract colors from HLAPI Rows() result
+	for i, region := range regionNames {
+		if i < len(row) {
+			if atom, ok := row[i].(*Atom); ok {
+				if colorStr, ok := atom.Value().(string); ok {
+					colors[region] = colorStr
+				}
+			}
 		}
-
-		// Each element is a pair like (WA . red)
-		regionPair, ok := pair.Car().(*Pair)
-		if !ok {
-			break
-		}
-
-		// Extract the color from the cdr of the region pair
-		color := extractAtom(regionPair.Cdr())
-		if color != "" {
-			colors[regions[i]] = color
-		}
-
-		// Move to next element
-		current = pair.Cdr()
 	}
 
 	// Display the solution with color indicators
 	fmt.Println("Region Coloring:")
-	for _, region := range regions {
+	for _, region := range regionNames {
 		color := colors[region]
 		emoji := colorEmoji(color)
 		fmt.Printf("  %-4s : %s %s\n", region, emoji, color)
@@ -300,18 +262,6 @@ func displaySolution(result Term) {
 		}
 	}
 	fmt.Printf("\n✅ Valid %d-coloring found\n", len(usedColors))
-}
-
-// extractAtom extracts the string value from an Atom term
-func extractAtom(term Term) string {
-	// If it's a Pair, get the first element (car)
-	if pair, ok := term.(*Pair); ok {
-		term = pair.Car()
-	}
-	if atom, ok := term.(*Atom); ok {
-		return fmt.Sprintf("%v", atom.Value())
-	}
-	return ""
 }
 
 // colorEmoji returns an emoji for visual representation

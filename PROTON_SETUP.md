@@ -1,6 +1,20 @@
 # Proton Documentation Setup
 
-Your Go project is now configured with **Proton** for automatic documentation generation.
+Your Go project is now configured with **Proton** for automatic documentation generation, complementing the standard `go doc` toolchain.
+
+## Hybrid Documentation Approach
+
+This project uses a **hybrid documentation strategy**:
+
+- **`go doc`**: For developers using the library (standard Go toolchain)
+  - Available via `go doc github.com/gitrdm/gokanlogic/pkg/minikanren`
+  - Automatically indexed on [pkg.go.dev](https://pkg.go.dev/github.com/gitrdm/gokanlogic)
+  - Perfect for API reference during development
+
+- **Proton**: For comprehensive project documentation (web-based)
+  - Rich HTML documentation with examples and guides
+  - Deployed to GitHub Pages for public access
+  - Combines API docs with tutorials and examples
 
 ## Files Created
 
