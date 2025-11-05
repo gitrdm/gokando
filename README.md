@@ -1,6 +1,6 @@
 # gokanlogic
 
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
+[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
 [![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -80,6 +80,13 @@ For more details, see the [`docs/`](docs/) directory:
     - Constraints: `AllDifferent`, `LexLessEq`, `LinearSum`, `Among`, `Table`, `Regular`, `Cumulative`, `NoOverlap`
     - Solving: `NewSolver(model)`, `Solve`, and simple `Optimize` helpers
 
+- Nominal Logic Programming: binders and alpha-equivalence aware reasoning
+    - Binders: `Tie`/`Lambda`, freshness `Fresho`, alpha-equivalence `AlphaEqo`
+    - Substitution: `Substo` (capture-avoiding)
+    - Applications and reductions: `App`, `BetaReduceo`, `BetaNormalizeo`
+    - Analysis and typing: `FreeNameso`, `TypeChecko` (simply-typed λ-calculus)
+    - See API reference: `docs/api-reference/nominal.md`
+
 ### Examples and Guides
 - **[Getting Started](docs/getting-started/)**: Short walkthroughs
 - **[Examples](examples/)**: Working examples: apartment (FD), graph-coloring (relational), n-queens (relational) and n-queens-parallel-fd (FD + parallel), zebra, sudoku
@@ -91,6 +98,7 @@ For more details, see the [`docs/`](docs/) directory:
 - Optional parallel evaluation patterns for splitting independent work
 - An FD solver suitable for many small/medium examples, with a clean model API
 - A set of examples that show both relational and FD styles
+- Nominal logic utilities for working with λ-terms, reduction, and simple typing
 
 ## Testing
 
@@ -116,8 +124,11 @@ go test -bench=. ./...
 
 ## Versioning
 
-- Latest tagged release: see Git tags (e.g., `v1.0.1`).
-- Recent repository changes here primarily update examples and documentation; no public API changes were introduced. A patch bump is appropriate. Recommendation: tag `v1.0.1` after merge.
+- Latest tagged release: see Git tags (current: `v1.1.0`).
+- Recommended bump: MINOR → `v1.1.0` (from `v1.0.1`). This release adds new, backwards-compatible public APIs for nominal logic programming:
+    - `App`, `BetaReduceo`, `BetaNormalizeo`, `FreeNameso`, `TypeChecko`, plus docs and examples.
+    - No breaking changes to existing packages; existing public APIs continue to work.
+    - Docs updated: `docs/api-reference/nominal.md` and roadmap reflect completion of Phase 7.1.4.
 
 ## License
 
