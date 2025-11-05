@@ -38,6 +38,11 @@ jobs:
       - name: Generate documentation with Proton
         run: proton generate . --output ./docs
 
+      - name: Restore manually curated docs
+        run: |
+          git checkout docs/README.md docs/SUMMARY.md
+          echo "✓ Restored manual README.md and SUMMARY.md"
+
       - name: Extract examples from tests
         run: |
           chmod +x scripts/extract-examples.sh
