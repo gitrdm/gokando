@@ -4239,7 +4239,11 @@ func MustLoad(db *Database, specs ...FactsSpec) *Database
 
 ### NewDBFromMap
 
-NewDBFromMap loads facts from a map keyed by relation name using the provided relation registry. This is convenient for multi-relation setups where data is produced as JSON-like maps. Example: rels := map[string]*Relation{"employee": emp, "manager": mgr} data := map[string][][]interface{}{ "employee": {{"alice","eng"}, {"bob","eng"}}, "manager":  {{"bob","alice"}}, } db, _ := NewDBFromMap(rels, data)
+NewDBFromMap loads facts from a map keyed by relation name using the provided relation registry. This is convenient for multi-relation setups where data is produced as JSON-like maps. Example:
+
+```go
+rels := map[string]*Relation{"employee": emp, "manager": mgr} data := map[string][][]interface{}{ "employee": {{"alice","eng"}, {"bob","eng"}}, "manager":  {{"bob","alice"}}, } db, _ := NewDBFromMap(rels, data)
+```
 
 ```go
 func NewDBFromMap(relations map[string]*Relation, data map[string][][]interface{}) (*Database, error)

@@ -1,6 +1,14 @@
 # GitHub Pages / Jekyll configuration for docs
 # Prevent Liquid from interpreting code-like double braces in generated docs.
-# Layouts and includes still process Liquid; this only affects page content.
+
+# Disable problematic plugins that might override front matter
+plugins:
+  - jekyll-github-metadata
+  - jekyll-seo-tag
+
+# Explicitly exclude optional-front-matter to preserve our YAML front matter
+exclude:
+  - jekyll-optional-front-matter
 
 # Apply to all pages under docs/
 defaults:
@@ -8,3 +16,4 @@ defaults:
       path: ""
     values:
       render_with_liquid: false
+      layout: default
