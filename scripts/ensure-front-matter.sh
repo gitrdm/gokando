@@ -42,11 +42,10 @@ fix_inline_code_examples() {
   [[ -f "$f" ]] || return 0
   [[ "$f" == *.md ]] || return 0
 
-  # Fix inline examples that contain {{ }} patterns outside fenced blocks
-  # This pattern matches prose lines with "Example:" followed by inline code containing {{
-  # and converts them to properly fenced Go code blocks.
-  perl -i -p0e 's{(Example:)\s+([^\n]*\{\{[^\n]+\}\}[^\n]*)}
-                 {$1\n\n```go\n$2\n```}gs' "$f"
+  # Escape {{ and }} in Go code blocks to prevent Liquid parsing
+  # Replace {{ with {% raw %}{{{% endraw %} and }} with {% raw %}}}{% endraw %}
+  # This preserves the content while preventing Jekyll Liquid from interpreting it
+  perl -i -pe 's/\{\{/{% raw %}{{{% endraw %}/g; s/\}\}/{% raw %}}}{% endraw %}/g' "$f"
 }
 
 # If no args, operate on default paths

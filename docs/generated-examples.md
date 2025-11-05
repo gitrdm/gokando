@@ -1270,8 +1270,8 @@ func Example_hlapi_multiRelationLoader() {
 	emp, mgr := MustRel("employee", 2, 0, 1), MustRel("manager", 2, 0, 1)
 	rels := map[string]*Relation{"employee": emp, "manager": mgr}
 	data := map[string][][]interface{}{
-		"employee": {{"alice", "eng"}, {"bob", "eng"}},
-		"manager":  {{"bob", "alice"}},
+		"employee": {% raw %}{{{% endraw %}"alice", "eng"}, {"bob", "eng"{% raw %}}}{% endraw %},
+		"manager":  {% raw %}{{{% endraw %}"bob", "alice"{% raw %}}}{% endraw %},
 	}
 	// Load both relations in one pass
 	db, _ := NewDBFromMap(rels, data)
@@ -6045,7 +6045,7 @@ func ExampleSCC_AnswerCount() {
 	entry1.Answers().Insert(map[int64]Term{1: NewAtom("b")})
 	entry2.Answers().Insert(map[int64]Term{1: NewAtom("c")})
 
-	scc := &SCC{nodes: []*SubgoalEntry{entry1, entry2}}
+	scc := &SCC{nodes: []*SubgoalEntry{entry1, entry2{% raw %}}}{% endraw %}
 
 	fmt.Printf("Total answers in SCC: %d\n", scc.AnswerCount())
 
@@ -6077,7 +6077,7 @@ func ExampleSLGEngine_ComputeFixpoint() {
 	entry1.AddDependency(entry2)
 	entry2.AddDependency(entry1)
 
-	scc := &SCC{nodes: []*SubgoalEntry{entry1, entry2}}
+	scc := &SCC{nodes: []*SubgoalEntry{entry1, entry2{% raw %}}}{% endraw %}
 
 	// Compute fixpoint
 	err := engine.ComputeFixpoint(context.Background(), scc)
@@ -7235,7 +7235,7 @@ func ExampleSLGEngine_NegationTruth() {
 	engine.SetStrata(map[string]int{"unreachable": 1, "path": 0})
 
 	// small graph: a->b
-	edges := map[string][]string{"a": {"b"}}
+	edges := map[string][]string{"a": {"b"{% raw %}}}{% endraw %}
 
 	// path/2 evaluator (existence of a direct edge only for brevity)
 	pathEval := func(from, to string) GoalEvaluator {
