@@ -225,9 +225,12 @@ func conjHelper(ctx context.Context, goals []Goal, store ConstraintStore) *Strea
 			// Recursively evaluate remaining goals with each result
 			restStream := conjHelper(ctx, restGoals, subs[0])
 
-			// Forward all results from rest stream
+			// Forward results from rest stream incrementally to avoid blocking
+			// on batches when dealing with recursive goals. Using Take(1)
+			// ensures we make progress even if only a single result is
+			// available at a time.
 			for {
-				results, moreAvailable := restStream.Take(10)
+				results, moreAvailable := restStream.Take(1)
 				if len(results) == 0 {
 					break
 				}
@@ -412,12 +415,27 @@ func RunWithContext(ctx context.Context, n int, goalFunc func(*Var) Goal) []Term
 	initialStore := NewLocalConstraintStore(GetDefaultGlobalBus())
 	stream := goal(ctx, initialStore)
 
-	solutions, _ := stream.Take(n)
-
 	var results []Term
-	for _, store := range solutions {
-		value := store.GetSubstitution().DeepWalk(q)
-		results = append(results, value)
+
+	// Collect up to n solutions, honoring context cancellation and stream closure
+	for len(results) < n {
+		select {
+		case <-ctx.Done():
+			return results
+		default:
+		}
+
+		stores, hasMore := stream.Take(1)
+		for _, store := range stores {
+			value := store.GetSubstitution().DeepWalk(q)
+			results = append(results, value)
+			if len(results) >= n {
+				break
+			}
+		}
+		if !hasMore {
+			break
+		}
 	}
 
 	return results

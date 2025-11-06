@@ -8,6 +8,19 @@ This section contains detailed API documentation for all packages. For package o
 
 ## Package APIs
 
+### [DCG (Definite Clause Grammars)](../dcg.md)
+
+Pattern-based DCG integrated with the SLG tabling engine. Supports left recursion, clause-order independence, and incremental streaming. See examples in pkg/minikanren/dcg_examples_test.go.
+
+**[→ Full API Documentation](../dcg.md)**
+
+Key topics:
+
+- Terminal, Seq, Alternation, NonTerminal
+- ParseWithSLG entry point and difference lists
+- Clause-order independence and left recursion
+- Ambiguity deduplication semantics
+
 ### [parallel](parallel.md)
 
 Package parallel provides advanced parallel execution capabilities

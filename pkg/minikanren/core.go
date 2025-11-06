@@ -263,7 +263,6 @@ func (s *Substitution) DeepWalk(term Term) Term {
 	if pair, ok := walked.(*Pair); ok {
 		return NewPair(s.DeepWalk(pair.Car()), s.DeepWalk(pair.Cdr()))
 	}
-
 	return walked
 }
 

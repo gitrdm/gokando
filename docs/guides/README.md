@@ -21,6 +21,8 @@ In-depth guides and best practices for gokanlogic.
 - [Extending gokanlogic](extending.md)
 - [Integration Patterns](integration.md)
 - [Troubleshooting](troubleshooting.md)
+ - [Definite Clause Grammars (DCG) tutorial](dcg/README.md)
+ - [DCG Recipes](dcg/recipes.md)
 
 ## Package-Specific Guides
 

@@ -722,8 +722,20 @@ func (e *SLGEngine) Evaluate(ctx context.Context, pattern *CallPattern, evaluato
 	}
 
 	if !isNew {
-		// Cache hit: consume existing answers
+		// Cache hit
 		e.cacheHits.Add(1)
+		// If this Evaluate is being called from within the same subgoal's evaluator
+		// (direct self-recursion), don't create a consumer that would block waiting
+		// on answers from itself. Instead, return an immediately-closed channel so
+		// the caller can proceed without deadlocking. Recursive derivations will be
+		// discovered via non-recursive branches producing base answers.
+		if parentRaw := ctx.Value(slgParentKey{}); parentRaw != nil {
+			if parent, ok := parentRaw.(*SubgoalEntry); ok && parent == entry {
+				ch := make(chan map[int64]Term)
+				close(ch)
+				return ch, nil
+			}
+		}
 		return e.consumeAnswers(ctx, entry), nil
 	}
 

@@ -903,6 +903,7 @@ concurrent execution capabilities, designed for production use.
 
 - [Getting Started](getting-started/minikanren.md)
 - [API Reference](api-reference/minikanren.md)
+ - [DCG (Definite Clause Grammars)](dcg.md)
 - [Examples](examples/README.md)
 - [Best Practices](guides/minikanren/best-practices.md)
 
