@@ -176,6 +176,56 @@ The constraint implementations are designed to be:
   - Safe: Thread-safe and defensive against malformed input
   - Debuggable: Comprehensive error messages and string representations
 
+Package minikanren provides advanced control flow operators that extend
+the core conjunction (Conj) and disjunction (Disj/Conde) primitives.
+
+# Control Flow Operators
+
+This package implements four fundamental control flow operators inspired by
+Prolog and advanced logic programming systems:
+
+  - Ifa: If-then-else with backtracking through all condition solutions
+  - Ifte: If-then-else with commitment to first condition solution
+  - SoftCut: Prolog-style soft cut (*->) for conditional commitment
+  - CallGoal: Meta-call for indirect goal invocation
+
+# Design Philosophy
+
+These operators are implemented using the existing Goal/Stream and
+ConstraintStore interfaces with no special runtime support. They respect
+context cancellation and integrate seamlessly with the SLG tabling system.
+
+# Variable Scoping
+
+CRITICAL: All variables used in control flow goals must be created inside
+the Run closure to ensure proper projection and substitution:
+
+	// CORRECT - variables inside closure
+	Run(5, func(q *Var) Goal {
+	    x := Fresh("x")
+	    return Ifa(Eq(x, NewAtom(1)), Eq(q, x), Eq(q, NewAtom("none")))
+	})
+
+	// WRONG - variables outside closure (will return unbound)
+	x := Fresh("x")
+	Run(5, func(q *Var) Goal {
+	    return Ifa(Eq(x, NewAtom(1)), Eq(q, x), Eq(q, NewAtom("none")))
+	})
+
+# Search Behavior
+
+The operators differ in how they handle multiple solutions from the condition:
+
+  - Ifa: Evaluates thenGoal for EACH solution of condition; if condition fails, evaluates elseGoal
+  - Ifte: Commits to FIRST solution of condition and evaluates thenGoal; if condition fails, evaluates elseGoal
+  - SoftCut: Synonym for Ifte with Prolog-compatible semantics
+
+# Integration with SLG Tabling
+
+These operators are compatible with SLG/WFS tabling. They do not execute
+goals during pattern construction, avoiding circular dependencies. All goal
+evaluation happens lazily during stream consumption.
+
 Package minikanren provides a thread-safe, parallel implementation of miniKanren
 in Go. This implementation follows the core principles of relational programming
 while leveraging Go's concurrency primitives for parallel execution.
@@ -234,6 +284,60 @@ This achieves sound bounds-consistent pruning commonly known as time-table
 propagation. It is not as strong as edge-finding, but is fast, robust, and
 catches many practical conflicts. The solver's fixed-point loop composes
 this filtering with other constraints.
+
+Package minikanren provides DCG (Definite Clause Grammar) support with
+SLG resolution and pattern-based evaluation.
+
+# Pattern-Based DCG Architecture
+
+DCGs in this package implement a pattern-based architecture where grammar
+rules return DESCRIPTIONS of goals rather than executing them directly.
+This design enables:
+  - Clause-order independence (declarative semantics)
+  - Left recursion via SLG fixpoint iteration
+  - Clean separation between grammar construction and evaluation
+
+# Difference Lists
+
+DCGs use difference lists to represent sequences:
+  - Input list s0, output list s1
+  - Sequence [a,b,c] represented as: s0 = [a,b,c|s1]
+  - Empty sequence: s0 = s1
+
+# Pattern Types
+
+DCG patterns construct goal descriptions without executing them:
+  - Terminal(t): Matches single token (s0=[t|s1])
+  - Seq(p1, p2): Sequential composition
+  - Alternation(p1, p2, ...): Choice (declarative, order-independent)
+  - NonTerminal(engine, name): Reference to defined rule
+
+# SLG Integration
+
+When evaluating rules, the SLG engine orchestrates pattern expansion:
+ 1. Rule bodies return GoalPattern descriptions
+ 2. SLG expands patterns to concrete Goals
+ 3. Recursive NonTerminal calls route through SLG (cycle detection, caching)
+ 4. No circular execution chains within pattern constructors
+
+# Example: Left-Recursive Grammar
+
+	engine := NewSLGEngine(nil)
+	DefineRule("expr", Alternation(
+	    NonTerminal(engine, "term"),
+	    Seq(NonTerminal(engine, "expr"), Terminal(NewAtom("+")), NonTerminal(engine, "term")),
+	))
+	DefineRule("term", Terminal(NewAtom("1")))
+
+	// Parse with SLG tabling
+	results := Run(5, func(q *Var) Goal {
+	    input := MakeList(NewAtom("1"), NewAtom("+"), NewAtom("1"))
+	    rest := Fresh("rest")
+	    return Conj(
+	        ParseWithSLG(engine, "expr", input, rest),
+	        Eq(q, rest),
+	    )
+	})
 
 Package minikanren provides the Diffn (2D non-overlap) global constraint.
 
@@ -921,7 +1025,7 @@ that can hold domains and participate in constraints.
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 1.1.0
+Version: 1.2.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.

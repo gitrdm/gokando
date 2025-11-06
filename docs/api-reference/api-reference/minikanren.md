@@ -119,6 +119,56 @@ The constraint implementations are designed to be:
   - Safe: Thread-safe and defensive against malformed input
   - Debuggable: Comprehensive error messages and string representations
 
+Package minikanren provides advanced control flow operators that extend
+the core conjunction (Conj) and disjunction (Disj/Conde) primitives.
+
+# Control Flow Operators
+
+This package implements four fundamental control flow operators inspired by
+Prolog and advanced logic programming systems:
+
+  - Ifa: If-then-else with backtracking through all condition solutions
+  - Ifte: If-then-else with commitment to first condition solution
+  - SoftCut: Prolog-style soft cut (*->) for conditional commitment
+  - CallGoal: Meta-call for indirect goal invocation
+
+# Design Philosophy
+
+These operators are implemented using the existing Goal/Stream and
+ConstraintStore interfaces with no special runtime support. They respect
+context cancellation and integrate seamlessly with the SLG tabling system.
+
+# Variable Scoping
+
+CRITICAL: All variables used in control flow goals must be created inside
+the Run closure to ensure proper projection and substitution:
+
+	// CORRECT - variables inside closure
+	Run(5, func(q *Var) Goal {
+	    x := Fresh("x")
+	    return Ifa(Eq(x, NewAtom(1)), Eq(q, x), Eq(q, NewAtom("none")))
+	})
+
+	// WRONG - variables outside closure (will return unbound)
+	x := Fresh("x")
+	Run(5, func(q *Var) Goal {
+	    return Ifa(Eq(x, NewAtom(1)), Eq(q, x), Eq(q, NewAtom("none")))
+	})
+
+# Search Behavior
+
+The operators differ in how they handle multiple solutions from the condition:
+
+  - Ifa: Evaluates thenGoal for EACH solution of condition; if condition fails, evaluates elseGoal
+  - Ifte: Commits to FIRST solution of condition and evaluates thenGoal; if condition fails, evaluates elseGoal
+  - SoftCut: Synonym for Ifte with Prolog-compatible semantics
+
+# Integration with SLG Tabling
+
+These operators are compatible with SLG/WFS tabling. They do not execute
+goals during pattern construction, avoiding circular dependencies. All goal
+evaluation happens lazily during stream consumption.
+
 Package minikanren provides a thread-safe, parallel implementation of miniKanren
 in Go. This implementation follows the core principles of relational programming
 while leveraging Go's concurrency primitives for parallel execution.
@@ -177,6 +227,60 @@ This achieves sound bounds-consistent pruning commonly known as time-table
 propagation. It is not as strong as edge-finding, but is fast, robust, and
 catches many practical conflicts. The solver's fixed-point loop composes
 this filtering with other constraints.
+
+Package minikanren provides DCG (Definite Clause Grammar) support with
+SLG resolution and pattern-based evaluation.
+
+# Pattern-Based DCG Architecture
+
+DCGs in this package implement a pattern-based architecture where grammar
+rules return DESCRIPTIONS of goals rather than executing them directly.
+This design enables:
+  - Clause-order independence (declarative semantics)
+  - Left recursion via SLG fixpoint iteration
+  - Clean separation between grammar construction and evaluation
+
+# Difference Lists
+
+DCGs use difference lists to represent sequences:
+  - Input list s0, output list s1
+  - Sequence [a,b,c] represented as: s0 = [a,b,c|s1]
+  - Empty sequence: s0 = s1
+
+# Pattern Types
+
+DCG patterns construct goal descriptions without executing them:
+  - Terminal(t): Matches single token (s0=[t|s1])
+  - Seq(p1, p2): Sequential composition
+  - Alternation(p1, p2, ...): Choice (declarative, order-independent)
+  - NonTerminal(engine, name): Reference to defined rule
+
+# SLG Integration
+
+When evaluating rules, the SLG engine orchestrates pattern expansion:
+ 1. Rule bodies return GoalPattern descriptions
+ 2. SLG expands patterns to concrete Goals
+ 3. Recursive NonTerminal calls route through SLG (cycle detection, caching)
+ 4. No circular execution chains within pattern constructors
+
+# Example: Left-Recursive Grammar
+
+	engine := NewSLGEngine(nil)
+	DefineRule("expr", Alternation(
+	    NonTerminal(engine, "term"),
+	    Seq(NonTerminal(engine, "expr"), Terminal(NewAtom("+")), NonTerminal(engine, "term")),
+	))
+	DefineRule("term", Terminal(NewAtom("1")))
+
+	// Parse with SLG tabling
+	results := Run(5, func(q *Var) Goal {
+	    input := MakeList(NewAtom("1"), NewAtom("+"), NewAtom("1"))
+	    rest := Fresh("rest")
+	    return Conj(
+	        ParseWithSLG(engine, "expr", input, rest),
+	        Eq(q, rest),
+	    )
+	})
 
 Package minikanren provides the Diffn (2D non-overlap) global constraint.
 
@@ -864,7 +968,7 @@ that can hold domains and participate in constraints.
 
 Package minikanren provides a thread-safe parallel implementation of miniKanren in Go.
 
-Version: 1.1.0
+Version: 1.2.0
 
 This package offers a complete set of miniKanren operators with high-performance
 concurrent execution capabilities, designed for production use.
@@ -878,7 +982,7 @@ Infinity provides a sentinel large positive value for tests/examples when initia
 
 
 ```go
-&{<nil> [Infinity] <nil> [0xc0006280a8] <nil>}
+&{<nil> [Infinity] <nil> [0xc0006e7200] <nil>}
 ```
 
 ### Version
@@ -887,7 +991,7 @@ Version represents the current version of the gokanlogic miniKanren implementati
 
 
 ```go
-&{<nil> [Version] <nil> [0xc000a382e0] <nil>}
+&{<nil> [Version] <nil> [0xc0009c8ce0] <nil>}
 ```
 
 ## Variables
@@ -898,7 +1002,7 @@ FD errors
 
 
 ```go
-&{<nil> [ErrInconsistent] <nil> [0xc00026e140] <nil>}&{<nil> [ErrInvalidValue] <nil> [0xc00026e180] <nil>}&{<nil> [ErrDomainEmpty] <nil> [0xc00026e1c0] <nil>}&{<nil> [ErrInvalidArgument] <nil> [0xc00026e240] <nil>}
+&{<nil> [ErrInconsistent] <nil> [0xc0002a1f00] <nil>}&{<nil> [ErrInvalidValue] <nil> [0xc0002a1f40] <nil>}&{<nil> [ErrDomainEmpty] <nil> [0xc0002b0000] <nil>}&{<nil> [ErrInvalidArgument] <nil> [0xc0002b0080] <nil>}
 ```
 
 ### CommonIrrationals
@@ -907,7 +1011,7 @@ CommonIrrationals provides pre-computed rational approximations for common irrat
 
 
 ```go
-&{<nil> [CommonIrrationals] <nil> [0xc0005def00] <nil>}
+&{<nil> [CommonIrrationals] <nil> [0xc00073fe00] <nil>}
 ```
 
 ### ErrSearchLimitReached
@@ -917,7 +1021,7 @@ ErrSearchLimitReached indicates an optimization run terminated due to a configur
 
 
 ```go
-&{<nil> [ErrSearchLimitReached] <nil> [0xc00057d940] <nil>}
+&{<nil> [ErrSearchLimitReached] <nil> [0xc0006d5280] <nil>}
 ```
 
 ### Nil
@@ -926,7 +1030,7 @@ Nil represents the empty list
 
 
 ```go
-&{<nil> [Nil] <nil> [0xc00044fa00] <nil>}
+&{<nil> [Nil] <nil> [0xc000464640] <nil>}
 ```
 
 ## Types
@@ -990,7 +1094,7 @@ func NewAbsenceConstraint(absent, container Term) *AbsenceConstraint
 Check evaluates the absence constraint against current bindings. Returns ConstraintViolated if the absent term is found in the container, ConstraintPending if variables are unbound, or ConstraintSatisfied otherwise. Implements the Constraint interface.
 
 ```go
-func (*LessEqualConstraint) Check(bindings map[int64]Term) ConstraintResult
+func (*AlphaEqConstraint) Check(bindings map[int64]Term) ConstraintResult
 ```
 
 **Parameters:**
@@ -1004,35 +1108,35 @@ func (*LessEqualConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a deep copy of the constraint for parallel execution. Implements the Constraint interface.
 
 ```go
-func (*LessEqualConstraint) Clone() Constraint
+func (*Absolute) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- PropagationConstraint
 
 ### ID
 
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*LessEqualConstraint) ID() string
+func (*Var) ID() int64
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- string
+- int64
 
 ### IsLocal
 
 IsLocal returns true if this constraint can be evaluated locally. Implements the Constraint interface.
 
 ```go
-func (*LessEqualConstraint) IsLocal() bool
+func (*AlphaEqConstraint) IsLocal() bool
 ```
 
 **Parameters:**
@@ -1046,7 +1150,7 @@ func (*LessEqualConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (*Stretch) String() string
+func (*Inequality) String() string
 ```
 
 **Parameters:**
@@ -1060,14 +1164,14 @@ func (*Stretch) String() string
 Variables returns the logic variables this constraint depends on. Implements the Constraint interface.
 
 ```go
-func (*Diffn) Variables() []*FDVariable
+func (*MembershipConstraint) Variables() []*Var
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*FDVariable
+- []*Var
 
 ### Absolute
 - Both variables must be initialized with proper offset-encoded domains - abs_value domain contains only positive results (≥ 1) Mathematical Properties: - |x| ≥ 0 for all real x, but BitSetDomain requires ≥ 1 - |0| = 0 is represented as offset value in the encoding - |-x| = |x| creates symmetry in backward propagation - Self-reference |x| = x implies x ≥ 0 Thread Safety: Immutable after construction. Propagate() is safe for concurrent use.
@@ -1130,29 +1234,28 @@ func NewAbsolute(x *FDVariable, offset int, absValue *FDVariable) (*Absolute, er
 Clone creates an independent copy of this constraint.
 
 ```go
-func (BitSet) Clone() BitSet
+func (*IntervalArithmetic) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- BitSet
+- PropagationConstraint
 
 ### Propagate
 
 Propagate performs bidirectional arc-consistency enforcement for the absolute value constraint. Algorithm: 1. Check for self-reference (x = absValue) and handle specially 2. Forward propagation: Compute |x| values and prune absValue domain 3. Backward propagation: For each |x| value, find corresponding x values 4. Apply domain changes and detect failures The constraint maintains: absValue = |decode(x)| where decode(x) = x - offset. Returns the updated solver state, or error if the constraint is unsatisfiable.
 
 ```go
-func (*Sequence) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*AllDifferentConstraint) Propagate(store *FDStore) (bool, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*FDStore)
 
 **Returns:**
-- *SolverState
+- bool
 - error
 
 ### String
@@ -1160,7 +1263,7 @@ func (*Sequence) Propagate(solver *Solver, state *SolverState) (*SolverState, er
 String returns a human-readable representation of the constraint.
 
 ```go
-func (SubgoalStatus) String() string
+func (*MembershipConstraint) String() string
 ```
 
 **Parameters:**
@@ -1174,7 +1277,7 @@ func (SubgoalStatus) String() string
 Type returns the constraint type name.
 
 ```go
-func (*ElementValues) Type() string
+func (*Inequality) Type() string
 ```
 
 **Parameters:**
@@ -1188,26 +1291,26 @@ func (*ElementValues) Type() string
 Variables returns the FD variables involved in this constraint.
 
 ```go
-func (*Regular) Variables() []*FDVariable
+func (*AllDifferentConstraint) Variables() []*FDVar
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*FDVariable
+- []*FDVar
 
 ### backwardPropagate
 
 backwardPropagate prunes the x domain based on absValue values. For each value a in absValue.domain: - Compute the original values that produce |x| = a - These are: x = a and x = -a (in offset encoding) - Offset encoding: +a → offset + a, -a → offset - a - Add valid encoded values to possible x values Returns a new domain with only feasible x values.
 
 ```go
-func (*Scale) backwardPropagate(resultDomain, xDomain Domain) Domain
+func (*ScaledDivision) backwardPropagate(quotientDomain, dividendDomain Domain) Domain
 ```
 
 **Parameters:**
-- `resultDomain` (Domain)
-- `xDomain` (Domain)
+- `quotientDomain` (Domain)
+- `dividendDomain` (Domain)
 
 **Returns:**
 - Domain
@@ -1231,12 +1334,12 @@ func (*Absolute) computeAbsolute(x int) int
 forwardPropagate prunes the absValue domain based on x values. For each value v in x.domain: - Decode: actual_value = v - offset - Compute: abs_actual = |actual_value| - Encode: abs_encoded = abs_actual (but ensure ≥ 1 for BitSetDomain) - Add abs_encoded to possible absValue values Returns a new domain with only feasible absolute values.
 
 ```go
-func (*Scale) forwardPropagate(xDomain, resultDomain Domain) Domain
+func (*ScaledDivision) forwardPropagate(dividendDomain, quotientDomain Domain) Domain
 ```
 
 **Parameters:**
-- `xDomain` (Domain)
-- `resultDomain` (Domain)
+- `dividendDomain` (Domain)
+- `quotientDomain` (Domain)
 
 **Returns:**
 - Domain
@@ -1246,7 +1349,7 @@ func (*Scale) forwardPropagate(xDomain, resultDomain Domain) Domain
 handleSelfReference handles the special case where |x| = x. This is only valid when x ≥ 0 (in offset encoding: x ≥ offset).
 
 ```go
-func (*Modulo) handleSelfReference(solver *Solver, state *SolverState, xDomain Domain) (*SolverState, error)
+func (*Absolute) handleSelfReference(solver *Solver, state *SolverState, xDomain Domain) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -1308,7 +1411,7 @@ func NewAllDifferent(variables []*FDVariable) (*AllDifferent, error)
 Propagate applies Regin's AllDifferent filtering algorithm. Implements PropagationConstraint.
 
 ```go
-func (*Sequence) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Inequality) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -1324,7 +1427,7 @@ func (*Sequence) Propagate(solver *Solver, state *SolverState) (*SolverState, er
 String returns a human-readable representation. Implements ModelConstraint.
 
 ```go
-func (*HybridRegistry) String() string
+func (*ElementValues) String() string
 ```
 
 **Parameters:**
@@ -1338,7 +1441,7 @@ func (*HybridRegistry) String() string
 Type returns the constraint type identifier. Implements ModelConstraint.
 
 ```go
-func (*GlobalCardinality) Type() string
+func (*DistinctCount) Type() string
 ```
 
 **Parameters:**
@@ -1352,7 +1455,7 @@ func (*GlobalCardinality) Type() string
 Variables returns the variables involved in this constraint. Implements ModelConstraint.
 
 ```go
-func (*MaxOfArray) Variables() []*FDVariable
+func (*Diffn) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -1492,14 +1595,15 @@ func (*AllDifferentConstraint) IsSatisfied() bool
 Propagate performs constraint propagation for all-different
 
 ```go
-func (*AllDifferentConstraint) Propagate(store *FDStore) (bool, error)
+func (*Regular) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
-- `store` (*FDStore)
+- `solver` (*Solver)
+- `state` (*SolverState)
 
 **Returns:**
-- bool
+- *SolverState
 - error
 
 ### Variables
@@ -1507,7 +1611,7 @@ func (*AllDifferentConstraint) Propagate(store *FDStore) (bool, error)
 Variables returns the variables involved in this constraint
 
 ```go
-func (*ReifiedConstraint) Variables() []*FDVariable
+func (*IntervalArithmetic) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -1586,21 +1690,21 @@ func (*AlphaEqConstraint) Check(bindings map[int64]Term) ConstraintResult
 
 
 ```go
-func (BitSet) Clone() BitSet
+func (*UnifiedStore) Clone() *UnifiedStore
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- BitSet
+- *UnifiedStore
 
 ### ID
 
 
 
 ```go
-func (*LessEqualConstraint) ID() string
+func (*MembershipConstraint) ID() string
 ```
 
 **Parameters:**
@@ -1628,7 +1732,7 @@ func (*MembershipConstraint) IsLocal() bool
 
 
 ```go
-func (*AlphaEqConstraint) String() string
+func (*BitSetDomain) String() string
 ```
 
 **Parameters:**
@@ -1642,7 +1746,7 @@ func (*AlphaEqConstraint) String() string
 
 
 ```go
-func (*Modulo) Variables() []*FDVariable
+func (*Regular) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -1690,7 +1794,7 @@ type Among struct {
 Propagate enforces bounds-consistent pruning for Among.
 
 ```go
-func (*Lexicographic) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*BinPacking) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -1706,7 +1810,7 @@ func (*Lexicographic) Propagate(solver *Solver, state *SolverState) (*SolverStat
 String returns a human-readable description.
 
 ```go
-func (ConstraintEventType) String() string
+func (*Absolute) String() string
 ```
 
 **Parameters:**
@@ -1720,7 +1824,7 @@ func (ConstraintEventType) String() string
 Type names the constraint.
 
 ```go
-func (*ReifiedConstraint) Type() string
+func (*ElementValues) Type() string
 ```
 
 **Parameters:**
@@ -1734,7 +1838,7 @@ func (*ReifiedConstraint) Type() string
 Variables returns all variables involved (vars plus K).
 
 ```go
-func (*Among) Variables() []*FDVariable
+func (*MaxOfArray) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -1896,14 +2000,14 @@ func NewAnswerRecordIteratorFrom(trie *AnswerTrie, start int, delayProvider func
 Next returns the next AnswerRecord or ok=false when exhausted.
 
 ```go
-func (*AnswerIterator) Next() (map[int64]Term, bool)
+func (*AnswerRecordIterator) Next() (rec AnswerRecord, ok bool)
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- map[int64]Term
+- AnswerRecord
 - bool
 
 ### WithInclude
@@ -1981,7 +2085,7 @@ func NewAnswerTrie() *AnswerTrie
 Count returns the number of answers in the trie.
 
 ```go
-func (BitSet) Count() int
+func (*BitSetDomain) Count() int
 ```
 
 **Parameters:**
@@ -2128,15 +2232,14 @@ func NewArithmetic(src, dst *FDVariable, offset int) (*Arithmetic, error)
 Propagate applies bidirectional arc-consistency. Implements PropagationConstraint.
 
 ```go
-func (*ReifiedConstraint) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### String
@@ -2144,7 +2247,7 @@ func (*ReifiedConstraint) Propagate(solver *Solver, state *SolverState) (*Solver
 String returns human-readable representation. Implements ModelConstraint.
 
 ```go
-func (*BitSetDomain) String() string
+func (*Diffn) String() string
 ```
 
 **Parameters:**
@@ -2158,7 +2261,7 @@ func (*BitSetDomain) String() string
 Type returns "Arithmetic". Implements ModelConstraint.
 
 ```go
-func (*Circuit) Type() string
+func (*BinPacking) Type() string
 ```
 
 **Parameters:**
@@ -2172,7 +2275,7 @@ func (*Circuit) Type() string
 Variables returns [src, dst]. Implements ModelConstraint.
 
 ```go
-func (*RationalLinearSum) Variables() []*FDVariable
+func (*IntervalArithmetic) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -2304,14 +2407,14 @@ func freeNamesDet(term Term) ([]*Atom, bool)
 Clone creates a copy of the atom.
 
 ```go
-func (*AlphaEqConstraint) Clone() Constraint
+func (*BitSetDomain) Clone() Domain
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- Domain
 
 ### Equal
 
@@ -2346,7 +2449,7 @@ func (*Pair) IsVar() bool
 String returns a string representation of the atom.
 
 ```go
-func (*HybridRegistry) String() string
+func (*Table) String() string
 ```
 
 **Parameters:**
@@ -2360,14 +2463,14 @@ func (*HybridRegistry) String() string
 Value returns the underlying Go value.
 
 ```go
-func (*FDVariable) Value() int
+func (*Atom) Value() interface{}
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int
+- interface{}
 
 ### BinPacking
 _No documentation available_
@@ -2453,15 +2556,14 @@ func NewBinPacking(model *Model, items []*FDVariable, sizes []int, capacities []
 
 
 ```go
-func (*InSetReified) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### String
@@ -2469,7 +2571,7 @@ func (*InSetReified) Propagate(solver *Solver, state *SolverState) (*SolverState
 
 
 ```go
-func (*Regular) String() string
+func (*BitSetDomain) String() string
 ```
 
 **Parameters:**
@@ -2483,7 +2585,7 @@ func (*Regular) String() string
 
 
 ```go
-func (*Table) Type() string
+func (*Circuit) Type() string
 ```
 
 **Parameters:**
@@ -2497,7 +2599,7 @@ func (*Table) Type() string
 
 
 ```go
-func (*GlobalCardinality) Variables() []*FDVariable
+func (*Stretch) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -2589,14 +2691,14 @@ func intersectBitSet(a, b BitSet) BitSet
 
 
 ```go
-func (*AlphaEqConstraint) Clone() Constraint
+func (*HybridRegistry) Clone() *HybridRegistry
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- *HybridRegistry
 
 ### Complement
 
@@ -2631,11 +2733,11 @@ func (BitSet) Count() int
 
 
 ```go
-func (BitSet) Has(v int) bool
+func (DelaySet) Has(dep uint64) bool
 ```
 
 **Parameters:**
-- `v` (int)
+- `dep` (uint64)
 
 **Returns:**
 - bool
@@ -2645,14 +2747,14 @@ func (BitSet) Has(v int) bool
 Intersect returns a new BitSet containing values present in both this and other BitSet
 
 ```go
-func (*BitSetDomain) Intersect(other Domain) Domain
+func (BitSet) Intersect(other BitSet) BitSet
 ```
 
 **Parameters:**
-- `other` (Domain)
+- `other` (BitSet)
 
 **Returns:**
-- Domain
+- BitSet
 
 ### IsSingleton
 
@@ -2673,11 +2775,11 @@ func (*FDVar) IsSingleton() bool
 
 
 ```go
-func (BitSet) IterateValues(f func(v int))
+func (*BitSetDomain) IterateValues(f func(value int))
 ```
 
 **Parameters:**
-- `f` (func(v int))
+- `f` (func(value int))
 
 **Returns:**
   None
@@ -2701,7 +2803,7 @@ func (BitSet) RemoveValue(v int) BitSet
 
 
 ```go
-func (*BitSetDomain) SingletonValue() int
+func (*FDVar) SingletonValue() int
 ```
 
 **Parameters:**
@@ -2715,7 +2817,7 @@ func (*BitSetDomain) SingletonValue() int
 ToSlice returns all values in the domain as a pre-allocated slice. This is more efficient than IterateValues when you need all values at once.
 
 ```go
-func (*BitSetDomain) ToSlice() []int
+func (BitSet) ToSlice() []int
 ```
 
 **Parameters:**
@@ -2729,14 +2831,14 @@ func (*BitSetDomain) ToSlice() []int
 Union returns a new BitSet containing values present in either this or other BitSet
 
 ```go
-func (*BitSetDomain) Union(other Domain) Domain
+func (BitSet) Union(other BitSet) BitSet
 ```
 
 **Parameters:**
-- `other` (Domain)
+- `other` (BitSet)
 
 **Returns:**
-- Domain
+- BitSet
 
 ### BitSetDomain
 Values are 1-indexed in the range [1, maxValue]. Each value is represented by a single bit in a uint64 word array, providing O(1) membership testing and very fast set operations. Memory usage: (maxValue + 63) / 64 * 8 bytes Example: maxValue=100 uses 16 bytes (2 uint64 words) BitSetDomain is immutable - all operations return new instances rather than modifying in place. This enables efficient structural sharing and copy-on-write semantics for parallel search.
@@ -2819,14 +2921,14 @@ func getDomainFromPool(maxValue int) *BitSetDomain
 Clone returns a copy of the domain. O(number of words) operation. Uses object pooling for common domain sizes.
 
 ```go
-func (*BitSetDomain) Clone() Domain
+func (*UnifiedStore) Clone() *UnifiedStore
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Domain
+- *UnifiedStore
 
 ### Complement
 
@@ -2847,25 +2949,25 @@ func (BitSet) Complement() BitSet
 Count returns the number of values in the domain. Uses hardware popcount instructions for efficiency (O(number of words)).
 
 ```go
-func (BitSet) Count() int
+func (*AnswerTrie) Count() int64
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int
+- int64
 
 ### Equal
 
 Equal returns true if this domain contains exactly the same values as other. O(number of words) operation.
 
 ```go
-func (*CallPattern) Equal(other *CallPattern) bool
+func (*TieTerm) Equal(other Term) bool
 ```
 
 **Parameters:**
-- `other` (*CallPattern)
+- `other` (Term)
 
 **Returns:**
 - bool
@@ -2903,7 +3005,7 @@ func (BitSet) Intersect(other BitSet) BitSet
 IsSingleton returns true if the domain contains exactly one value. O(number of words) operation.
 
 ```go
-func (*BitSetDomain) IsSingleton() bool
+func (*FDVar) IsSingleton() bool
 ```
 
 **Parameters:**
@@ -2917,11 +3019,11 @@ func (*BitSetDomain) IsSingleton() bool
 IterateValues calls f for each value in the domain in ascending order. The function must not retain references to mutable state during iteration.
 
 ```go
-func (BitSet) IterateValues(f func(v int))
+func (*BitSetDomain) IterateValues(f func(value int))
 ```
 
 **Parameters:**
-- `f` (func(v int))
+- `f` (func(value int))
 
 **Returns:**
   None
@@ -2973,14 +3075,15 @@ func (*BitSetDomain) Min() int
 Remove returns a new domain without the specified value. If the value is not present, returns an equivalent domain. O(number of words) due to array copy.
 
 ```go
-func (*BitSetDomain) Remove(value int) Domain
+func (*FDStore) Remove(v *FDVar, value int) error
 ```
 
 **Parameters:**
+- `v` (*FDVar)
 - `value` (int)
 
 **Returns:**
-- Domain
+- error
 
 ### RemoveAbove
 
@@ -3057,7 +3160,7 @@ func (*FDVar) SingletonValue() int
 String returns a human-readable representation of the domain. Example: "{1,3,5,7,9}" or "{1..100}" for ranges.
 
 ```go
-func (SubgoalStatus) String() string
+func (*MembershipConstraint) String() string
 ```
 
 **Parameters:**
@@ -3071,7 +3174,7 @@ func (SubgoalStatus) String() string
 ToSlice returns all values in the domain as a pre-allocated slice. This is more efficient than IterateValues when you need all values at once.
 
 ```go
-func (BitSet) ToSlice() []int
+func (*BitSetDomain) ToSlice() []int
 ```
 
 **Parameters:**
@@ -3162,14 +3265,15 @@ func NewBoolSum(vars []*FDVariable, total *FDVariable) (*BoolSum, error)
 Propagate enforces bounds consistency on the sum of boolean vars.
 
 ```go
-func (*RelationalPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
+func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
-- `store` (*UnifiedStore)
+- `solver` (*Solver)
+- `state` (*SolverState)
 
 **Returns:**
-- *UnifiedStore
+- *SolverState
 - error
 
 ### String
@@ -3177,7 +3281,7 @@ func (*RelationalPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 String returns a human-readable representation.
 
 ```go
-func (*IntervalArithmetic) String() string
+func (*Absolute) String() string
 ```
 
 **Parameters:**
@@ -3191,7 +3295,7 @@ func (*IntervalArithmetic) String() string
 Type returns the constraint type identifier.
 
 ```go
-func (*Scale) Type() string
+func (*Cumulative) Type() string
 ```
 
 **Parameters:**
@@ -3205,7 +3309,7 @@ func (*Scale) Type() string
 Variables returns all variables in the BoolSum constraint.
 
 ```go
-func (*Stretch) Variables() []*FDVariable
+func (*InSetReified) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -3270,7 +3374,7 @@ func NewBoundsSum(vars []*FDVariable, total *FDVariable) (*BoundsSum, error)
 Propagate applies bounds propagation for sum constraint. Implements PropagationConstraint.
 
 ```go
-func (*Among) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Inequality) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -3286,7 +3390,7 @@ func (*Among) Propagate(solver *Solver, state *SolverState) (*SolverState, error
 String returns a human-readable representation. Implements ModelConstraint.
 
 ```go
-func (*HybridRegistry) String() string
+func (*Regular) String() string
 ```
 
 **Parameters:**
@@ -3314,7 +3418,7 @@ func (*ReifiedConstraint) Type() string
 Variables returns the variables involved in this constraint. Implements ModelConstraint.
 
 ```go
-func (*Sequence) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -3393,11 +3497,11 @@ func (*CallPattern) ArgStructure() string
 Equal checks if two call patterns are structurally equal.
 
 ```go
-func (*Fact) Equal(other *Fact) bool
+func (*CallPattern) Equal(other *CallPattern) bool
 ```
 
 **Parameters:**
-- `other` (*Fact)
+- `other` (*CallPattern)
 
 **Returns:**
 - bool
@@ -3435,7 +3539,7 @@ func (*CallPattern) PredicateID() string
 String returns a human-readable representation of the call pattern.
 
 ```go
-func (*AlphaEqConstraint) String() string
+func (*HybridSolver) String() string
 ```
 
 **Parameters:**
@@ -3517,7 +3621,7 @@ func NewCircuit(model *Model, succ []*FDVariable, startIndex int) (*Circuit, err
 Propagate is a no-op: all pruning is handled by posted sub-constraints. Implements PropagationConstraint.
 
 ```go
-func (*ElementValues) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -3533,7 +3637,7 @@ func (*ElementValues) Propagate(solver *Solver, state *SolverState) (*SolverStat
 String returns a human-readable description. Implements ModelConstraint.
 
 ```go
-func (*ElementValues) String() string
+func (Rational) String() string
 ```
 
 **Parameters:**
@@ -3547,7 +3651,7 @@ func (*ElementValues) String() string
 Type returns the constraint type identifier. Implements ModelConstraint.
 
 ```go
-func (*ReifiedConstraint) Type() string
+func (*Inequality) Type() string
 ```
 
 **Parameters:**
@@ -3561,7 +3665,7 @@ func (*ReifiedConstraint) Type() string
 Variables returns the primary decision variables for this global constraint. Implements ModelConstraint.
 
 ```go
-func (*Stretch) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -3697,7 +3801,7 @@ type ConstraintEventType int
 String returns a human-readable representation of the constraint event type.
 
 ```go
-func (*Diffn) String() string
+func (*Lexicographic) String() string
 ```
 
 **Parameters:**
@@ -3730,7 +3834,7 @@ type ConstraintResult int
 String returns a human-readable representation of the constraint result.
 
 ```go
-func (*DistinctCount) String() string
+func (*EqualityReified) String() string
 ```
 
 **Parameters:**
@@ -3964,15 +4068,14 @@ func NewCount(model *Model, vars []*FDVariable, targetValue int, countVar *FDVar
 Propagate applies the Count constraint's propagation. The Count constraint itself doesn't need to do propagation because the reified constraints and sum constraint handle it. However, we implement Propagate to satisfy the PropagationConstraint interface and potentially add Count-specific optimizations. Implements PropagationConstraint.
 
 ```go
-func (*RationalLinearSum) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### String
@@ -3980,7 +4083,7 @@ func (*RationalLinearSum) Propagate(solver *Solver, state *SolverState) (*Solver
 String returns a human-readable representation. Implements ModelConstraint.
 
 ```go
-func (*ElementValues) String() string
+func (*DistinctCount) String() string
 ```
 
 **Parameters:**
@@ -3994,7 +4097,7 @@ func (*ElementValues) String() string
 Type returns the constraint type identifier. Implements ModelConstraint.
 
 ```go
-func (*ElementValues) Type() string
+func (*Cumulative) Type() string
 ```
 
 **Parameters:**
@@ -4008,7 +4111,7 @@ func (*ElementValues) Type() string
 Variables returns all variables involved in this constraint. Includes the input variables, count variable, and auxiliary boolean variables. Implements ModelConstraint.
 
 ```go
-func (*Diffn) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -4059,7 +4162,7 @@ type Cumulative struct {
 Propagate performs time-table filtering using compulsory parts. See the file header for algorithmic notes.
 
 ```go
-func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Table) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -4075,7 +4178,7 @@ func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error
 String returns a readable description.
 
 ```go
-func (*InSetReified) String() string
+func (*BitSetDomain) String() string
 ```
 
 **Parameters:**
@@ -4089,7 +4192,7 @@ func (*InSetReified) String() string
 Type returns the constraint identifier.
 
 ```go
-func (*EqualityReified) Type() string
+func (*Inequality) Type() string
 ```
 
 **Parameters:**
@@ -4103,7 +4206,7 @@ func (*EqualityReified) Type() string
 Variables returns the variables involved in this constraint.
 
 ```go
-func (*Circuit) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -4155,6 +4258,23 @@ type CustomConstraint interface {
 
 | Method | Description |
 | ------ | ----------- |
+
+### DCGGoal
+DCGGoal represents a DCG goal as a pattern-based constructor. It is an alias for GoalPattern for clarity in DCG contexts.
+
+#### Example Usage
+
+```go
+// Example usage of DCGGoal
+var value DCGGoal
+// Initialize with appropriate value
+```
+
+#### Type Definition
+
+```go
+type DCGGoal GoalPattern
+```
 
 ### Database
 Database is an immutable collection of relations and their facts. Operations return new Database instances with copy-on-write semantics.
@@ -4269,21 +4389,21 @@ func NewDatabase() *Database
 Add inserts a single fact converting non-Term arguments to Atoms. It returns the new immutable Database instance.
 
 ```go
-func (Rational) Add(other Rational) Rational
+func (DelaySet) Add(dep uint64)
 ```
 
 **Parameters:**
-- `other` (Rational)
+- `dep` (uint64)
 
 **Returns:**
-- Rational
+  None
 
 ### AddFact
 
 AddFact adds a ground fact to the relation, returning a new Database. Facts are deduplicated; adding the same fact twice is idempotent. Example: db = db.AddFact(parent, NewAtom("alice"), NewAtom("bob")) Returns an error if: - The relation is nil - The number of terms doesn't match the relation's arity - Any term is not ground (contains variables)
 
 ```go
-func (*Database) AddFact(rel *Relation, terms ...Term) (*Database, error)
+func (*TabledDatabase) AddFact(rel *Relation, terms ...Term) (*TabledDatabase, error)
 ```
 
 **Parameters:**
@@ -4291,7 +4411,7 @@ func (*Database) AddFact(rel *Relation, terms ...Term) (*Database, error)
 - `terms` (...Term)
 
 **Returns:**
-- *Database
+- *TabledDatabase
 - error
 
 ### AddFacts
@@ -4329,7 +4449,7 @@ func (*Database) AllFacts(rel *Relation) [][]Term
 FactCount returns the number of non-deleted facts in the given relation.
 
 ```go
-func (*Database) FactCount(rel *Relation) int
+func (*TabledDatabase) FactCount(rel *Relation) int
 ```
 
 **Parameters:**
@@ -4388,12 +4508,12 @@ func (*TabledDatabase) Q(rel *Relation, args ...interface{}) Goal
 Query returns a Goal that unifies the given pattern with all matching facts. The pattern may contain variables, which will be unified with fact values. Query uses index selection heuristics: - If any term is ground and indexed, use that index for O(1) lookup - Otherwise, scan all facts (O(n)) - Repeated variables are checked for consistency Example: // Find all of alice's children goal := db.Query(parent, NewAtom("alice"), Fresh("child")) // Find all parent-child pairs goal := db.Query(parent, Fresh("p"), Fresh("c")) // Find self-loops (repeated variable) goal := db.Query(edge, Fresh("x"), Fresh("x"))
 
 ```go
-func (*Database) Query(rel *Relation, pattern ...Term) Goal
+func (*TabledDatabase) Query(rel *Relation, args ...Term) Goal
 ```
 
 **Parameters:**
 - `rel` (*Relation)
-- `pattern` (...Term)
+- `args` (...Term)
 
 **Returns:**
 - Goal
@@ -4454,14 +4574,14 @@ func NewDelaySet() DelaySet
 Add inserts a dependency into the set.
 
 ```go
-func (Rational) Add(other Rational) Rational
+func (DelaySet) Add(dep uint64)
 ```
 
 **Parameters:**
-- `other` (Rational)
+- `dep` (uint64)
 
 **Returns:**
-- Rational
+  None
 
 ### Empty
 
@@ -4482,11 +4602,11 @@ func (DelaySet) Empty() bool
 Has checks membership.
 
 ```go
-func (*BitSetDomain) Has(value int) bool
+func (DelaySet) Has(dep uint64) bool
 ```
 
 **Parameters:**
-- `value` (int)
+- `dep` (uint64)
 
 **Returns:**
 - bool
@@ -4569,7 +4689,7 @@ func NewDiffn(model *Model, x, y []*FDVariable, w, h []int) (*Diffn, error)
 Propagate is a no-op: pruning is performed by the internal reified inequalities and their BoolSum disjunctions.
 
 ```go
-func (*Lexicographic) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Sequence) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -4585,7 +4705,7 @@ func (*Lexicographic) Propagate(solver *Solver, state *SolverState) (*SolverStat
 
 
 ```go
-func (*Inequality) String() string
+func (*ReifiedConstraint) String() string
 ```
 
 **Parameters:**
@@ -4599,7 +4719,7 @@ func (*Inequality) String() string
 
 
 ```go
-func (*ReifiedConstraint) Type() string
+func (*BinPacking) Type() string
 ```
 
 **Parameters:**
@@ -4613,7 +4733,7 @@ func (*ReifiedConstraint) Type() string
 
 
 ```go
-func (*Lexicographic) Variables() []*FDVariable
+func (*BinPacking) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -4680,7 +4800,7 @@ func NewDisequalityConstraint(term1, term2 Term) *DisequalityConstraint
 Check evaluates the disequality constraint against current variable bindings. Returns ConstraintViolated if the terms are equal, ConstraintPending if variables are unbound, or ConstraintSatisfied if terms are provably unequal. Implements the Constraint interface.
 
 ```go
-func (*AlphaEqConstraint) Check(bindings map[int64]Term) ConstraintResult
+func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 ```
 
 **Parameters:**
@@ -4694,35 +4814,35 @@ func (*AlphaEqConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a deep copy of the constraint for parallel execution. Implements the Constraint interface.
 
 ```go
-func (BitSet) Clone() BitSet
+func (*MembershipConstraint) Clone() Constraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- BitSet
+- Constraint
 
 ### ID
 
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*FDVariable) ID() int
+func (*AlphaEqConstraint) ID() string
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int
+- string
 
 ### IsLocal
 
 IsLocal returns true if this constraint can be evaluated purely within a local constraint store. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) IsLocal() bool
+func (*AlphaEqConstraint) IsLocal() bool
 ```
 
 **Parameters:**
@@ -4736,7 +4856,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (*ElementValues) String() string
+func (*EqualityReified) String() string
 ```
 
 **Parameters:**
@@ -4750,7 +4870,7 @@ func (*ElementValues) String() string
 Variables returns the logic variables that this constraint depends on. Used to determine when the constraint needs to be re-evaluated. Implements the Constraint interface.
 
 ```go
-func (*ElementValues) Variables() []*FDVariable
+func (*DistinctCount) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -4892,15 +5012,14 @@ func NewNValue(model *Model, vars []*FDVariable, nPlus1 *FDVariable) (*DistinctC
 Propagate is a no-op: all pruning is performed by internal constraints.
 
 ```go
-func (*Circuit) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### String
@@ -4908,7 +5027,7 @@ func (*Circuit) Propagate(solver *Solver, state *SolverState) (*SolverState, err
 
 
 ```go
-func (*Substitution) String() string
+func (*Inequality) String() string
 ```
 
 **Parameters:**
@@ -4922,7 +5041,7 @@ func (*Substitution) String() string
 
 
 ```go
-func (*Sequence) Type() string
+func (*RationalLinearSum) Type() string
 ```
 
 **Parameters:**
@@ -4936,7 +5055,7 @@ func (*Sequence) Type() string
 Variables returns all public-facing variables (vars + dPlus1).
 
 ```go
-func (*Scale) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -5180,14 +5299,15 @@ func NewElementValues(index *FDVariable, values []int, result *FDVariable) (*Ele
 Propagate enforces result = values[index] bidirectionally. Implements PropagationConstraint.
 
 ```go
-func (*FDPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
+func (*Lexicographic) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
-- `store` (*UnifiedStore)
+- `solver` (*Solver)
+- `state` (*SolverState)
 
 **Returns:**
-- *UnifiedStore
+- *SolverState
 - error
 
 ### String
@@ -5195,7 +5315,7 @@ func (*FDPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 String returns a human-readable description. Implements ModelConstraint.
 
 ```go
-func (*Scale) String() string
+func (*IntervalArithmetic) String() string
 ```
 
 **Parameters:**
@@ -5209,7 +5329,7 @@ func (*Scale) String() string
 Type returns the constraint identifier. Implements ModelConstraint.
 
 ```go
-func (*Modulo) Type() string
+func (*EqualityReified) Type() string
 ```
 
 **Parameters:**
@@ -5223,7 +5343,7 @@ func (*Modulo) Type() string
 Variables returns the involved variables. Implements ModelConstraint.
 
 ```go
-func (*RationalLinearSum) Variables() []*FDVariable
+func (*IntervalArithmetic) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -5292,7 +5412,7 @@ func NewEqualityReified(x, y, boolVar *FDVariable) (*EqualityReified, error)
 Propagate applies the equality-reified constraint's propagation. Implements PropagationConstraint.
 
 ```go
-func (*Among) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Lexicographic) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -5308,7 +5428,7 @@ func (*Among) Propagate(solver *Solver, state *SolverState) (*SolverState, error
 String returns a human-readable representation. Implements ModelConstraint.
 
 ```go
-func (*Regular) String() string
+func (*HybridSolver) String() string
 ```
 
 **Parameters:**
@@ -5322,7 +5442,7 @@ func (*Regular) String() string
 Type returns the constraint type identifier. Implements ModelConstraint.
 
 ```go
-func (*BinPacking) Type() string
+func (*DistinctCount) Type() string
 ```
 
 **Parameters:**
@@ -5336,7 +5456,7 @@ func (*BinPacking) Type() string
 Variables returns the variables involved in this constraint. Implements ModelConstraint.
 
 ```go
-func (*Sequence) Variables() []*FDVariable
+func (*EqualityReified) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -5426,7 +5546,7 @@ func NewFDPlugin(model *Model) *FDPlugin
 CanHandle returns true if the constraint is an FD constraint. Implements SolverPlugin.
 
 ```go
-func (*NominalPlugin) CanHandle(constraint interface{}) bool
+func (*RelationalPlugin) CanHandle(constraint interface{}) bool
 ```
 
 **Parameters:**
@@ -5482,14 +5602,15 @@ func (*FDVariable) Name() string
 Propagate runs FD constraint propagation on the unified store. Implements SolverPlugin.
 
 ```go
-func (*FDPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
+func (*Inequality) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
-- `store` (*UnifiedStore)
+- `solver` (*Solver)
+- `state` (*SolverState)
 
 **Returns:**
-- *UnifiedStore
+- *SolverState
 - error
 
 ### stateToStore
@@ -5763,7 +5884,7 @@ func (*FDStore) ComplementDomain(v *FDVar) error
 GetDomain returns a copy of the variable's current domain
 
 ```go
-func (*UnifiedStoreAdapter) GetDomain(varID int) Domain
+func (*UnifiedStore) GetDomain(varID int) Domain
 ```
 
 **Parameters:**
@@ -6159,14 +6280,14 @@ func (*FDStore) setDomainLocked(v *FDVar, newDom BitSet)
 snapshot returns current trail size for backtracking
 
 ```go
-func (*FDStore) snapshot() int
+func (*parentSet) snapshot() []*SubgoalEntry
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int
+- []*SubgoalEntry
 
 ### undo
 
@@ -6249,7 +6370,7 @@ func (*FDVar) Domain() BitSet
 IsSingleton returns true if the variable's domain contains exactly one value
 
 ```go
-func (*FDVar) IsSingleton() bool
+func (*BitSetDomain) IsSingleton() bool
 ```
 
 **Parameters:**
@@ -6263,7 +6384,7 @@ func (*FDVar) IsSingleton() bool
 SingletonValue returns the single value if the domain is singleton, panics otherwise
 
 ```go
-func (*BitSetDomain) SingletonValue() int
+func (*FDVar) SingletonValue() int
 ```
 
 **Parameters:**
@@ -6386,7 +6507,7 @@ func (*FDVariable) IsBound() bool
 Name returns the variable's name for debugging.
 
 ```go
-func (*RelationalPlugin) Name() string
+func (*Relation) Name() string
 ```
 
 **Parameters:**
@@ -6400,24 +6521,23 @@ func (*RelationalPlugin) Name() string
 SetDomain updates the variable's domain during model construction. This method must NOT be called during solving. During solving, domain changes are tracked via SolverState, not by modifying the variable directly.
 
 ```go
-func (*Solver) SetDomain(state *SolverState, varID int, domain Domain) (*SolverState, bool)
+func (*UnifiedStore) SetDomain(varID int, domain Domain) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `state` (*SolverState)
 - `varID` (int)
 - `domain` (Domain)
 
 **Returns:**
-- *SolverState
-- bool
+- *UnifiedStore
+- error
 
 ### String
 
 String returns a human-readable representation.
 
 ```go
-func (*Model) String() string
+func (*Diffn) String() string
 ```
 
 **Parameters:**
@@ -6524,11 +6644,11 @@ func selectFacts(rd *relationData, rel *Relation, pattern []Term) []*Fact
 Equal returns true if two facts have identical terms.
 
 ```go
-func (*Pair) Equal(other Term) bool
+func (*CallPattern) Equal(other *CallPattern) bool
 ```
 
 **Parameters:**
-- `other` (Term)
+- `other` (*CallPattern)
 
 **Returns:**
 - bool
@@ -6632,21 +6752,21 @@ func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone implements deep copy.
 
 ```go
-func (*UnifiedStoreAdapter) Clone() ConstraintStore
+func (*HybridRegistry) Clone() *HybridRegistry
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- ConstraintStore
+- *HybridRegistry
 
 ### ID
 
 ID implements Constraint.
 
 ```go
-func (*MembershipConstraint) ID() string
+func (*LessEqualConstraint) ID() string
 ```
 
 **Parameters:**
@@ -6674,7 +6794,7 @@ func (*MembershipConstraint) IsLocal() bool
 String implements Constraint formatting.
 
 ```go
-func (*Among) String() string
+func (*MembershipConstraint) String() string
 ```
 
 **Parameters:**
@@ -6688,7 +6808,7 @@ func (*Among) String() string
 Variables returns variables that can affect the freshness decision (all vars in term).
 
 ```go
-func (*Circuit) Variables() []*FDVariable
+func (*Among) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -6739,7 +6859,7 @@ type GlobalCardinality struct {
 Propagate performs bounds checks and removes saturated values from other domains.
 
 ```go
-func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Circuit) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -6755,7 +6875,7 @@ func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error
 String returns a readable description.
 
 ```go
-func (*Circuit) String() string
+func (*BitSetDomain) String() string
 ```
 
 **Parameters:**
@@ -6769,7 +6889,7 @@ func (*Circuit) String() string
 Type returns the constraint identifier.
 
 ```go
-func (*Stretch) Type() string
+func (*BinPacking) Type() string
 ```
 
 **Parameters:**
@@ -6783,7 +6903,7 @@ func (*Stretch) Type() string
 Variables returns variables constrained by GCC.
 
 ```go
-func (*IntervalArithmetic) Variables() []*FDVariable
+func (*EqualityReified) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -6948,7 +7068,7 @@ func (*GlobalConstraintBus) Reset()
 Shutdown gracefully shuts down the global constraint bus. Should be called when constraint processing is complete.
 
 ```go
-func (*LocalConstraintStoreImpl) Shutdown()
+func (*GlobalConstraintBus) Shutdown()
 ```
 
 **Parameters:**
@@ -7120,14 +7240,14 @@ func NewGlobalConstraintBusPool() *GlobalConstraintBusPool
 Get retrieves a constraint bus from the pool
 
 ```go
-func (*GlobalConstraintBusPool) Get() *GlobalConstraintBus
+func (*SubgoalTable) Get(pattern *CallPattern) *SubgoalEntry
 ```
 
 **Parameters:**
-  None
+- `pattern` (*CallPattern)
 
 **Returns:**
-- *GlobalConstraintBus
+- *SubgoalEntry
 
 ### Put
 
@@ -7267,20 +7387,33 @@ func Booleano(term Term) Goal
 **Returns:**
 - Goal
 
+### CallGoal
+
+CallGoal implements meta-call for indirect goal invocation. This allows goals to be stored in terms and invoked dynamically, enabling higher-order logic programming patterns like meta-interpreters, dynamic rule construction, and goal factories. The goalTerm must be an Atom wrapping a Goal function. When evaluated, CallGoal extracts the goal and invokes it with the current context and store. # Examples // Store a goal in a term and call it Run(5, func(q *Var) Goal { g := NewAtom(Eq(q, NewAtom("hello"))) return CallGoal(g) }) // Results: q = "hello" // Dynamic goal selection Run(5, func(q *Var) Goal { x := Fresh("x") chooseGoal := func(choice int) Goal { if choice == 1 { return Eq(q, NewAtom("first")) } return Eq(q, NewAtom("second")) } return Conj( Eq(x, NewAtom(1)), CallGoal(NewAtom(chooseGoal(1))) ) }) # Type Safety CallGoal performs runtime type checking. If goalTerm is not an Atom or doesn't contain a Goal function, it returns a failure stream. This is necessary because Go's type system can't enforce the constraint statically. # Performance The overhead of CallGoal is minimal - just a type assertion and function call. The goal itself is evaluated normally once extracted. # Integration Notes Works with SLG tabling. If the called goal is tabled, it will use the tabling infrastructure normally. CallGoal itself doesn't interfere with tabling semantics. # Meta-Programming Patterns CallGoal enables several advanced patterns: - Meta-interpreters: Implement custom evaluation strategies - Goal factories: Generate goals based on runtime data - Dynamic rules: Construct and invoke rules at runtime - Higher-order predicates: Pass goals as arguments to other goals
+
+```go
+func CallGoal(goalTerm Term) Goal
+```
+
+**Parameters:**
+- `goalTerm` (Term)
+
+**Returns:**
+- Goal
+
 ### Car
 
 Car extracts the first element of a pair/list. Example: goal := Car(List(NewAtom(1), NewAtom(2)), x) // x = 1
 
 ```go
-func Car(pair, car Term) Goal
+func (*Pair) Car() Term
 ```
 
 **Parameters:**
-- `pair` (Term)
-- `car` (Term)
+  None
 
 **Returns:**
-- Goal
+- Term
 
 ### CaseIntMap
 
@@ -7722,6 +7855,38 @@ func HybridDisj(goals ...Goal) Goal
 **Returns:**
 - Goal
 
+### Ifa
+
+Ifa implements if-then-else with backtracking through all condition solutions. Semantics: Ifa(C, T, E) = (C, T) ∨ (¬C, E) If the condition has one or more solutions, thenGoal is evaluated for each solution and all results are collected (via disjunction). If the condition has no solutions, elseGoal is evaluated once with the original store. # Examples // Conditional with multiple solutions - both paths explored Ifa( Disj(Eq(x, NewAtom(1)), Eq(x, NewAtom(2))),  // x = 1 or x = 2 Eq(q, x),                                      // then: q = x (two solutions) Eq(q, NewAtom("none"))                         // else: not reached ) // Results: q = 1, q = 2 // Condition failure - else branch taken Ifa( Eq(NewAtom(1), NewAtom(2)),  // fails Eq(q, NewAtom("success")),   // not evaluated Eq(q, NewAtom("failure"))    // evaluated once ) // Results: q = "failure" # Performance Ifa explores the full search space of the condition, which can be expensive for conditions with many solutions. Use Ifte for early commitment when only the first solution is needed. # Integration Notes Works with SLG tabling. Variables in condition, thenGoal, and elseGoal must be properly scoped within the Run closure for correct substitution.
+
+```go
+func Ifa(condition, thenGoal, elseGoal Goal) Goal
+```
+
+**Parameters:**
+- `condition` (Goal)
+- `thenGoal` (Goal)
+- `elseGoal` (Goal)
+
+**Returns:**
+- Goal
+
+### Ifte
+
+Ifte implements if-then-else with commitment to the first condition solution. Semantics: Ifte(C, T, E) commits to the first solution of C and evaluates T; if C has no solutions, evaluates E. This is the "committed choice" variant where once the condition succeeds, we commit to that solution and ignore any other solutions the condition might produce. This is useful for deterministic control flow and optimization. # Examples // Commits to first solution of condition Ifte( Disj(Eq(x, NewAtom(1)), Eq(x, NewAtom(2))),  // x = 1 or x = 2 Eq(q, x),                                      // then: q = x (first solution only) Eq(q, NewAtom("none"))                         // else: not reached ) // Results: q = 1 (commits to first, ignores x = 2) // Condition failure - else branch taken Ifte( Eq(NewAtom(1), NewAtom(2)),  // fails Eq(q, NewAtom("success")),   // not evaluated Eq(q, NewAtom("failure"))    // evaluated once ) // Results: q = "failure" # Prolog Comparison This implements Prolog's (C -> T ; E) semantics, also known as soft cut. It's "soft" because it only cuts within the condition, not affecting outer choice points. # Performance Ifte is more efficient than Ifa when you only need the first solution, as it avoids exploring the full search space of the condition. # Integration Notes Works with SLG tabling. The commitment happens at the stream level, so tabled predicates in the condition still cache all their answers (the commitment only affects which answers we consume).
+
+```go
+func Ifte(condition, thenGoal, elseGoal Goal) Goal
+```
+
+**Parameters:**
+- `condition` (Goal)
+- `thenGoal` (Goal)
+- `elseGoal` (Goal)
+
+**Returns:**
+- Goal
+
 ### Lengtho
 
 Lengtho creates a goal that relates a list to its length. The length is represented as a Peano number (nested pairs): 0 = nil, S(n) = (s . n) This operation works bidirectionally: - Given list, computes length - Given length, can verify if a list has that length - Can generate lists of a specific length (with unbound elements) For working with integer lengths, use LengthoInt instead. Example: // Get length of [1,2,3] as Peano number Lengtho(List(NewAtom(1), NewAtom(2), NewAtom(3)), length) // length will be (s . (s . (s . nil))) // Verify a list has length 3 three := NewPair(NewAtom("s"), NewPair(NewAtom("s"), NewPair(NewAtom("s"), Nil))) Lengtho(someList, three)
@@ -7974,6 +8139,27 @@ func Pairo(term Term) Goal
 **Returns:**
 - Goal
 
+### ParseWithSLG
+
+ParseWithSLG parses input using a defined DCG rule with SLG tabling. This function creates a Goal that can be used with Run/RunWithContext. The SLG engine handles cycle detection and fixpoint iteration for left-recursive grammars.
+
+```go
+func ParseWithSLG(engine *SLGEngine, ruleName string, input, output Term) Goal
+```
+
+**Parameters:**
+
+- `engine` (*SLGEngine) - SLGEngine instance for tabling
+
+- `ruleName` (string) - Name of the DCG rule to parse with
+
+- `input` (Term) - Input list to parse
+
+- `output` (Term) - Variable representing remaining unparsed input (use Fresh())
+
+**Returns:**
+- Goal
+
 ### Permuteo
 
 Permuteo creates a goal that relates a list to one of its permutations. This operation generates all permutations when 'permutation' is a variable, or verifies if 'permutation' is a valid permutation of 'list'. Note: This generates n! permutations for a list of length n. Use with caution for lists longer than ~8-10 elements. Uses lazy evaluation (Conde) for efficient stream consumption. Example: // Generate all permutations of [1,2,3] Permuteo(List(NewAtom(1), NewAtom(2), NewAtom(3)), perm) // Verify [3,1,2] is a permutation of [1,2,3] Permuteo(List(NewAtom(1), NewAtom(2), NewAtom(3)), List(NewAtom(3), NewAtom(1), NewAtom(2)))
@@ -8099,6 +8285,22 @@ func SimpleTermo(term Term) Goal
 
 **Parameters:**
 - `term` (Term)
+
+**Returns:**
+- Goal
+
+### SoftCut
+
+SoftCut implements Prolog's soft cut operator (*->). This is a synonym for Ifte provided for Prolog compatibility. The name "soft cut" reflects that it cuts within the condition (commits to first solution) but doesn't affect outer choice points. Semantics: SoftCut(C, T, E) ≡ Ifte(C, T, E) ≡ (C *-> T ; E) # Examples // Prolog-style conditional with commitment SoftCut( member(X, List),      // condition Eq(q, X),             // then (commits to first member) Eq(q, NewAtom("empty"))  // else ) # Performance Identical to Ifte - commits to first condition solution. # Integration Notes This is purely a naming convenience for developers familiar with Prolog. Use Ifte for a more descriptive name in Go code.
+
+```go
+func SoftCut(condition, thenGoal, elseGoal Goal) Goal
+```
+
+**Parameters:**
+- `condition` (Goal)
+- `thenGoal` (Goal)
+- `elseGoal` (Goal)
 
 **Returns:**
 - Goal
@@ -8345,6 +8547,97 @@ func QueryEvaluator(query Goal, varIDs ...int64) GoalEvaluator
 **Returns:**
 - GoalEvaluator
 
+### GoalPattern
+GoalPattern represents a pattern that can be expanded into concrete goals. Patterns are descriptions of computation, not executions. SLG orchestrates their evaluation.
+
+#### Example Usage
+
+```go
+// Example implementation of GoalPattern
+type MyGoalPattern struct {
+    // Add your fields here
+}
+
+func (m MyGoalPattern) Expand(param1 Term) Goal {
+    // Implement your logic here
+    return
+}
+
+
+```
+
+#### Type Definition
+
+```go
+type GoalPattern interface {
+    Expand(s0, s1 Term) Goal
+}
+```
+
+## Methods
+
+| Method | Description |
+| ------ | ----------- |
+
+### Constructor Functions
+
+### Alternation
+
+Alternation creates a pattern offering a choice between alternatives. Each branch is tried, and all successful parses are returned. Clause order does not affect declarative semantics when used with SLG. Example: DefineRule("digit", Alternation( Terminal(NewAtom("0")), Terminal(NewAtom("1")), )) // matches either "0" or "1"
+
+```go
+func Alternation(patterns ...GoalPattern) GoalPattern
+```
+
+**Parameters:**
+- `patterns` (...GoalPattern)
+
+**Returns:**
+- GoalPattern
+
+### NonTerminal
+
+NonTerminal creates a pattern that references another DCG rule by name. IMPORTANT: Requires an SLGEngine to handle recursive calls and cycle detection. The engine parameter must be the same SLGEngine used for parsing. This is the key to left recursion: recursive calls go through SLG, which maintains an answer trie and performs fixpoint iteration. Example: engine := NewSLGEngine(nil) DefineRule("expr", Alternation( NonTerminal(engine, "term"), Seq(NonTerminal(engine, "expr"), Terminal(NewAtom("+")), NonTerminal(engine, "term")), )) // Left-recursive expression grammar
+
+```go
+func NonTerminal(engine *SLGEngine, ruleName string) GoalPattern
+```
+
+**Parameters:**
+- `engine` (*SLGEngine)
+- `ruleName` (string)
+
+**Returns:**
+- GoalPattern
+
+### Seq
+
+Seq creates a pattern that sequences two or more patterns. The first pattern consumes from s0 to an intermediate state, then the second pattern consumes from that state to s1, and so on. Example: DefineRule("twoDigits", Seq( Terminal(NewAtom("1")), Terminal(NewAtom("2")), )) // matches "1" followed by "2"
+
+```go
+func Seq(patterns ...GoalPattern) GoalPattern
+```
+
+**Parameters:**
+- `patterns` (...GoalPattern)
+
+**Returns:**
+- GoalPattern
+
+### Terminal
+
+Terminal creates a pattern that matches a single token. The pattern succeeds when the input list starts with the specified token. Consumes one element from s0, leaving s1 as the tail. Example: DefineRule("digit1", Terminal(NewAtom("1"))) // matches "1"
+
+```go
+func Terminal(token Term) GoalPattern
+```
+
+**Parameters:**
+- `token` (Term)
+
+**Returns:**
+- GoalPattern
+
 ### HybridRegistry
 variable spaces, eliminating boilerplate code in hybrid queries. Usage Pattern: 1. Create registry with NewHybridRegistry() 2. Register variable pairs with MapVars(relVar, fdVar) 3. Execute hybrid query producing bindings 4. Apply bindings with AutoBind(result, store) Thread Safety: Registry instances are immutable. All operations return new registry instances, making them safe for concurrent use.
 
@@ -8415,14 +8708,14 @@ func (*HybridRegistry) AutoBind(result ConstraintStore, store *UnifiedStore) (*U
 Clone creates a copy of the registry with the same mappings. Since registries are immutable, this returns a new instance with independent map storage but identical content. Useful when you need to create independent registry branches for different query contexts. Example: baseRegistry := NewHybridRegistry() baseRegistry, _ = baseRegistry.MapVars(age, ageVar) // Create specialized registries for different queries query1Registry, _ = baseRegistry.Clone().MapVars(name, nameVar) query2Registry, _ = baseRegistry.Clone().MapVars(salary, salaryVar)
 
 ```go
-func (*BitSetDomain) Clone() Domain
+func (*IntervalArithmetic) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Domain
+- PropagationConstraint
 
 ### GetFDVariable
 
@@ -8506,7 +8799,7 @@ func (*HybridRegistry) MappingCount() int
 String returns a human-readable representation of the registry. Shows all registered mappings in the format: HybridRegistry{rel_id → fd_id, ...} Useful for debugging and logging.
 
 ```go
-func (*ElementValues) String() string
+func (*Absolute) String() string
 ```
 
 **Parameters:**
@@ -8582,7 +8875,7 @@ func NewHybridSolverWithConfig(config *HybridSolverConfig, plugins ...SolverPlug
 CanHandle returns a list of plugins that can handle the given constraint. Used for debugging and understanding constraint routing.
 
 ```go
-func (*FDPlugin) CanHandle(constraint interface{}) bool
+func (*RelationalPlugin) CanHandle(constraint interface{}) bool
 ```
 
 **Parameters:**
@@ -8610,7 +8903,7 @@ func (*HybridSolver) GetPlugins() []SolverPlugin
 Propagate runs all registered plugins to a fixed point on the given store. Returns a new store with all propagations applied, or an error if a conflict is detected. The propagation algorithm: 1. Run each plugin in sequence on the current store 2. If any plugin returns a new store (changes made), record it 3. After all plugins run, if changes occurred, repeat from step 1 4. Stop when no plugin makes changes (fixed point) or max iterations reached 5. Return error if any plugin detects a conflict This implements the "chaotic iteration" algorithm standard in constraint programming.
 
 ```go
-func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*BoolSum) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -8670,7 +8963,7 @@ func (*HybridSolver) SetConfig(config *HybridSolverConfig)
 String returns a human-readable representation of the solver.
 
 ```go
-func (*ElementValues) String() string
+func (*GlobalCardinality) String() string
 ```
 
 **Parameters:**
@@ -8782,14 +9075,15 @@ func NewInSetReified(v *FDVariable, setValues []int, boolVar *FDVariable) (*InSe
 Propagate enforces b ↔ (v ∈ S) with bidirectional pruning.
 
 ```go
-func (*RelationalPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
+func (*Sequence) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
-- `store` (*UnifiedStore)
+- `solver` (*Solver)
+- `state` (*SolverState)
 
 **Returns:**
-- *UnifiedStore
+- *SolverState
 - error
 
 ### String
@@ -8797,7 +9091,7 @@ func (*RelationalPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 
 
 ```go
-func (*Lexicographic) String() string
+func (Rational) String() string
 ```
 
 **Parameters:**
@@ -8811,7 +9105,7 @@ func (*Lexicographic) String() string
 
 
 ```go
-func (*Regular) Type() string
+func (*BinPacking) Type() string
 ```
 
 **Parameters:**
@@ -8825,7 +9119,7 @@ func (*Regular) Type() string
 
 
 ```go
-func (*Lexicographic) Variables() []*FDVariable
+func (*Diffn) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -8908,7 +9202,7 @@ func (*Lexicographic) Propagate(solver *Solver, state *SolverState) (*SolverStat
 String returns human-readable representation. Implements ModelConstraint.
 
 ```go
-func (*SolverStats) String() string
+func (*IntervalArithmetic) String() string
 ```
 
 **Parameters:**
@@ -8922,7 +9216,7 @@ func (*SolverStats) String() string
 Type returns "Inequality". Implements ModelConstraint.
 
 ```go
-func (*ElementValues) Type() string
+func (*Regular) Type() string
 ```
 
 **Parameters:**
@@ -8936,14 +9230,14 @@ func (*ElementValues) Type() string
 Variables returns [x, y]. Implements ModelConstraint.
 
 ```go
-func (*Absolute) Variables() []*FDVariable
+func (*AllDifferentConstraint) Variables() []*FDVar
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*FDVariable
+- []*FDVar
 
 ### eqDom
 
@@ -9074,7 +9368,7 @@ type InequalityKind int
 String returns operator symbol.
 
 ```go
-func (*BinPacking) String() string
+func (*LocalConstraintStoreImpl) String() string
 ```
 
 **Parameters:**
@@ -9187,21 +9481,21 @@ func NewIntervalArithmetic(variable *FDVariable, minBound, maxBound int, operati
 Clone creates an independent copy of this constraint.
 
 ```go
-func (BitSet) Clone() BitSet
+func (*UnifiedStore) Clone() *UnifiedStore
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- BitSet
+- *UnifiedStore
 
 ### Propagate
 
 Propagate performs interval arithmetic constraint propagation. Algorithm: 1. For containment: Intersect variable domain with [minBound, maxBound] 2. For binary operations: Compute interval arithmetic and propagate to result 3. Bidirectional propagation for binary operations when possible 4. Apply domain changes and detect failures Returns the updated solver state, or error if the constraint is unsatisfiable.
 
 ```go
-func (*IntervalArithmetic) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Absolute) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -9217,7 +9511,7 @@ func (*IntervalArithmetic) Propagate(solver *Solver, state *SolverState) (*Solve
 String returns a human-readable representation of the constraint.
 
 ```go
-func (*MaxOfArray) String() string
+func (*ElementValues) String() string
 ```
 
 **Parameters:**
@@ -9231,7 +9525,7 @@ func (*MaxOfArray) String() string
 Type returns the constraint type name.
 
 ```go
-func (*Stretch) Type() string
+func (*EqualityReified) Type() string
 ```
 
 **Parameters:**
@@ -9245,7 +9539,7 @@ func (*Stretch) Type() string
 Variables returns the FD variables involved in this constraint.
 
 ```go
-func (*Among) Variables() []*FDVariable
+func (*Modulo) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -9379,7 +9673,7 @@ type IntervalOperation int
 String returns a human-readable representation of the interval operation.
 
 ```go
-func (*BinPacking) String() string
+func (*Diffn) String() string
 ```
 
 **Parameters:**
@@ -9441,14 +9735,14 @@ func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a copy of this constraint.
 
 ```go
-func (*RationalLinearSum) Clone() ModelConstraint
+func (*IntervalArithmetic) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- ModelConstraint
+- PropagationConstraint
 
 ### ID
 
@@ -9469,7 +9763,7 @@ func (*FDVariable) ID() int
 IsLocal returns true since this constraint can be evaluated locally.
 
 ```go
-func (*MembershipConstraint) IsLocal() bool
+func (*LessEqualConstraint) IsLocal() bool
 ```
 
 **Parameters:**
@@ -9483,7 +9777,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation.
 
 ```go
-func (*Modulo) String() string
+func (*FDVariable) String() string
 ```
 
 **Parameters:**
@@ -9497,7 +9791,7 @@ func (*Modulo) String() string
 Variables returns the logic variables involved in this constraint.
 
 ```go
-func (*Sequence) Variables() []*FDVariable
+func (*Regular) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -9545,7 +9839,7 @@ type LessThanConstraint struct {
 Check evaluates the less-than constraint against current bindings.
 
 ```go
-func (*LessEqualConstraint) Check(bindings map[int64]Term) ConstraintResult
+func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 ```
 
 **Parameters:**
@@ -9559,35 +9853,35 @@ func (*LessEqualConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a copy of this constraint.
 
 ```go
-func (*RationalLinearSum) Clone() ModelConstraint
+func (*ScaledDivision) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- ModelConstraint
+- PropagationConstraint
 
 ### ID
 
 ID returns the unique identifier for this constraint.
 
 ```go
-func (*FDVariable) ID() int
+func (*MembershipConstraint) ID() string
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int
+- string
 
 ### IsLocal
 
 IsLocal returns true since this constraint can be evaluated locally.
 
 ```go
-func (*MembershipConstraint) IsLocal() bool
+func (*LessEqualConstraint) IsLocal() bool
 ```
 
 **Parameters:**
@@ -9601,7 +9895,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation.
 
 ```go
-func (*DistinctCount) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -9615,14 +9909,14 @@ func (*DistinctCount) String() string
 Variables returns the logic variables involved in this constraint.
 
 ```go
-func (*AlphaEqConstraint) Variables() []*Var
+func (*Lexicographic) Variables() []*FDVariable
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*Var
+- []*FDVariable
 
 ### Lexicographic
 Lexicographic orders two equal-length vectors of variables.
@@ -9663,15 +9957,14 @@ type Lexicographic struct {
 Propagate enforces bounds-consistent pruning for lexicographic ordering.
 
 ```go
-func (*Sequence) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### String
@@ -9679,7 +9972,7 @@ func (*Sequence) Propagate(solver *Solver, state *SolverState) (*SolverState, er
 String returns a readable description.
 
 ```go
-func (Rational) String() string
+func (*Table) String() string
 ```
 
 **Parameters:**
@@ -9693,7 +9986,7 @@ func (Rational) String() string
 Type names the constraint.
 
 ```go
-func (*Diffn) Type() string
+func (*ReifiedConstraint) Type() string
 ```
 
 **Parameters:**
@@ -9707,7 +10000,7 @@ func (*Diffn) Type() string
 Variables returns all variables in X followed by Y.
 
 ```go
-func (*Absolute) Variables() []*FDVariable
+func (*Diffn) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -9774,7 +10067,7 @@ func NewLinearSum(vars []*FDVariable, coeffs []int, total *FDVariable) (*LinearS
 Propagate applies bounds-consistent pruning. Implements PropagationConstraint.
 
 ```go
-func (*Absolute) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*DistinctCount) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -9790,7 +10083,7 @@ func (*Absolute) Propagate(solver *Solver, state *SolverState) (*SolverState, er
 String implements ModelConstraint.
 
 ```go
-func (*Inequality) String() string
+func (*EqualityReified) String() string
 ```
 
 **Parameters:**
@@ -9804,7 +10097,7 @@ func (*Inequality) String() string
 Type implements ModelConstraint.
 
 ```go
-func (*Scale) Type() string
+func (*BinPacking) Type() string
 ```
 
 **Parameters:**
@@ -9818,7 +10111,7 @@ func (*Scale) Type() string
 Variables implements ModelConstraint.
 
 ```go
-func (*Model) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -9945,7 +10238,7 @@ func (*UnifiedStore) AddBinding(varID int64, term Term) (*UnifiedStore, error)
 AddConstraint adds a new constraint to the store and checks it against current bindings for immediate violations. The constraint is first checked locally for immediate violations. If the constraint is not local (requires global coordination), it is also registered with the global constraint bus. Returns an error if the constraint is immediately violated.
 
 ```go
-func (*UnifiedStoreAdapter) AddConstraint(constraint Constraint) error
+func (*LocalConstraintStoreImpl) AddConstraint(constraint Constraint) error
 ```
 
 **Parameters:**
@@ -9959,14 +10252,14 @@ func (*UnifiedStoreAdapter) AddConstraint(constraint Constraint) error
 Clone creates a deep copy of the constraint store for parallel execution. The clone shares no mutable state with the original store, making it safe for concurrent use in parallel goal evaluation. Cloning is optimized for performance as it's used frequently in parallel execution contexts. The clone initially shares constraint references with the original but will copy-on-write if modified. Implements the ConstraintStore interface.
 
 ```go
-func (*LessEqualConstraint) Clone() Constraint
+func (*BitSetDomain) Clone() Domain
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Constraint
+- Domain
 
 ### Generation
 
@@ -9987,7 +10280,7 @@ func (*LocalConstraintStoreImpl) Generation() int64
 GetBinding retrieves the current binding for a variable. Returns nil if the variable is unbound. Implements the ConstraintStore interface.
 
 ```go
-func (*UnifiedStore) GetBinding(varID int64) Term
+func (*UnifiedStoreAdapter) GetBinding(varID int64) Term
 ```
 
 **Parameters:**
@@ -10029,7 +10322,7 @@ func (*UnifiedStore) GetSubstitution() *Substitution
 ID returns the unique identifier for this constraint store. Implements the LocalConstraintStore interface.
 
 ```go
-func (*AlphaEqConstraint) ID() string
+func (*MembershipConstraint) ID() string
 ```
 
 **Parameters:**
@@ -10130,7 +10423,7 @@ type MaxOfArray struct {
 Propagate clamps r to feasible [max_i Min(Xi) .. max_i Max(Xi)] and enforces Xi <= r.max.
 
 ```go
-func (*ElementValues) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*BoolSum) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -10146,7 +10439,7 @@ func (*ElementValues) Propagate(solver *Solver, state *SolverState) (*SolverStat
 
 
 ```go
-func (*Diffn) String() string
+func (*DistinctCount) String() string
 ```
 
 **Parameters:**
@@ -10160,7 +10453,7 @@ func (*Diffn) String() string
 
 
 ```go
-func (*Diffn) Type() string
+func (*BinPacking) Type() string
 ```
 
 **Parameters:**
@@ -10174,7 +10467,7 @@ func (*Diffn) Type() string
 
 
 ```go
-func (*Among) Variables() []*FDVariable
+func (*Sequence) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -10242,7 +10535,7 @@ func NewMembershipConstraint(element, list Term) *MembershipConstraint
 Check evaluates the membership constraint against current bindings. Note: This is a simplified implementation. The full membero relation is typically implemented as a recursive goal rather than a simple constraint. Implements the Constraint interface.
 
 ```go
-func (*AlphaEqConstraint) Check(bindings map[int64]Term) ConstraintResult
+func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 ```
 
 **Parameters:**
@@ -10256,21 +10549,21 @@ func (*AlphaEqConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a deep copy of the constraint for parallel execution. Implements the Constraint interface.
 
 ```go
-func (*BitSetDomain) Clone() Domain
+func (*ScaledDivision) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- Domain
+- PropagationConstraint
 
 ### ID
 
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) ID() string
+func (*LessEqualConstraint) ID() string
 ```
 
 **Parameters:**
@@ -10284,7 +10577,7 @@ func (*MembershipConstraint) ID() string
 IsLocal returns true if this constraint can be evaluated locally. Implements the Constraint interface.
 
 ```go
-func (*LessEqualConstraint) IsLocal() bool
+func (*AlphaEqConstraint) IsLocal() bool
 ```
 
 **Parameters:**
@@ -10298,7 +10591,7 @@ func (*LessEqualConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (*Scale) String() string
+func (*Table) String() string
 ```
 
 **Parameters:**
@@ -10312,7 +10605,7 @@ func (*Scale) String() string
 Variables returns the logic variables this constraint depends on. Implements the Constraint interface.
 
 ```go
-func (*Among) Variables() []*FDVariable
+func (*Diffn) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -10357,7 +10650,7 @@ type MinOfArray struct {
 Propagate clamps r to feasible [min_i Min(Xi) .. min_i Max(Xi)] and enforces Xi >= r.min.
 
 ```go
-func (*IntervalArithmetic) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -10373,7 +10666,7 @@ func (*IntervalArithmetic) Propagate(solver *Solver, state *SolverState) (*Solve
 
 
 ```go
-func (*UnifiedStoreAdapter) String() string
+func (*Table) String() string
 ```
 
 **Parameters:**
@@ -10387,7 +10680,7 @@ func (*UnifiedStoreAdapter) String() string
 
 
 ```go
-func (*RationalLinearSum) Type() string
+func (*ReifiedConstraint) Type() string
 ```
 
 **Parameters:**
@@ -10401,14 +10694,14 @@ func (*RationalLinearSum) Type() string
 
 
 ```go
-func (*Modulo) Variables() []*FDVariable
+func (*LessEqualConstraint) Variables() []*Var
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*FDVariable
+- []*Var
 
 ### Model
 - Variables: decision variables with finite domains - Constraints: relationships that must hold among variables - Configuration: solver parameters and search heuristics Models are constructed incrementally by adding variables and constraints. Once constructed, models are immutable during solving, enabling safe concurrent access by parallel search workers. Thread safety: Models are safe for concurrent reads during solving, but must be constructed sequentially.
@@ -10853,11 +11146,11 @@ func (*Model) Regular(vars []*FDVariable, numStates, start int, acceptStates []i
 SetConfig updates the solver configuration. Should be called before solving begins.
 
 ```go
-func (*HybridSolver) SetConfig(config *HybridSolverConfig)
+func (*Model) SetConfig(config *SolverConfig)
 ```
 
 **Parameters:**
-- `config` (*HybridSolverConfig)
+- `config` (*SolverConfig)
 
 **Returns:**
   None
@@ -10867,7 +11160,7 @@ func (*HybridSolver) SetConfig(config *HybridSolverConfig)
 String returns a human-readable representation of the model.
 
 ```go
-func (*Substitution) String() string
+func (*Absolute) String() string
 ```
 
 **Parameters:**
@@ -10924,14 +11217,14 @@ func (*Model) VariableCount() int
 Variables returns all variables in the model. The returned slice should not be modified.
 
 ```go
-func (*Circuit) Variables() []*FDVariable
+func (*LessEqualConstraint) Variables() []*Var
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*FDVariable
+- []*Var
 
 ### ModelConstraint
 ModelConstraint represents a constraint within a model. Constraints restrict the values that variables can take simultaneously. Different constraint types provide different propagation strength: - AllDifferent: ensures variables take distinct values - Arithmetic: enforces arithmetic relationships (x + y = z) - Table: extensional constraints defined by allowed tuples - Global: specialized algorithms for common patterns ModelConstraints are immutable after creation and safe for concurrent access.
@@ -11038,21 +11331,21 @@ func NewModulo(x *FDVariable, modulus int, remainder *FDVariable) (*Modulo, erro
 Clone creates a copy of the constraint with the same modulus. The variable references are shared (constraints are immutable).
 
 ```go
-func (*Substitution) Clone() *Substitution
+func (*ScaledDivision) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- *Substitution
+- PropagationConstraint
 
 ### Propagate
 
 Propagate applies bidirectional arc-consistency. Performs bidirectional arc-consistent propagation: 1. Forward: Prune remainder based on possible x mod modulus values 2. Backward: Prune x based on possible values that yield valid remainders 3. Detect conflicts: Empty domain after propagation → failure
 
 ```go
-func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*EqualityReified) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -11068,7 +11361,7 @@ func (*Diffn) Propagate(solver *Solver, state *SolverState) (*SolverState, error
 String returns a human-readable representation of the constraint. Useful for debugging and logging. Implements ModelConstraint.
 
 ```go
-func (*Scale) String() string
+func (*FDVariable) String() string
 ```
 
 **Parameters:**
@@ -11082,7 +11375,7 @@ func (*Scale) String() string
 Type returns the constraint type identifier. Implements ModelConstraint.
 
 ```go
-func (*Inequality) Type() string
+func (*BinPacking) Type() string
 ```
 
 **Parameters:**
@@ -11096,7 +11389,7 @@ func (*Inequality) Type() string
 Variables returns the variables involved in this constraint. Used for dependency tracking and constraint graph construction. Implements ModelConstraint.
 
 ```go
-func (*Absolute) Variables() []*FDVariable
+func (*IntervalArithmetic) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -11110,12 +11403,12 @@ func (*Absolute) Variables() []*FDVariable
 backwardPropagate prunes the x domain based on remainder values. For each value r in remainder.domain: - Find all x values where x mod modulus = r - Keep x values that are in the original x domain - This generates: x ∈ {r, r+modulus, r+2*modulus, ...} ∩ x.domain Returns a new domain with only feasible x values.
 
 ```go
-func (*Scale) backwardPropagate(resultDomain, xDomain Domain) Domain
+func (*ScaledDivision) backwardPropagate(quotientDomain, dividendDomain Domain) Domain
 ```
 
 **Parameters:**
-- `resultDomain` (Domain)
-- `xDomain` (Domain)
+- `quotientDomain` (Domain)
+- `dividendDomain` (Domain)
 
 **Returns:**
 - Domain
@@ -11139,12 +11432,12 @@ func (*Modulo) computeModulo(x int) int
 forwardPropagate prunes the remainder domain based on x values. For each value v in x.domain: - Compute r = v mod modulus - Keep r in remainder.domain if already present - Remove from remainder.domain if no x value can produce it Returns a new domain with only feasible remainder values.
 
 ```go
-func (*ScaledDivision) forwardPropagate(dividendDomain, quotientDomain Domain) Domain
+func (*Absolute) forwardPropagate(xDomain, absValueDomain Domain) Domain
 ```
 
 **Parameters:**
-- `dividendDomain` (Domain)
-- `quotientDomain` (Domain)
+- `xDomain` (Domain)
+- `absValueDomain` (Domain)
 
 **Returns:**
 - Domain
@@ -11154,7 +11447,7 @@ func (*ScaledDivision) forwardPropagate(dividendDomain, quotientDomain Domain) D
 handleSelfReference handles the special case where X mod modulus = X. This is only valid when X < modulus.
 
 ```go
-func (*Modulo) handleSelfReference(solver *Solver, state *SolverState, xDomain Domain) (*SolverState, error)
+func (*Absolute) handleSelfReference(solver *Solver, state *SolverState, xDomain Domain) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -11222,7 +11515,7 @@ func (*RelationalPlugin) CanHandle(constraint interface{}) bool
 Name implements SolverPlugin.
 
 ```go
-func (*FDPlugin) Name() string
+func (*NominalPlugin) Name() string
 ```
 
 **Parameters:**
@@ -11236,7 +11529,7 @@ func (*FDPlugin) Name() string
 Propagate implements SolverPlugin. Validates nominal constraints; returns error on violation. Note: This plugin currently does not modify the UnifiedStore. Future enhancements may include alpha-equivalence-aware normalization and derived constraints.
 
 ```go
-func (*ElementValues) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*EqualityReified) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -11409,55 +11702,53 @@ func NewPair(car, cdr Term) *Pair
 Car returns the first element of the pair.
 
 ```go
-func Car(pair, car Term) Goal
-```
-
-**Parameters:**
-- `pair` (Term)
-- `car` (Term)
-
-**Returns:**
-- Goal
-
-### Cdr
-
-Cdr returns the rest of the pair.
-
-```go
-func Cdr(pair, cdr Term) Goal
-```
-
-**Parameters:**
-- `pair` (Term)
-- `cdr` (Term)
-
-**Returns:**
-- Goal
-
-### Clone
-
-Clone creates a deep copy of the pair.
-
-```go
-func (*HybridRegistry) Clone() *HybridRegistry
+func (*Pair) Car() Term
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- *HybridRegistry
+- Term
+
+### Cdr
+
+Cdr returns the rest of the pair.
+
+```go
+func (*Pair) Cdr() Term
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- Term
+
+### Clone
+
+Clone creates a deep copy of the pair.
+
+```go
+func (*Modulo) Clone() PropagationConstraint
+```
+
+**Parameters:**
+  None
+
+**Returns:**
+- PropagationConstraint
 
 ### Equal
 
 Equal checks if two pairs are structurally equal.
 
 ```go
-func (*Pair) Equal(other Term) bool
+func (*Fact) Equal(other *Fact) bool
 ```
 
 **Parameters:**
-- `other` (Term)
+- `other` (*Fact)
 
 **Returns:**
 - bool
@@ -11467,7 +11758,7 @@ func (*Pair) Equal(other Term) bool
 IsVar always returns false for pairs.
 
 ```go
-func (*TieTerm) IsVar() bool
+func (*Pair) IsVar() bool
 ```
 
 **Parameters:**
@@ -11481,7 +11772,7 @@ func (*TieTerm) IsVar() bool
 String returns a string representation of the pair.
 
 ```go
-func (*Scale) String() string
+func (*Diffn) String() string
 ```
 
 **Parameters:**
@@ -11619,7 +11910,7 @@ func (*ParallelExecutor) ParallelDisj(goals ...Goal) Goal
 Shutdown gracefully shuts down the parallel executor.
 
 ```go
-func (*LocalConstraintStoreImpl) Shutdown()
+func (*ParallelExecutor) Shutdown()
 ```
 
 **Parameters:**
@@ -12092,14 +12383,14 @@ func NewRational(num, den int) Rational
 Add returns the sum of two rational numbers: r + other. Algorithm: a/b + c/d = (a*d + b*c) / (b*d), then normalize. Example: (1/2) + (1/3) = 3/6 + 2/6 = 5/6
 
 ```go
-func (Rational) Add(other Rational) Rational
+func (DelaySet) Add(dep uint64)
 ```
 
 **Parameters:**
-- `other` (Rational)
+- `dep` (uint64)
 
 **Returns:**
-- Rational
+  None
 
 ### Div
 
@@ -12204,7 +12495,7 @@ func (Rational) Neg() Rational
 String returns a string representation of the rational number. Format: "num/den" for non-integers, "num" for integers (den=1). Examples: Rational{3, 4}.String() → "3/4" Rational{6, 1}.String() → "6" Rational{-5, 2}.String() → "-5/2"
 
 ```go
-func (*AlphaEqConstraint) String() string
+func (*DistinctCount) String() string
 ```
 
 **Parameters:**
@@ -12308,14 +12599,14 @@ func NewRationalLinearSum(vars []*FDVariable, coeffs []Rational, result *FDVaria
 Clone implements ModelConstraint.
 
 ```go
-func (BitSet) Clone() BitSet
+func (*ScaledDivision) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- BitSet
+- PropagationConstraint
 
 ### GetIntCoeffs
 
@@ -12350,7 +12641,7 @@ func (*RationalLinearSum) GetScale() int
 Propagate implements PropagationConstraint by delegating to underlying integer LinearSum.
 
 ```go
-func (*ReifiedConstraint) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Absolute) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -12366,7 +12657,7 @@ func (*ReifiedConstraint) Propagate(solver *Solver, state *SolverState) (*Solver
 String implements ModelConstraint.
 
 ```go
-func (*BinPacking) String() string
+func (*Lexicographic) String() string
 ```
 
 **Parameters:**
@@ -12380,7 +12671,7 @@ func (*BinPacking) String() string
 Type implements ModelConstraint.
 
 ```go
-func (*ElementValues) Type() string
+func (*ScaledDivision) Type() string
 ```
 
 **Parameters:**
@@ -12394,7 +12685,7 @@ func (*ElementValues) Type() string
 Variables implements ModelConstraint.
 
 ```go
-func (*Sequence) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -12477,7 +12768,7 @@ func NewRegular(vars []*FDVariable, numStates, start int, acceptStates []int, de
 Propagate applies forward/backward DFA filtering to prune variable domains. Implements PropagationConstraint.
 
 ```go
-func (*RationalLinearSum) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Inequality) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -12493,7 +12784,7 @@ func (*RationalLinearSum) Propagate(solver *Solver, state *SolverState) (*Solver
 String implements ModelConstraint.
 
 ```go
-func (*Regular) String() string
+func (*Inequality) String() string
 ```
 
 **Parameters:**
@@ -12521,7 +12812,7 @@ func (*Lexicographic) Type() string
 Variables implements ModelConstraint.
 
 ```go
-func (*Regular) Variables() []*FDVariable
+func (*Sequence) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -12614,15 +12905,14 @@ func (*ReifiedConstraint) Constraint() PropagationConstraint
 Propagate applies reification logic with bidirectional propagation. Algorithm: 1. Check boolean variable's domain: - If bound to 1: propagate underlying constraint normally - If bound to 0: constraint is disabled (we don't enforce violation) - If {0,1}: attempt propagation and check if constraint is determined 2. If boolean is not yet bound and we propagate: - Try propagating the constraint - If constraint leads to failure → set boolean to 0 - If constraint is trivially satisfied → set boolean to 1 - Otherwise, boolean remains {0,1} Implements PropagationConstraint.
 
 ```go
-func (*IntervalArithmetic) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### String
@@ -12630,7 +12920,7 @@ func (*IntervalArithmetic) Propagate(solver *Solver, state *SolverState) (*Solve
 String returns a human-readable representation. Implements ModelConstraint.
 
 ```go
-func (*ElementValues) String() string
+func (TruthValue) String() string
 ```
 
 **Parameters:**
@@ -12644,7 +12934,7 @@ func (*ElementValues) String() string
 Type returns the constraint type identifier. Implements ModelConstraint.
 
 ```go
-func (*IntervalArithmetic) Type() string
+func (*Inequality) Type() string
 ```
 
 **Parameters:**
@@ -12658,7 +12948,7 @@ func (*IntervalArithmetic) Type() string
 Variables returns all variables involved in this reified constraint. Includes both the constraint's variables and the boolean variable. Implements ModelConstraint.
 
 ```go
-func (*GlobalCardinality) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -12805,7 +13095,7 @@ func (*Relation) IsIndexed(col int) bool
 Name returns the relation's name.
 
 ```go
-func (*FDVariable) Name() string
+func (*FDPlugin) Name() string
 ```
 
 **Parameters:**
@@ -12870,7 +13160,7 @@ func (*RelationalPlugin) CanHandle(constraint interface{}) bool
 Name returns the plugin identifier. Implements SolverPlugin.
 
 ```go
-func (*NominalPlugin) Name() string
+func (*RelationalPlugin) Name() string
 ```
 
 **Parameters:**
@@ -12884,7 +13174,7 @@ func (*NominalPlugin) Name() string
 Propagate checks all relational constraints in the store. Returns error if any constraint is violated, otherwise returns the store unchanged. Implements SolverPlugin.
 
 ```go
-func (*EqualityReified) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*MaxOfArray) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -13155,7 +13445,7 @@ func NewSLGEngine(config *SLGConfig) *SLGEngine
 Clear removes all cached subgoals and resets statistics.
 
 ```go
-func (*SLGEngine) Clear()
+func (*SubgoalTable) Clear()
 ```
 
 **Parameters:**
@@ -13639,7 +13929,7 @@ func NewScale(x *FDVariable, multiplier int, result *FDVariable) (*Scale, error)
 Clone creates a copy of the constraint with the same multiplier. The variable references are shared (constraints are immutable).
 
 ```go
-func (*Scale) Clone() PropagationConstraint
+func (*Absolute) Clone() PropagationConstraint
 ```
 
 **Parameters:**
@@ -13653,7 +13943,7 @@ func (*Scale) Clone() PropagationConstraint
 Propagate applies bidirectional arc-consistency. Performs bidirectional arc-consistent propagation: 1. Forward: Prune result based on possible x * multiplier values 2. Backward: Prune x based on possible result / multiplier values (where result % multiplier == 0) 3. Detect conflicts: Empty domain after propagation → failure
 
 ```go
-func (*Circuit) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Inequality) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -13669,7 +13959,7 @@ func (*Circuit) Propagate(solver *Solver, state *SolverState) (*SolverState, err
 String returns a human-readable representation of the constraint. Useful for debugging and logging. Implements ModelConstraint.
 
 ```go
-func (*UnifiedStoreAdapter) String() string
+func (*BitSetDomain) String() string
 ```
 
 **Parameters:**
@@ -13683,7 +13973,7 @@ func (*UnifiedStoreAdapter) String() string
 Type returns the constraint type identifier. Implements ModelConstraint.
 
 ```go
-func (*Among) Type() string
+func (*Cumulative) Type() string
 ```
 
 **Parameters:**
@@ -13697,7 +13987,7 @@ func (*Among) Type() string
 Variables returns the variables involved in this constraint. Used for dependency tracking and constraint graph construction. Implements ModelConstraint.
 
 ```go
-func (*Cumulative) Variables() []*FDVariable
+func (*BoolSum) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -13726,12 +14016,12 @@ func (*ScaledDivision) backwardPropagate(quotientDomain, dividendDomain Domain) 
 forwardPropagate prunes the result domain based on x values. For each value v in x.domain: - Compute r = v * multiplier - Keep r in result.domain if already present - Remove from result.domain if no x value can produce it Returns a new domain with only feasible result values.
 
 ```go
-func (*ScaledDivision) forwardPropagate(dividendDomain, quotientDomain Domain) Domain
+func (*Scale) forwardPropagate(xDomain, resultDomain Domain) Domain
 ```
 
 **Parameters:**
-- `dividendDomain` (Domain)
-- `quotientDomain` (Domain)
+- `xDomain` (Domain)
+- `resultDomain` (Domain)
 
 **Returns:**
 - Domain
@@ -13797,21 +14087,21 @@ func NewScaledDivision(dividend *FDVariable, divisor int, quotient *FDVariable) 
 Clone creates a copy of the constraint with the same divisor. The variables references are shared (constraints are immutable).
 
 ```go
-func (BitSet) Clone() BitSet
+func (*HybridRegistry) Clone() *HybridRegistry
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- BitSet
+- *HybridRegistry
 
 ### Propagate
 
 Propagate implements the PropagationConstraint interface. Performs bidirectional arc-consistent propagation: 1. Forward: Prune quotient based on possible dividend/divisor values 2. Backward: Prune dividend based on possible quotient*divisor ranges 3. Detect conflicts: Empty domain after propagation → failure
 
 ```go
-func (*RationalLinearSum) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Inequality) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -13827,7 +14117,7 @@ func (*RationalLinearSum) Propagate(solver *Solver, state *SolverState) (*Solver
 String returns a human-readable representation of the constraint. Useful for debugging and logging. Implements ModelConstraint.
 
 ```go
-func (*UnifiedStoreAdapter) String() string
+func (*Circuit) String() string
 ```
 
 **Parameters:**
@@ -13841,7 +14131,7 @@ func (*UnifiedStoreAdapter) String() string
 Type returns the constraint type identifier. Implements ModelConstraint.
 
 ```go
-func (*Scale) Type() string
+func (*EqualityReified) Type() string
 ```
 
 **Parameters:**
@@ -13855,7 +14145,7 @@ func (*Scale) Type() string
 Vars returns the variables involved in this constraint. Used for dependency tracking and constraint graph construction. Implements ModelConstraint.
 
 ```go
-func (*Model) Variables() []*FDVariable
+func (*Inequality) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -13884,12 +14174,12 @@ func (*ScaledDivision) backwardPropagate(quotientDomain, dividendDomain Domain) 
 forwardPropagate prunes the quotient domain based on dividend values. For each value d in dividend.domain: - Compute q = ⌊d/divisor⌋ - Keep q in quotient.domain if already present - Remove from quotient.domain if no dividend value can produce it Returns a new domain with only feasible quotient values.
 
 ```go
-func (*Scale) forwardPropagate(xDomain, resultDomain Domain) Domain
+func (*Absolute) forwardPropagate(xDomain, absValueDomain Domain) Domain
 ```
 
 **Parameters:**
 - `xDomain` (Domain)
-- `resultDomain` (Domain)
+- `absValueDomain` (Domain)
 
 **Returns:**
 - Domain
@@ -13970,14 +14260,15 @@ func NewSequence(model *Model, vars []*FDVariable, setValues []int, windowLen, m
 
 
 ```go
-func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
+func (*Cumulative) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
-- `store` (*UnifiedStore)
+- `solver` (*Solver)
+- `state` (*SolverState)
 
 **Returns:**
-- *UnifiedStore
+- *SolverState
 - error
 
 ### String
@@ -13985,7 +14276,7 @@ func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 
 
 ```go
-func (*UnifiedStoreAdapter) String() string
+func (*BitSetDomain) String() string
 ```
 
 **Parameters:**
@@ -13999,7 +14290,7 @@ func (*UnifiedStoreAdapter) String() string
 
 
 ```go
-func (*Table) Type() string
+func (*Inequality) Type() string
 ```
 
 **Parameters:**
@@ -14013,14 +14304,14 @@ func (*Table) Type() string
 
 
 ```go
-func (*ElementValues) Variables() []*FDVariable
+func (*MembershipConstraint) Variables() []*Var
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- []*FDVariable
+- []*Var
 
 ### Solver
 - Smart backtracking with conflict-driven learning (future) The solver is designed for both sequential and parallel execution. State is immutable during search, with modifications creating lightweight derived states that share structure with their parent. Thread safety: Solver instances are NOT thread-safe. For parallel search, create multiple Solver instances that share the same immutable Model but maintain independent SolverState chains. This is zero-cost as the Model is read-only and domains are immutable.
@@ -14118,7 +14409,7 @@ func (*Solver) BestObjectiveValue(state *SolverState, obj *FDVariable, minimize 
 GetDomain returns the current domain of a variable in the given state. Walks the state chain to find the most recent domain for the variable. This is O(depth) in the worst case, but typically O(1) due to locality.
 
 ```go
-func (*UnifiedStoreAdapter) GetDomain(varID int) Domain
+func (*UnifiedStore) GetDomain(varID int) Domain
 ```
 
 **Parameters:**
@@ -14877,7 +15168,7 @@ type SolverStats struct {
 
 
 ```go
-func (*Among) String() string
+func (*IntervalArithmetic) String() string
 ```
 
 **Parameters:**
@@ -14988,11 +15279,11 @@ func (*Stream) Close()
 
 
 ```go
-func (*Stream) Put(store ConstraintStore)
+func (*GlobalConstraintBusPool) Put(bus *GlobalConstraintBus)
 ```
 
 **Parameters:**
-- `store` (ConstraintStore)
+- `bus` (*GlobalConstraintBus)
 
 **Returns:**
   None
@@ -15082,7 +15373,7 @@ func NewStretch(model *Model, vars []*FDVariable, values []int, minLen []int, ma
 Propagate is a no-op for the wrapper; pruning is performed by the Regular DFA.
 
 ```go
-func (*BinPacking) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*Among) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
 ```
 
 **Parameters:**
@@ -15098,7 +15389,7 @@ func (*BinPacking) Propagate(solver *Solver, state *SolverState) (*SolverState, 
 String returns a human-readable description.
 
 ```go
-func (ConstraintEventType) String() string
+func (*MaxOfArray) String() string
 ```
 
 **Parameters:**
@@ -15112,7 +15403,7 @@ func (ConstraintEventType) String() string
 Type returns the constraint type name.
 
 ```go
-func (*ReifiedConstraint) Type() string
+func (*Absolute) Type() string
 ```
 
 **Parameters:**
@@ -15126,7 +15417,7 @@ func (*ReifiedConstraint) Type() string
 Variables returns the sequence variables.
 
 ```go
-func (*Among) Variables() []*FDVariable
+func (*Absolute) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -15423,7 +15714,7 @@ func (*SubgoalEntry) InsertAnswerWithSubsumption(bindings map[int64]Term) (bool,
 InvalidateByDomain retracts answers whose binding for varID is a concrete atom not compatible with the provided finite domain. Answers binding varID to a non-integer atom or leaving it unbound are left untouched (only integer atoms are interpreted as FD values). Returns the number of answers retracted.
 
 ```go
-func (*SLGEngine) InvalidateByDomain(varID int64, dom Domain) int
+func (*SubgoalEntry) InvalidateByDomain(varID int64, dom Domain) int
 ```
 
 **Parameters:**
@@ -15696,7 +15987,7 @@ type SubgoalStatus int32
 String returns a human-readable representation of the status.
 
 ```go
-func (*UnifiedStoreAdapter) String() string
+func (*GlobalCardinality) String() string
 ```
 
 **Parameters:**
@@ -15799,14 +16090,14 @@ func (*SubgoalTable) Delete(hash uint64) bool
 Get retrieves an existing subgoal entry by call pattern. Returns nil if not found.
 
 ```go
-func (*GlobalConstraintBusPool) Get() *GlobalConstraintBus
+func (*SubgoalTable) Get(pattern *CallPattern) *SubgoalEntry
 ```
 
 **Parameters:**
-  None
+- `pattern` (*CallPattern)
 
 **Returns:**
-- *GlobalConstraintBus
+- *SubgoalEntry
 
 ### GetByHash
 
@@ -15934,14 +16225,14 @@ func (*Substitution) Bind(v *Var, term Term) *Substitution
 Clone creates a deep copy of the substitution.
 
 ```go
-func (*Scale) Clone() PropagationConstraint
+func (*RationalLinearSum) Clone() ModelConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- PropagationConstraint
+- ModelConstraint
 
 ### DeepWalk
 
@@ -15990,7 +16281,7 @@ func (*Substitution) Size() int
 String returns a string representation of the substitution.
 
 ```go
-func (*ElementValues) String() string
+func (*UnifiedStoreAdapter) String() string
 ```
 
 **Parameters:**
@@ -16080,15 +16371,14 @@ func (*AllDifferentConstraint) IsSatisfied() bool
 Propagate performs constraint propagation for the sum constraint
 
 ```go
-func (*ScaledDivision) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*HybridSolver) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### Variables
@@ -16096,7 +16386,7 @@ func (*ScaledDivision) Propagate(solver *Solver, state *SolverState) (*SolverSta
 Variables returns the variables involved in this constraint
 
 ```go
-func (*Regular) Variables() []*FDVariable
+func (*Lexicographic) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -16159,15 +16449,14 @@ func NewTable(vars []*FDVariable, rows [][]int) (*Table, error)
 Propagate enforces generalized arc consistency against the extensional table. Implements PropagationConstraint.
 
 ```go
-func (*ElementValues) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*FDPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### String
@@ -16175,7 +16464,7 @@ func (*ElementValues) Propagate(solver *Solver, state *SolverState) (*SolverStat
 String returns a human-readable description. Implements ModelConstraint.
 
 ```go
-func (*Regular) String() string
+func (*EqualityReified) String() string
 ```
 
 **Parameters:**
@@ -16189,7 +16478,7 @@ func (*Regular) String() string
 Type returns the constraint identifier. Implements ModelConstraint.
 
 ```go
-func (*Lexicographic) Type() string
+func (*Diffn) Type() string
 ```
 
 **Parameters:**
@@ -16203,7 +16492,7 @@ func (*Lexicographic) Type() string
 Variables returns the involved variables. Implements ModelConstraint.
 
 ```go
-func (*RationalLinearSum) Variables() []*FDVariable
+func (*Table) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -16280,7 +16569,7 @@ func WithTabledDatabase(db *Database, idPrefix string) *TabledDatabase
 AddFact delegates to the underlying database and invalidates caches.
 
 ```go
-func (*TabledDatabase) AddFact(rel *Relation, terms ...Term) (*TabledDatabase, error)
+func (*Database) AddFact(rel *Relation, terms ...Term) (*Database, error)
 ```
 
 **Parameters:**
@@ -16288,7 +16577,7 @@ func (*TabledDatabase) AddFact(rel *Relation, terms ...Term) (*TabledDatabase, e
 - `terms` (...Term)
 
 **Returns:**
-- *TabledDatabase
+- *Database
 - error
 
 ### AllFacts
@@ -16296,7 +16585,7 @@ func (*TabledDatabase) AddFact(rel *Relation, terms ...Term) (*TabledDatabase, e
 AllFacts delegates to the underlying database.
 
 ```go
-func (*Database) AllFacts(rel *Relation) [][]Term
+func (*TabledDatabase) AllFacts(rel *Relation) [][]Term
 ```
 
 **Parameters:**
@@ -16310,7 +16599,7 @@ func (*Database) AllFacts(rel *Relation) [][]Term
 FactCount delegates to the underlying database.
 
 ```go
-func (*Database) FactCount(rel *Relation) int
+func (*TabledDatabase) FactCount(rel *Relation) int
 ```
 
 **Parameters:**
@@ -16339,12 +16628,12 @@ func (*TabledDatabase) Q(rel *Relation, args ...interface{}) Goal
 Query wraps Database.Query with automatic tabling.
 
 ```go
-func (*Database) Query(rel *Relation, pattern ...Term) Goal
+func (*TabledDatabase) Query(rel *Relation, args ...Term) Goal
 ```
 
 **Parameters:**
 - `rel` (*Relation)
-- `pattern` (...Term)
+- `args` (...Term)
 
 **Returns:**
 - Goal
@@ -16354,7 +16643,7 @@ func (*Database) Query(rel *Relation, pattern ...Term) Goal
 RemoveFact delegates to the underlying database and invalidates caches.
 
 ```go
-func (*Database) RemoveFact(rel *Relation, terms ...Term) (*Database, error)
+func (*TabledDatabase) RemoveFact(rel *Relation, terms ...Term) (*TabledDatabase, error)
 ```
 
 **Parameters:**
@@ -16362,7 +16651,7 @@ func (*Database) RemoveFact(rel *Relation, terms ...Term) (*Database, error)
 - `terms` (...Term)
 
 **Returns:**
-- *Database
+- *TabledDatabase
 - error
 
 ### Unwrap
@@ -16881,25 +17170,25 @@ func Tie(name *Atom, body Term) *TieTerm
 Clone makes a deep copy of the tie term.
 
 ```go
-func (*UnifiedStore) Clone() *UnifiedStore
+func (*Absolute) Clone() PropagationConstraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- *UnifiedStore
+- PropagationConstraint
 
 ### Equal
 
 Equal performs structural equality (NOT alpha-equivalence). Alpha-equivalence-aware equality will be provided by a separate goal/constraint.
 
 ```go
-func (*Fact) Equal(other *Fact) bool
+func (*TieTerm) Equal(other Term) bool
 ```
 
 **Parameters:**
-- `other` (*Fact)
+- `other` (Term)
 
 **Returns:**
 - bool
@@ -16909,7 +17198,7 @@ func (*Fact) Equal(other *Fact) bool
 IsVar indicates this is not a logic variable.
 
 ```go
-func (*TieTerm) IsVar() bool
+func (*Pair) IsVar() bool
 ```
 
 **Parameters:**
@@ -16923,7 +17212,7 @@ func (*TieTerm) IsVar() bool
 String renders the tie term in a readable form.
 
 ```go
-func (*Diffn) String() string
+func (*Cumulative) String() string
 ```
 
 **Parameters:**
@@ -16956,7 +17245,7 @@ type TruthValue int
 
 
 ```go
-func (*ElementValues) String() string
+func (*ReifiedConstraint) String() string
 ```
 
 **Parameters:**
@@ -17024,7 +17313,7 @@ func NewTypeConstraint(term Term, expectedType TypeConstraintKind) *TypeConstrai
 Check evaluates the type constraint against current bindings. Returns ConstraintViolated if the term has the wrong type, ConstraintPending if the term is unbound, or ConstraintSatisfied if the term has the correct type. Implements the Constraint interface.
 
 ```go
-func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
+func (*LessEqualConstraint) Check(bindings map[int64]Term) ConstraintResult
 ```
 
 **Parameters:**
@@ -17038,28 +17327,28 @@ func (*MembershipConstraint) Check(bindings map[int64]Term) ConstraintResult
 Clone creates a deep copy of the constraint for parallel execution. Implements the Constraint interface.
 
 ```go
-func (*UnifiedStoreAdapter) Clone() ConstraintStore
+func (BitSet) Clone() BitSet
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- ConstraintStore
+- BitSet
 
 ### ID
 
 ID returns the unique identifier for this constraint instance. Implements the Constraint interface.
 
 ```go
-func (*FDVariable) ID() int
+func (*Var) ID() int64
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int
+- int64
 
 ### IsLocal
 
@@ -17080,7 +17369,7 @@ func (*MembershipConstraint) IsLocal() bool
 String returns a human-readable representation of the constraint. Implements the Constraint interface.
 
 ```go
-func (*Diffn) String() string
+func (Rational) String() string
 ```
 
 **Parameters:**
@@ -17141,7 +17430,7 @@ type TypeConstraintKind int
 String returns a human-readable representation of the type constraint kind.
 
 ```go
-func (*Inequality) String() string
+func (*LinearSum) String() string
 ```
 
 **Parameters:**
@@ -17251,7 +17540,7 @@ func NewUnifiedStoreFromModel(m *Model) (*UnifiedStore, error)
 AddBinding creates a new store with an additional relational binding. This is used by the relational solver during unification. Returns a new store with the binding, or an error if the binding would violate constraints.
 
 ```go
-func (*UnifiedStore) AddBinding(varID int64, term Term) (*UnifiedStore, error)
+func (*UnifiedStoreAdapter) AddBinding(varID int64, term Term) error
 ```
 
 **Parameters:**
@@ -17259,7 +17548,6 @@ func (*UnifiedStore) AddBinding(varID int64, term Term) (*UnifiedStore, error)
 - `term` (Term)
 
 **Returns:**
-- *UnifiedStore
 - error
 
 ### AddConstraint
@@ -17267,14 +17555,14 @@ func (*UnifiedStore) AddBinding(varID int64, term Term) (*UnifiedStore, error)
 AddConstraint creates a new store with an additional constraint. Constraints are checked during propagation, not immediately.
 
 ```go
-func (*UnifiedStoreAdapter) AddConstraint(constraint Constraint) error
+func (*Model) AddConstraint(constraint ModelConstraint)
 ```
 
 **Parameters:**
-- `constraint` (Constraint)
+- `constraint` (ModelConstraint)
 
 **Returns:**
-- error
+  None
 
 ### ChangedVariables
 
@@ -17295,21 +17583,21 @@ func (*UnifiedStore) ChangedVariables() map[int64]bool
 Clone creates a shallow copy of the store for branching search paths. The new store shares most data with the parent via structural sharing.
 
 ```go
-func (BitSet) Clone() BitSet
+func (*HybridRegistry) Clone() *HybridRegistry
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- BitSet
+- *HybridRegistry
 
 ### Depth
 
 Depth returns the depth of this store in the search tree. Used for heuristics and debugging.
 
 ```go
-func (*UnifiedStore) Depth() int
+func (*UnifiedStoreAdapter) Depth() int
 ```
 
 **Parameters:**
@@ -17323,7 +17611,7 @@ func (*UnifiedStore) Depth() int
 GetBinding retrieves the relational binding for a variable. Walks the parent chain to find the most recent binding. Returns nil if the variable is unbound.
 
 ```go
-func (*UnifiedStore) GetBinding(varID int64) Term
+func (*UnifiedStoreAdapter) GetBinding(varID int64) Term
 ```
 
 **Parameters:**
@@ -17351,21 +17639,21 @@ func (*UnifiedStore) GetConstraints() []interface{}
 GetDomain retrieves the finite domain for an FD variable. Walks the parent chain to find the most recent domain. Returns nil if the variable has no FD domain (relational-only variable).
 
 ```go
-func (*UnifiedStoreAdapter) GetDomain(varID int) Domain
+func (*FDStore) GetDomain(v *FDVar) BitSet
 ```
 
 **Parameters:**
-- `varID` (int)
+- `v` (*FDVar)
 
 **Returns:**
-- Domain
+- BitSet
 
 ### GetSubstitution
 
 GetSubstitution returns a Substitution representing all relational bindings. This bridges the UnifiedStore to miniKanren's substitution-based APIs.
 
 ```go
-func (*UnifiedStore) GetSubstitution() *Substitution
+func (*LocalConstraintStoreImpl) GetSubstitution() *Substitution
 ```
 
 **Parameters:**
@@ -17379,7 +17667,7 @@ func (*UnifiedStore) GetSubstitution() *Substitution
 SetDomain creates a new store with an updated finite domain. This is used by the FD solver during propagation. Returns a new store with the domain change, or an error if the domain is empty (conflict detected).
 
 ```go
-func (*UnifiedStoreAdapter) SetDomain(varID int, domain Domain) error
+func (*UnifiedStore) SetDomain(varID int, domain Domain) (*UnifiedStore, error)
 ```
 
 **Parameters:**
@@ -17387,6 +17675,7 @@ func (*UnifiedStoreAdapter) SetDomain(varID int, domain Domain) error
 - `domain` (Domain)
 
 **Returns:**
+- *UnifiedStore
 - error
 
 ### String
@@ -17394,7 +17683,7 @@ func (*UnifiedStoreAdapter) SetDomain(varID int, domain Domain) error
 String returns a human-readable representation of the store for debugging.
 
 ```go
-func (*AlphaEqConstraint) String() string
+func (*Substitution) String() string
 ```
 
 **Parameters:**
@@ -17436,7 +17725,7 @@ func (*UnifiedStore) collectDomains(domains map[int]Domain)
 getAllBindings walks the parent chain and collects all relational bindings. Used internally to avoid repeatedly walking the chain.
 
 ```go
-func (*UnifiedStore) getAllBindings() map[int64]Term
+func (*LocalConstraintStoreImpl) getAllBindings() map[int64]Term
 ```
 
 **Parameters:**
@@ -17530,28 +17819,28 @@ func (*UnifiedStore) AddBinding(varID int64, term Term) (*UnifiedStore, error)
 AddConstraint adds a constraint to the underlying UnifiedStore. Implements ConstraintStore interface. Note: UnifiedStore uses interface{} for constraints (not typed Constraint), allowing both relational constraints and FD constraints. The hybrid solver's plugins determine how to handle each constraint type during propagation. Returns nil always - constraint violations are detected during propagation, not at constraint addition time. This matches UnifiedStore's batched constraint checking philosophy.
 
 ```go
-func (*UnifiedStoreAdapter) AddConstraint(constraint Constraint) error
+func (*UnifiedStore) AddConstraint(constraint interface{}) *UnifiedStore
 ```
 
 **Parameters:**
-- `constraint` (Constraint)
+- `constraint` (interface{})
 
 **Returns:**
-- error
+- *UnifiedStore
 
 ### Clone
 
 Clone creates a deep copy of the adapter with an independent UnifiedStore. Implements ConstraintStore interface. The cloned adapter starts with a copy of the current store (via UnifiedStore.Clone), enabling parallel search where each branch has its own constraint evolution. Cloning is cheap (O(1)) due to UnifiedStore's copy-on-write semantics with structural sharing. Most data is shared until modified.
 
 ```go
-func (*UnifiedStoreAdapter) Clone() ConstraintStore
+func (*MembershipConstraint) Clone() Constraint
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- ConstraintStore
+- Constraint
 
 ### Depth
 
@@ -17572,7 +17861,7 @@ func (*UnifiedStore) Depth() int
 GetBinding retrieves the relational binding for a variable. Implements ConstraintStore interface. Returns nil if the variable is unbound. Thread-safe due to UnifiedStore immutability.
 
 ```go
-func (*UnifiedStore) GetBinding(varID int64) Term
+func (*UnifiedStoreAdapter) GetBinding(varID int64) Term
 ```
 
 **Parameters:**
@@ -17600,14 +17889,14 @@ func (*UnifiedStore) GetConstraints() []interface{}
 GetDomain retrieves the FD domain for a variable from the underlying UnifiedStore. This is not part of the ConstraintStore interface but provides access to FD domains for hybrid solving scenarios. Returns nil if the variable has no FD domain (relational-only variable).
 
 ```go
-func (*FDStore) GetDomain(v *FDVar) BitSet
+func (*UnifiedStore) GetDomain(varID int) Domain
 ```
 
 **Parameters:**
-- `v` (*FDVar)
+- `varID` (int)
 
 **Returns:**
-- BitSet
+- Domain
 
 ### GetSubstitution
 
@@ -17628,7 +17917,7 @@ func (*UnifiedStoreAdapter) GetSubstitution() *Substitution
 SetDomain updates the FD domain for a variable in the underlying UnifiedStore. This is not part of the ConstraintStore interface but provides FD domain updates for hybrid solving scenarios. Returns error if the domain is empty (conflict detected).
 
 ```go
-func (*UnifiedStoreAdapter) SetDomain(varID int, domain Domain) error
+func (*UnifiedStore) SetDomain(varID int, domain Domain) (*UnifiedStore, error)
 ```
 
 **Parameters:**
@@ -17636,6 +17925,7 @@ func (*UnifiedStoreAdapter) SetDomain(varID int, domain Domain) error
 - `domain` (Domain)
 
 **Returns:**
+- *UnifiedStore
 - error
 
 ### SetUnifiedStore
@@ -17657,7 +17947,7 @@ func (*UnifiedStoreAdapter) SetUnifiedStore(store *UnifiedStore)
 String returns a human-readable representation for debugging. Implements ConstraintStore interface.
 
 ```go
-func (*Lexicographic) String() string
+func (*HybridSolver) String() string
 ```
 
 **Parameters:**
@@ -17738,15 +18028,14 @@ func NewValueEqualsReified(v *FDVariable, target int, boolVar *FDVariable) (*Val
 Propagate enforces b ↔ (v == target) with bidirectional pruning.
 
 ```go
-func (*InSetReified) Propagate(solver *Solver, state *SolverState) (*SolverState, error)
+func (*FDPlugin) Propagate(store *UnifiedStore) (*UnifiedStore, error)
 ```
 
 **Parameters:**
-- `solver` (*Solver)
-- `state` (*SolverState)
+- `store` (*UnifiedStore)
 
 **Returns:**
-- *SolverState
+- *UnifiedStore
 - error
 
 ### String
@@ -17754,7 +18043,7 @@ func (*InSetReified) Propagate(solver *Solver, state *SolverState) (*SolverState
 
 
 ```go
-func (*Lexicographic) String() string
+func (*LocalConstraintStoreImpl) String() string
 ```
 
 **Parameters:**
@@ -17768,7 +18057,7 @@ func (*Lexicographic) String() string
 
 
 ```go
-func (*Diffn) Type() string
+func (*Inequality) Type() string
 ```
 
 **Parameters:**
@@ -17782,7 +18071,7 @@ func (*Diffn) Type() string
 
 
 ```go
-func (*Sequence) Variables() []*FDVariable
+func (*BinPacking) Variables() []*FDVariable
 ```
 
 **Parameters:**
@@ -17877,25 +18166,25 @@ func extractVariables(term Term) []*Var
 Clone creates a copy of the variable with the same identity.
 
 ```go
-func (*Scale) Clone() PropagationConstraint
+func (*UnifiedStore) Clone() *UnifiedStore
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- PropagationConstraint
+- *UnifiedStore
 
 ### Equal
 
 Equal checks if two variables are the same variable.
 
 ```go
-func (*CallPattern) Equal(other *CallPattern) bool
+func (*BitSetDomain) Equal(other Domain) bool
 ```
 
 **Parameters:**
-- `other` (*CallPattern)
+- `other` (Domain)
 
 **Returns:**
 - bool
@@ -17905,21 +18194,21 @@ func (*CallPattern) Equal(other *CallPattern) bool
 ID returns the unique identifier of the variable.
 
 ```go
-func (*FDVariable) ID() int
+func (*MembershipConstraint) ID() string
 ```
 
 **Parameters:**
   None
 
 **Returns:**
-- int
+- string
 
 ### IsVar
 
 IsVar always returns true for variables.
 
 ```go
-func (*TieTerm) IsVar() bool
+func (*Pair) IsVar() bool
 ```
 
 **Parameters:**
@@ -17933,7 +18222,7 @@ func (*TieTerm) IsVar() bool
 String returns a string representation of the variable.
 
 ```go
-func (*Diffn) String() string
+func (*UnifiedStoreAdapter) String() string
 ```
 
 **Parameters:**
@@ -18116,6 +18405,29 @@ func AsString(t Term) (string, bool)
 ```go
 // Example usage of AsString
 result := AsString(/* parameters */)
+```
+
+### DefineRule
+DefineRule registers a DCG rule in the global registry. Rules are pattern descriptions that SLG will orchestrate. Clause order in Alternation patterns does not affect semantics. Example: DefineRule("noun", Alternation( Terminal(NewAtom("cat")), Terminal(NewAtom("dog")), ))
+
+```go
+func DefineRule(name string, body GoalPattern)
+```
+
+**Parameters:**
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `name` | `string` | |
+| `body` | `GoalPattern` | |
+
+**Returns:**
+None
+
+**Example:**
+
+```go
+// Example usage of DefineRule
+result := DefineRule(/* parameters */)
 ```
 
 ### FormatSolutions

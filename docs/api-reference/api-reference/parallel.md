@@ -20,7 +20,7 @@ ErrLimiterShutdown is returned when trying to wait on a shutdown limiter.
 
 
 ```go
-&{<nil> [ErrLimiterShutdown] <nil> [0xc000303400] <nil>}
+&{<nil> [ErrLimiterShutdown] <nil> [0xc000311d00] <nil>}
 ```
 
 ### ErrPoolShutdown
@@ -29,7 +29,7 @@ ErrPoolShutdown is returned when trying to submit tasks to a shutdown pool.
 
 
 ```go
-&{<nil> [ErrPoolShutdown] <nil> [0xc000287f40] <nil>}
+&{<nil> [ErrPoolShutdown] <nil> [0xc0003108c0] <nil>}
 ```
 
 ## Types

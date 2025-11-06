@@ -1,6 +1,6 @@
 # gokanlogic
 
-[![Version](https://img.shields.io/badge/version-1.1.0-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue.svg)](https://github.com/gitrdm/gokanlogic/releases)
 [![Go Version](https://img.shields.io/badge/go-1.25%2B-00ADD8.svg)](https://golang.org/doc/devel/release.html)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -124,8 +124,8 @@ go test -bench=. ./...
 
 ## Versioning
 
-- Latest tagged release: see Git tags (current: `v1.1.0`).
-- Recommended bump: MINOR → `v1.1.0` (from `v1.0.1`). This release adds new, backwards-compatible public APIs for nominal logic programming:
+- Latest tagged release: see Git tags (current: `v1.2.0`).
+- Recommended bump: MINOR → `v1.2.0` (from `v1.0.1`). This release adds new, backwards-compatible public APIs for nominal logic programming:
     - `App`, `BetaReduceo`, `BetaNormalizeo`, `FreeNameso`, `TypeChecko`, plus docs and examples.
     - No breaking changes to existing packages; existing public APIs continue to work.
     - Docs updated: `docs/api-reference/nominal.md` and roadmap reflect completion of Phase 7.1.4.
